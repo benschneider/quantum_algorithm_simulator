@@ -12,8 +12,8 @@
     <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
     
 <script type="module">
-import init, * as bindings from 'quantum_algorithm_simulator/qcsim-egui.js';
-const wasm = await init({ module_or_path: 'quantum_algorithm_simulator/qcsim-egui_bg.wasm' });
+import init, * as bindings from 'qcsim-egui.js';
+const wasm = await init({ module_or_path: 'qcsim-egui_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -23,7 +23,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
     <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
-    <base href="/" />
+    <base href="/quantum_algorithm_simulator/" />
 
     <link rel="icon" href="/favicon.ico" integrity="sha384-LiG0rF4K+iJqNaRxnF4X3lHCA5FLOfvU090/U56Tchoh2C7ZjbdF+JG9SfHTivY4"/>
 
@@ -127,7 +127,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
             }
         }
     </style>
-<link rel="modulepreload" href="/qcsim-egui.js" crossorigin="anonymous" integrity="sha384-fARgaAi+MXTynTFIjCc7+/SGSkcpprexu6TEjc3NIljYrXhm+RRqRBEBSlpn5Fnm"><link rel="preload" href="/qcsim-egui_bg.wasm" crossorigin="anonymous" integrity="sha384-jOZluVPy3d901BFjFtxPqiXBC+VcE1xSZA8N2rxBoA5XtvuUgtDkg54BDpAG+845" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="qcsim-egui.js" crossorigin="anonymous" integrity="sha384-fARgaAi+MXTynTFIjCc7+/SGSkcpprexu6TEjc3NIljYrXhm+RRqRBEBSlpn5Fnm"><link rel="preload" href="qcsim-egui_bg.wasm" crossorigin="anonymous" integrity="sha384-jOZluVPy3d901BFjFtxPqiXBC+VcE1xSZA8N2rxBoA5XtvuUgtDkg54BDpAG+845" as="fetch" type="application/wasm"></head>
 
 <body>
     <!-- The WASM code will resize the canvas dynamically -->
