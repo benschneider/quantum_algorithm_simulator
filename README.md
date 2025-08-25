@@ -63,7 +63,7 @@ This separation of concerns allows the simulation engine to be developed and tes
 ```mermaid
 graph TD
     subgraph Rust Workspace
-        A[qcsim (core library)]
+        A[qcsim -core library]
         B[qcsim-egui (GUI application)]
     end
 
