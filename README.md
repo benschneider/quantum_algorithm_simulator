@@ -1,7 +1,7 @@
 # Quantum Algorithm Simulator
 
 [![Demo](https://img.shields.io/badge/demo-try%20now-2ea44f)](https://benschneider.github.io/quantum_algorithm_simulator/)
-[![License](https://img.shields.io/github/license/benschneider/quantum_algorithm_simulator)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](COPYRIGHT.md)
 ![Status](https://img.shields.io/badge/status-pre--release-yellow)
 ![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)
 ![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)
