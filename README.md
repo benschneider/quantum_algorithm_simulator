@@ -1,8 +1,22 @@
 # Quantum Algorithm Simulator
 
-A web-based quantum algorithm simulator.
+[![Demo](https://img.shields.io/badge/demo-try%20now-2ea44f)](https://benschneider.github.io/quantum_algorithm_simulator/)
+[![License](https://img.shields.io/github/license/benschneider/quantum_algorithm_simulator)](LICENSE)
+![Status](https://img.shields.io/badge/status-pre--release-yellow)
+![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)
+![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-[Open the tool](https://benschneider.github.io/quantum_algorithm_simulator/)
+> **Note:** This repository currently hosts the **web demo** and **documentation**. The full Rust sources will be published here once they are ready for release.
+
+<!-- CI badge (enable after adding .github/workflows/ci.yml):
+[![CI](https://img.shields.io/github/actions/workflow/status/benschneider/quantum_algorithm_simulator/ci.yml?branch=main)](https://github.com/benschneider/quantum_algorithm_simulator/actions)
+-->
+
+## Quick Links
+- ▶️ **Live demo**: https://benschneider.github.io/quantum_algorithm_simulator/
+- 📄 **License**: [Apache-2.0](LICENSE)
+- 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
 # Introduction to `qcsim`
 
@@ -230,6 +244,8 @@ The `qcsim` simulator supports a rich set of features designed for flexibility a
 
 This section provides a basic overview of how to define and simulate quantum circuits using the `qcsim` EGUI application.
 
+> This app runs in your browser via **WebAssembly (WASM)**. Performance depends on your device and browser. For best results, use a recent Chromium- or Firefox-based browser on desktop.
+
 ### Defining a Quantum Circuit
 
 Quantum circuits in `qcsim` are defined visually by selecting gates from a palette and clicking on the circuit grid, or by directly editing their JSON representation.
@@ -374,3 +390,9 @@ Based on initial concepts and roadmap documents, `qcsim` has potential for futur
 
 ### Real-world Simulation Aspects
 *   **Noise Models:** Introduction of realistic noise models to simulate imperfections in quantum computers.
+
+---
+
+## License
+
+Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for details. If you ship software that includes qcsim, preserving the license and any `NOTICE` content satisfies the attribution requirements; visible UI credit is appreciated but optional.
