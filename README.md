@@ -18,6 +18,8 @@
 - 📄 **License**: [Apache-2.0](LICENSE)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
+![Quick demo of qcsim UI](docs/demo.gif)
+
 # Introduction to `qcsim`
 
 `qcsim` is a quantum circuit simulator designed for both learning and research. It provides a robust backend for simulating quantum circuits and a user-friendly graphical interface for building, simulating, and visualizing quantum computations. This document serves as a comprehensive introduction to `qcsim`, covering its architecture, core concepts, and how to effectively use the application.
