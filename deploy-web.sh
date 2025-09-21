@@ -25,9 +25,11 @@ ls -la docs/*.js docs/*.wasm docs/index.html
 
 echo "Updating index.html..."
 
-# Update index.html title and base href
+# Update index.html title, base href, and file paths
 cd docs
 sed -i.bak 's|<base href="[^"]*"|<base href="/quantum_algorithm_simulator/"|g' index.html
+sed -i.bak "s|from '/quantsim_ui.js'|from './quantsim_ui.js'|g" index.html
+sed -i.bak "s|module_or_path: '/quantsim_ui_bg.wasm'|module_or_path: './quantsim_ui_bg.wasm'|g" index.html
 
 # Remove backup files
 rm -f index.html.bak
