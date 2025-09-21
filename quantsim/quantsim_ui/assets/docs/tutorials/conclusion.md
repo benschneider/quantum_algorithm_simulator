@@ -4,4 +4,4 @@
 
 **Next ideas:** Noise, density matrices, mid-circuit measurement, classical control.
 
-**Pointers:** See `docs/conventions.md` and Gate Reference in the app.
+**Pointers:** See the Gate Reference in the app for more details on specific gates.

@@ -1,12 +1,12 @@
-# Introduction to `qcsim` GUI
+# Introduction to `quantsim_ui`
 
-`qcsim` is a powerful quantum circuit simulator that comes with an intuitive graphical user interface (GUI) built using the `egui` framework. This GUI application, `qcsim-egui`, allows you to easily design, simulate, and visualize quantum circuits without needing to write any code. It's an ideal tool for both learning the fundamentals of quantum computing and for more advanced research and experimentation.
+`quantsim` is a powerful quantum circuit simulator that comes with an intuitive graphical user interface (GUI) built using the `egui` framework. This GUI application, `quantsim_ui`, allows you to easily design, simulate, and visualize quantum circuits without needing to write any code. It's an ideal tool for both learning the fundamentals of quantum computing and for more advanced research and experimentation.
 
-The `qcsim-egui` application is designed with a clear, user-friendly layout, making complex quantum concepts accessible. It follows a Model-View-Update (MVU) architectural pattern, ensuring a predictable and robust interaction experience.
+The `quantsim_ui` application is designed with a clear, user-friendly layout, making complex quantum concepts accessible. It follows a Model-View-Update (MVU) architectural pattern, ensuring a predictable and robust interaction experience.
 
-## Navigating the `qcsim-egui` Interface
+## Navigating the `quantsim_ui` Interface
 
-The `qcsim-egui` application is organized into several interactive panels, each serving a specific purpose in your quantum circuit design and simulation workflow:
+The `quantsim_ui` application is organized into several interactive panels, each serving a specific purpose in your quantum circuit design and simulation workflow:
 
 *   **Top Panel**: Located at the top of the application window, this panel contains the main menu bar. Here you'll find options for loading predefined circuit templates and application-level controls like changing the number of qubits and timesteps for your circuit.
     *   *Figure: Top Panel Overview*
@@ -22,11 +22,11 @@ The `qcsim-egui` application is organized into several interactive panels, each 
 
 ## Your First Quantum Circuit: Building and Simulating
 
-Let's walk through the basic steps to create and simulate a quantum circuit using the `qcsim-egui` application.
+Let's walk through the basic steps to create and simulate a quantum circuit using the `quantsim_ui` application.
 
 ### Defining a Quantum Circuit
 
-You have two primary methods to define a quantum circuit in `qcsim`:
+You have two primary methods to define a quantum circuit in `quantsim`:
 
 #### Method 1: Using the Gate Palette and Circuit Grid (Recommended for Beginners)
 
@@ -39,7 +39,7 @@ This visual method allows for intuitive circuit construction:
 
 #### Method 2: Using the JSON Editor (For Advanced Users or Loading Existing Circuits)
 
-`qcsim` circuits can also be represented and edited directly as JSON. This is useful for loading pre-defined circuits or for users familiar with the circuit's underlying data structure:
+`quantsim` circuits can also be represented and edited directly as JSON. This is useful for loading pre-defined circuits or for users familiar with the circuit's underlying data structure:
 
 1.  **Switch to JSON View**: In the **Central Panel**, locate and click the "JSON" tab. This will switch the view from the visual circuit grid to a text editor showing the circuit's JSON representation.
 2.  **Edit JSON**: You can directly type or paste your circuit definition in JSON format here.
@@ -58,7 +58,7 @@ Once your circuit is defined, simulating it is straightforward:
 
 ## Accessing Pre-built Circuits and Advanced Features
 
-`qcsim-egui` makes it easy to manage your quantum circuits and explore advanced functionalities:
+`quantsim_ui` makes it easy to manage your quantum circuits and explore advanced functionalities:
 
 *   **Load Template Circuits**: From the "File" menu in the **Top Panel**, select "Load Template" to choose from a list of pre-built example circuits (like the Bell state or Grover's algorithm) that you can load and experiment with instantly.
 *   **Initial State Editor**: You can set a custom initial quantum state for your qubits, moving beyond the default all-zero state. Access this via the "Settings" menu -> "Set Initial State...".
@@ -66,4 +66,4 @@ Once your circuit is defined, simulating it is straightforward:
 *   **Gate Editor with Bloch Spheres**: To understand the effect of individual gates, especially 1-qubit gates, use the "Gate Editor" (accessible from the "View" menu). For single-qubit gates, you'll see a dynamic Bloch Sphere visualization, showing how the gate transforms the qubit's state.
     *   *Figure: Gate Editor with Bloch Sphere*
 
-This introduction should get you started with `qcsim-egui`. Explore the interface, experiment with different gates, and delve into the fascinating world of quantum computing!
+This introduction should get you started with `quantsim_ui`. Explore the interface, experiment with different gates, and delve into the fascinating world of quantum computing!

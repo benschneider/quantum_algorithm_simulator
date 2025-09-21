@@ -9,7 +9,7 @@ pub fn render(state: &mut AppState, ctx: &Context) {
             .vscroll(false)
             .open(&mut open)
             .show(ctx, |ui| {
-                ui.heading("qcsim Tutorial");
+                ui.heading("Quantsim Tutorial");
 
                 ui.horizontal(|ui| {
                     ui.selectable_value(
