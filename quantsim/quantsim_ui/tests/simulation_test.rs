@@ -1,4 +1,5 @@
 use nalgebra::{Complex, DMatrix};
+use quantsim_core::circuits;
 use quantsim_core::core::gates::Gate;
 use quantsim_core::core::types::GateMatrix;
 use quantsim_ui::{messages::Message, simulation, QCSimApp};
@@ -20,7 +21,7 @@ fn test_bell_circuit_simulation() {
     env_logger::builder().is_test(true).try_init().ok();
     let mut app = QCSimApp::default();
 
-    let bell_json = include_str!("../circuits/bell.json");
+    let bell_json = circuits::get_circuit("bell.json").unwrap();
     app.state.ui_state.circuit_json_string = bell_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(bell_json.to_string()));
@@ -68,7 +69,7 @@ fn test_deutsch_algorithm_simulation() {
     env_logger::builder().is_test(true).try_init().ok();
     let mut app = QCSimApp::default();
 
-    let deutsch_json = include_str!("../circuits/deutsch_algorithm.json");
+    let deutsch_json = circuits::get_circuit("deutsch_algorithm.json").unwrap();
     app.state.ui_state.circuit_json_string = deutsch_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(deutsch_json.to_string()));
@@ -97,7 +98,7 @@ fn test_quantum_teleportation_simulation() {
     env_logger::builder().is_test(true).try_init().ok();
     let mut app = QCSimApp::default();
 
-    let teleportation_json = include_str!("../circuits/quantum_teleportation.json");
+    let teleportation_json = circuits::get_circuit("quantum_teleportation.json").unwrap();
     app.state.ui_state.circuit_json_string = teleportation_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(
@@ -139,7 +140,7 @@ fn test_grover_algorithm_simulation() {
 
     let mut app = QCSimApp::default();
 
-    let grover_json = include_str!("../circuits/grover_algorithm.json");
+    let grover_json = circuits::get_circuit("grover_algorithm.json").unwrap();
     app.state.ui_state.circuit_json_string = grover_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(grover_json.to_string()));

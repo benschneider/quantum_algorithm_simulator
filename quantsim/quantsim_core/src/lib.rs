@@ -45,6 +45,7 @@
 //! }
 //! ```
 pub mod core;
+pub mod circuits;
 
 // Re-export the core modules for easier access.
 /// Re-export of the `CircuitBuilder` for easy access.

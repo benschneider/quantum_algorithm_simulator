@@ -1,3 +1,4 @@
+use quantsim_core::circuits;
 use quantsim_core::core::gates::Gate;
 use quantsim_ui::{messages::Message, QCSimApp};
 
@@ -22,7 +23,7 @@ fn test_load_bell_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();
 
-    let bell_json = include_str!("../quantsim_core/circuits/bell.json");
+    let bell_json = circuits::get_circuit("bell.json").unwrap();
     app.state.ui_state.circuit_json_string = bell_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(bell_json.to_string()));
@@ -47,7 +48,7 @@ fn test_load_grover_algorithm_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();
 
-    let grover_json = include_str!("../quantsim_core/circuits/grover_algorithm.json");
+    let grover_json = circuits::get_circuit("grover_algorithm.json").unwrap();
     app.state.ui_state.circuit_json_string = grover_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(grover_json.to_string()));
@@ -68,7 +69,7 @@ fn test_load_deutsch_algorithm_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();
 
-    let deutsch_json = include_str!("../quantsim_core/circuits/deutsch_algorithm.json");
+    let deutsch_json = circuits::get_circuit("deutsch_algorithm.json").unwrap();
     app.state.ui_state.circuit_json_string = deutsch_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(deutsch_json.to_string()));
@@ -91,7 +92,7 @@ fn test_load_quantum_teleportation_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();
 
-    let teleportation_json = include_str!("../quantsim_core/circuits/quantum_teleportation.json");
+    let teleportation_json = circuits::get_circuit("quantum_teleportation.json").unwrap();
     app.state.ui_state.circuit_json_string = teleportation_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(
@@ -117,7 +118,7 @@ fn test_load_bell_test_complex_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();
 
-    let bell_test_complex_json = include_str!("../quantsim_core/circuits/bell_test_complex.json");
+    let bell_test_complex_json = circuits::get_circuit("bell_test_complex.json").unwrap();
     app.state.ui_state.circuit_json_string = bell_test_complex_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(
@@ -156,7 +157,7 @@ fn test_load_grover_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();
 
-    let grover_json = include_str!("../quantsim_core/circuits/grover.json");
+    let grover_json = circuits::get_circuit("grover.json").unwrap();
     app.state.ui_state.circuit_json_string = grover_json.to_string();
 
     app.handle_message(Message::UpdateCircuitFromJson(grover_json.to_string()));

@@ -1,6 +1,7 @@
 use super::{
     CircuitState, CustomGateEditorState, InitialStateEditorState, SimulationState, UIState,
 };
+use quantsim_core::circuits;
 
 /// The `AppState` struct is the top-level container for all application
 /// state. It is the single source of truth for the application, and it is
@@ -25,14 +26,19 @@ pub struct AppState {
     pub template_circuits: Vec<(String, String)>,
 }
 
-include!(concat!(env!("OUT_DIR"), "/circuit_templates.rs"));
-
 impl AppState {
     /// Creates a new `AppState` with default values.
     pub fn new() -> Self {
-        let templates = load_templates()
+        // Load the built-in circuit templates from the `quantsim_core` library.
+        // `get_circuit_names` provides the list of available template filenames,
+        // and `get_circuit` retrieves the JSON content for each one.
+        // This populates the dropdown menu in the UI for loading example circuits.
+        let templates = circuits::get_circuit_names()
             .into_iter()
-            .map(|(name, content)| (name.to_string(), content.to_string()))
+            .map(|name| {
+                let content = circuits::get_circuit(&name).unwrap_or_default();
+                (name, content)
+            })
             .collect();
 
         let circuit_state = CircuitState::default();
