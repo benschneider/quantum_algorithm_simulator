@@ -94,6 +94,66 @@ impl EigenGate for CCZPowGate {
     }
 }
 
+#[derive(Clone)]
+pub struct CXPowGate;
+impl EigenGate for CXPowGate {
+    fn matrix_at_big(&self, exponent: f32) -> DMatrix<Complex<f32>> {
+        // Create a controlled version of XPow
+        let xpow_gate = XPowGate;
+        let target_matrix = xpow_gate.matrix_at_big(exponent);
+        Self::create_controlled_matrix(target_matrix)
+    }
+}
+
+impl CXPowGate {
+    fn create_controlled_matrix(target_matrix: DMatrix<Complex<f32>>) -> DMatrix<Complex<f32>> {
+        let n = target_matrix.nrows();
+        let mut controlled_matrix = DMatrix::identity(2 * n, 2 * n);
+        controlled_matrix.view_mut((n, n), (n, n)).copy_from(&target_matrix);
+        controlled_matrix
+    }
+}
+
+#[derive(Clone)]
+pub struct CYPowGate;
+impl EigenGate for CYPowGate {
+    fn matrix_at_big(&self, exponent: f32) -> DMatrix<Complex<f32>> {
+        // Create a controlled version of YPow
+        let ypow_gate = YPowGate;
+        let target_matrix = ypow_gate.matrix_at_big(exponent);
+        Self::create_controlled_matrix(target_matrix)
+    }
+}
+
+impl CYPowGate {
+    fn create_controlled_matrix(target_matrix: DMatrix<Complex<f32>>) -> DMatrix<Complex<f32>> {
+        let n = target_matrix.nrows();
+        let mut controlled_matrix = DMatrix::identity(2 * n, 2 * n);
+        controlled_matrix.view_mut((n, n), (n, n)).copy_from(&target_matrix);
+        controlled_matrix
+    }
+}
+
+#[derive(Clone)]
+pub struct CZPowGate;
+impl EigenGate for CZPowGate {
+    fn matrix_at_big(&self, exponent: f32) -> DMatrix<Complex<f32>> {
+        // Create a controlled version of ZPow
+        let zpow_gate = ZPowGate;
+        let target_matrix = zpow_gate.matrix_at_big(exponent);
+        Self::create_controlled_matrix(target_matrix)
+    }
+}
+
+impl CZPowGate {
+    fn create_controlled_matrix(target_matrix: DMatrix<Complex<f32>>) -> DMatrix<Complex<f32>> {
+        let n = target_matrix.nrows();
+        let mut controlled_matrix = DMatrix::identity(2 * n, 2 * n);
+        controlled_matrix.view_mut((n, n), (n, n)).copy_from(&target_matrix);
+        controlled_matrix
+    }
+}
+
 pub enum GateKind {
     Unitary {
         eval: Box<dyn EvalFn>,
@@ -493,7 +553,7 @@ impl GateRegistry {
                 true,
                 Some(vec![0, 1]),
                 GateKind::Eigen {
-                    gate: Box::new(XPowGate),
+                    gate: Box::new(CXPowGate),
                 },
             ),
             Gate::CYPow => (
@@ -503,7 +563,7 @@ impl GateRegistry {
                 true,
                 Some(vec![0, 1]),
                 GateKind::Eigen {
-                    gate: Box::new(YPowGate),
+                    gate: Box::new(CYPowGate),
                 },
             ),
             Gate::CZPow => (
@@ -513,7 +573,7 @@ impl GateRegistry {
                 true,
                 Some(vec![0, 1]),
                 GateKind::Eigen {
-                    gate: Box::new(ZPowGate),
+                    gate: Box::new(CZPowGate),
                 },
             ),
             Gate::XPow => (

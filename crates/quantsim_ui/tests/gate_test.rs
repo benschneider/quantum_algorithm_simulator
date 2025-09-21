@@ -1,5 +1,6 @@
 use nalgebra::Complex;
-use quantsim_core::core::circuit::Circuit;
+use quantsim_core::core::circuit::{Circuit, RunOptions};
+use quantsim_core::core::gates::registry::GateRegistry;
 use quantsim_core::core::gates::Gate;
 use quantsim_core::core::types::Operation;
 use quantsim_ui::simulation;
@@ -122,6 +123,66 @@ fn test_ccz_gate() {
             expected_im,
             actual_im
         );
+    }
+}
+
+/// Test that all gates can be added to circuits using the builder without panicking
+#[test]
+fn test_all_gates_with_builder() {
+    let _ = env_logger::try_init();
+    let registry = GateRegistry::new_with_standard_gates();
+
+    // Test each gate in the registry
+    for (gate, meta) in registry.iter() {
+        // Skip custom gate as it needs special handling
+        if *gate == Gate::Custom {
+            continue;
+        }
+
+        // Create appropriate number of qubits for the gate
+        let num_qubits = match meta.arity {
+            quantsim_core::core::types::Arity::OneQ => 1,
+            quantsim_core::core::types::Arity::TwoQ => 2,
+            quantsim_core::core::types::Arity::ThreeQ => 3,
+        };
+
+        let mut builder = quantsim_core::core::builder::CircuitBuilder::new(num_qubits);
+
+        // Add the gate using the builder
+        match meta.arity {
+            quantsim_core::core::types::Arity::OneQ => {
+                if meta.is_parametric {
+                    builder.add_gate(gate.clone(), &[0], &[0.5]);
+                } else {
+                    builder.add_gate(gate.clone(), &[0], &[]);
+                }
+            }
+            quantsim_core::core::types::Arity::TwoQ => {
+                if meta.is_parametric {
+                    builder.add_gate(gate.clone(), &[0, 1], &[0.5]);
+                } else {
+                    builder.add_gate(gate.clone(), &[0, 1], &[]);
+                }
+            }
+            quantsim_core::core::types::Arity::ThreeQ => {
+                if meta.is_parametric {
+                    builder.add_gate(gate.clone(), &[0, 1, 2], &[0.5]);
+                } else {
+                    builder.add_gate(gate.clone(), &[0, 1, 2], &[]);
+                }
+            }
+        }
+
+        // Build the circuit
+        let circuit = builder.build();
+
+        // Test that the circuit can run without panicking
+        let options = RunOptions::default();
+        let result = circuit.run(&options);
+
+        // Basic sanity checks - just ensure we got some result
+        assert!(!result.final_probabilities.is_empty(), "Gate {:?} produced no probabilities", gate);
+        assert!(result.final_state_vector.is_some(), "Gate {:?} produced no state vector", gate);
     }
 }
 #[test]
