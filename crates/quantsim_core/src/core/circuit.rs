@@ -44,6 +44,29 @@ impl From<Circuit> for CircuitData {
 }
 
 /// Represents a quantum circuit.
+///
+/// A quantum circuit consists of qubits and a sequence of quantum operations (gates)
+/// applied to those qubits over discrete time steps. Operations within the same time
+/// step must act on disjoint sets of qubits.
+///
+/// # Examples
+///
+/// Create a simple Bell state circuit:
+/// ```rust
+/// use quantsim_core::{Circuit, core::types::{Operation, Gate}};
+///
+/// let mut circuit = Circuit::new(2);
+///
+/// // Apply Hadamard to first qubit
+/// circuit.steps.push(vec![
+///     Operation::new(Gate::H, vec![0], vec![])
+/// ]);
+///
+/// // Apply CNOT with control=0, target=1
+/// circuit.steps.push(vec![
+///     Operation::new(Gate::CX, vec![0, 1], vec![])
+/// ]);
+/// ```
 #[derive(Clone, Debug)]
 pub struct Circuit {
     /// The number of qubits in the circuit.
@@ -58,7 +81,11 @@ pub struct Circuit {
     pub initial_state: Option<Vec<nalgebra::Complex<f32>>>,
 }
 
-/// Options for running a circuit simulation.
+/// Options for configuring a circuit simulation run.
+///
+/// This struct allows you to customize various aspects of the simulation,
+/// such as the number of measurement shots, whether to capture intermediate
+/// state snapshots, and random number generation settings.
 #[derive(Default)]
 pub struct RunOptions {
     /// The number of times to measure the circuit's output.
@@ -80,6 +107,10 @@ pub struct StepSnapshot {
 }
 
 /// The result of a circuit simulation.
+///
+/// Contains the final state of the simulation, including measurement probabilities,
+/// the final state vector, intermediate snapshots (if requested), and any
+/// measurement outcomes from multiple shots.
 pub struct RunResult {
     /// The final measurement probabilities.
     pub final_probabilities: Vec<f32>,

@@ -202,6 +202,24 @@ impl From<GateMatrix> for DMatrix<Complex<f32>> {
 }
 
 /// Represents a single operation in a quantum circuit.
+///
+/// An operation consists of a quantum gate applied to specific qubits with
+/// optional parameters. Operations within the same circuit timestep must
+/// act on disjoint sets of qubits.
+///
+/// # Examples
+///
+/// Create a Hadamard gate operation:
+/// ```rust
+/// use quantsim_core::core::types::{Operation, Gate};
+///
+/// let h_gate = Operation::new(Gate::H, vec![0], vec![]);
+/// ```
+///
+/// Create a rotation gate with parameters:
+/// ```rust
+/// let rx_gate = Operation::new(Gate::Rx, vec![1], vec![std::f32::consts::PI / 2.0]);
+/// ```
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Operation {
     /// The unique identifier for the gate.
@@ -243,6 +261,11 @@ impl Operation {
     }
 }
 
+/// Represents the different types of quantum gates supported by the simulator.
+///
+/// This enum includes standard quantum gates like Pauli gates, controlled gates,
+/// rotation gates, and custom gates. Each variant corresponds to a specific
+/// unitary operation that can be applied to qubits.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter)]
 pub enum Gate {
     H, X, Y, Z,
@@ -263,7 +286,11 @@ impl std::fmt::Display for Gate {
     }
 }
 
-/// Represents the initial state of a qubit.
+/// Represents the initial state preparation for a qubit.
+///
+/// When building a circuit, you can specify how each qubit should be initialized
+/// before applying the circuit operations. This allows starting from states
+/// other than the default |0⟩ state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QubitPrep {
     /// The |0⟩ state.

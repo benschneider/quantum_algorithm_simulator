@@ -47,3 +47,36 @@ pub fn get_circuit(name: &str) -> Option<String> {
         .and_then(|f| f.contents_utf8())
         .map(|s| s.to_string())
 }
+
+/// Loads a circuit template and returns a `Circuit` object.
+///
+/// This is a convenience function that retrieves a circuit template by name
+/// and deserializes it into a `Circuit` object ready for simulation.
+///
+/// # Arguments
+///
+/// * `name` - The filename of the circuit template to load (without .json extension).
+///
+/// # Returns
+///
+/// A `Result` containing the loaded `Circuit` if successful, or an error if
+/// the template is not found or cannot be parsed.
+///
+/// # Examples
+///
+/// ```rust
+/// use quantsim_core::circuits;
+///
+/// // Load the Bell state circuit
+/// let circuit = circuits::load_template("bell").unwrap();
+/// ```
+pub fn load_template(name: &str) -> Result<crate::Circuit, Box<dyn std::error::Error>> {
+    let json_name = format!("{}.json", name);
+    let json_content = get_circuit(&json_name)
+        .ok_or_else(|| format!("Circuit template '{}' not found", name))?;
+
+    let data: crate::core::circuit::CircuitData = serde_json::from_str(&json_content)?;
+    let mut circuit = crate::Circuit::new(data.num_qubits);
+    circuit.update_from_data(data);
+    Ok(circuit)
+}
