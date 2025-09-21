@@ -5,7 +5,9 @@
       {
         "id": "H",
         "qubits": [0]
-      },
+      }
+    ],
+    [
       {
         "id": "CX",
         "qubits": [0, 1]
@@ -26,7 +28,9 @@
         "id": "XPow",
         "qubits": [0],
         "params": [-0.25]
-      },
+      }
+    ],
+    [
       {
         "id": "CXPow",
         "qubits": [2, 0],

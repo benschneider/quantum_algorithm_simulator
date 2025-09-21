@@ -133,23 +133,29 @@ fn test_load_bell_test_complex_circuit() {
         circuit.num_qubits
     );
     assert_eq!(circuit.num_qubits, 4);
-    assert_eq!(circuit.steps.len(), 3);
+    assert_eq!(circuit.steps.len(), 5);
 
     let step0 = &circuit.steps[0];
-    assert_eq!(step0.len(), 2);
+    assert_eq!(step0.len(), 1);
     assert_eq!(step0[0].id, Gate::H);
-    assert_eq!(step0[1].id, Gate::CX);
 
     let step1 = &circuit.steps[1];
-    assert_eq!(step1.len(), 2);
-    assert_eq!(step1[0].id, Gate::H);
-    assert_eq!(step1[1].id, Gate::H);
+    assert_eq!(step1.len(), 1);
+    assert_eq!(step1[0].id, Gate::CX);
 
     let step2 = &circuit.steps[2];
-    assert_eq!(step2.len(), 3);
-    assert_eq!(step2[0].id, Gate::XPow);
-    assert_eq!(step2[1].id, Gate::CXPow);
-    assert_eq!(step2[2].id, Gate::CXPow);
+    assert_eq!(step2.len(), 2);
+    assert_eq!(step2[0].id, Gate::H);
+    assert_eq!(step2[1].id, Gate::H);
+
+    let step3 = &circuit.steps[3];
+    assert_eq!(step3.len(), 1);
+    assert_eq!(step3[0].id, Gate::XPow);
+
+    let step4 = &circuit.steps[4];
+    assert_eq!(step4.len(), 2);
+    assert_eq!(step4[0].id, Gate::CXPow);
+    assert_eq!(step4[1].id, Gate::CXPow);
 }
 
 #[test]
