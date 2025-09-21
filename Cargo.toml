@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/quantsim",
     "crates/quantsim_ui",
 ]
 exclude = [
     "crates/quantsim_core",
+    "crates/quantsim",
 ]
 
 [workspace.dependencies]

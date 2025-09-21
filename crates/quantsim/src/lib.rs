@@ -1,14 +1,31 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+//! # Quantsim
+//!
+//! A quantum circuit simulator ecosystem providing both a core simulation library
+//! and a web-based graphical user interface.
+//!
+//! ## Usage
+//!
+//! Add this to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! quantsim = "0.1.0"
+//! ```
+//!
+//! ## Re-exports
+//!
+//! This crate re-exports the main components of the quantsim ecosystem:
+//!
+//! - [`core`] - The core quantum circuit simulation library
+//! - [`ui`] - The web-based graphical user interface (when built for WASM)
+
+/// Core quantum circuit simulation library
+pub mod core {
+    pub use quantsim_core::*;
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+/// Web-based graphical user interface (available when targeting WASM)
+#[cfg(target_arch = "wasm32")]
+pub mod ui {
+    pub use quantsim_ui::*;
 }
