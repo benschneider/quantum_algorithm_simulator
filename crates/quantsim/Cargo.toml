@@ -10,8 +10,8 @@ keywords = ["quantum", "simulation", "circuit", "physics", "education"]
 categories = ["science", "simulation"]
 
 [dependencies]
-quantsim_core = "0.1.0"
-quantsim_ui = "0.1.0"
+quantsim_core = "0.2.0"
+quantsim_ui = "0.2.0"
 egui = "0.32"
 eframe = { version = "0.32", default-features = false, features = [
     "accesskit",
