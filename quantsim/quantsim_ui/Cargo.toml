@@ -9,6 +9,7 @@ repository = "https://github.com/benschneider/quantum_algorithm_simulator"
 keywords = ["quantum", "gui", "webassembly", "education", "simulation"]
 categories = ["gui", "web-programming", "science"]
 include = ["**/*.rs", "Cargo.toml", "assets/**/*"]
+exclude = ["**/.DS_Store"]
 
 [package.metadata.docs.rs]
 all-features = true
