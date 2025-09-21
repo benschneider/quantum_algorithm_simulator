@@ -1,9 +1,9 @@
-var cacheName = 'qcsim-b-pwa';
+var cacheName = 'quantsim-ui-pwa';
 var filesToCache = [
   './',
   './index.html',
-  './qcsim-egui.js.js',
-  './qcsim-egui_bg.wasm',
+  './quantsim-ui.js.js',
+  './quantsim-ui_bg.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */
