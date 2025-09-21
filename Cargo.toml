@@ -1,8 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "quantsim/quantsim_core",
     "quantsim/quantsim_ui",
+]
+exclude = [
+    "quantsim/quantsim_core",
 ]
 
 [workspace.dependencies]
