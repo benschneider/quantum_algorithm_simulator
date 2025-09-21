@@ -18,21 +18,21 @@
 - 📄 **License**: [Apache-2.0](LICENSE)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
-![Quick demo of qcsim UI](docs/demo.gif)
+![Quick demo of quantsim UI](docs/demo.gif)
 
-# Introduction to `qcsim`
+# Introduction to `quantsim`
 
-`qcsim` is a quantum circuit simulator designed for both learning and research. It provides a robust backend for simulating quantum circuits and a user-friendly graphical interface for building, simulating, and visualizing quantum computations. This document serves as a comprehensive introduction to `qcsim`, covering its architecture, core concepts, and how to effectively use the application.
+`quantsim` is a quantum circuit simulator designed for both learning and research. It provides a robust backend for simulating quantum circuits and a user-friendly graphical interface for building, simulating, and visualizing quantum computations. This document serves as a comprehensive introduction to `quantsim`, covering its architecture, core concepts, and how to effectively use the application.
 
 ## Table of Contents
 
-*   [Introduction to `qcsim`](#introduction-to-qcsim)
+*   [Introduction to `quantsim`](#introduction-to-quantsim)
 *   [High-Level Architecture](#high-level-architecture)
     *   [Project Structure](#project-structure)
-    *   [Core Library: `qcsim`](#core-library-qcsim)
+    *   [Core Library: `quantsim_core`](#core-library-quantsim_core)
         *   [Key Components](#key-components)
         *   [Design Principles](#design-principles)
-    *   [GUI Application: `qcsim-egui`](#gui-application-qcsim-egui)
+    *   [GUI Application: `quantsim_ui`](#gui-application-quantsim_ui)
         *   [Key Components](#key-components-1)
         *   [Unidirectional Data Flow](#unidirectional-data-flow)
     *   [Core UI Components](#core-ui-components)
@@ -43,7 +43,7 @@
     *   [Model-View-Update (MVU) Architectural Pattern](#model-view-update-mvu-architectural-pattern)
     *   [Centralized and Modular State Management](#centralized-and-modular-state-management)
     *   [Key Features and Capabilities](#key-features-and-capabilities)
-*   [How to Use `qcsim`](#how-to-use-qcsim)
+*   [How to Use `quantsim`](#how-to-use-quantsim)
     *   [Defining a Quantum Circuit](#defining-a-quantum-circuit)
         *   [Method 1: Using the Gate Palette and Circuit Grid](#method-1-using-the-gate-palette-and-circuit-grid)
         *   [Method 2: Using the JSON Editor](#method-2-using-the-json-editor)
@@ -65,30 +65,30 @@
 
 ## High-Level Architecture
 
-This section provides a high-level overview of the `qcsim` project's architecture. It is intended for new developers to quickly understand the project's structure, components, and design principles.
+This section provides a high-level overview of the `quantsim` project's architecture. It is intended for new developers to quickly understand the project's structure, components, and design principles.
 
 ### Project Structure
 
-`qcsim` is a Rust workspace composed of two main crates:
+`quantsim` is a Rust workspace composed of two main crates:
 
-*   **`qcsim`**: A pure Rust library that provides the core quantum circuit simulation engine. It has no dependencies on UI frameworks, making it portable and reusable.
-*   **`crates/qcsim-egui`**: A native GUI application built with the `egui` framework. It provides a user-friendly interface for building and simulating quantum circuits.
+*   **`quantsim_core`**: A pure Rust library that provides the core quantum circuit simulation engine. It has no dependencies on UI frameworks, making it portable and reusable.
+*   **`quantsim_ui`**: A native GUI application built with the `egui` framework. It provides a user-friendly interface for building and simulating quantum circuits.
 
 This separation of concerns allows the simulation engine to be developed and tested independently of the user interface.
 
 ```mermaid
 graph TD
     subgraph Rust Workspace
-        A[qcsim -core library]
-        B[qcsim-egui - GUI]
+        A[quantsim_core -core library]
+        B[quantsim_ui - GUI]
     end
 
     B --> A
 ```
 
-### Core Library: `qcsim`
+### Core Library: `quantsim_core`
 
-The `qcsim` library is the heart of the project. It is responsible for representing and simulating quantum circuits. Its architecture is designed to be modular and extensible.
+The `quantsim_core` library is the heart of the project. It is responsible for representing and simulating quantum circuits. Its architecture is designed to be modular and extensible.
 
 #### Key Components
 
@@ -110,24 +110,24 @@ The `qcsim` library is the heart of the project. It is responsible for represent
     1.  **Gate Application**: The update of the state vector for each individual gate is parallelized.
     2.  **Measurement Sampling**: When running unseeded simulations with a large number of shots, the measurement outcomes are generated in parallel. (Seeded runs remain sequential to guarantee reproducibility).
 
-### GUI Application: `qcsim-egui`
+### GUI Application: `quantsim_ui`
 
-The `qcsim-egui` application provides a graphical user interface for interacting with the `qcsim` simulation engine. It is built using the `egui` framework and follows a Model-View-Update (MVU) architectural pattern.
+The `quantsim_ui` application provides a graphical user interface for interacting with the `quantsim_core` simulation engine. It is built using the `egui` framework and follows a Model-View-Update (MVU) architectural pattern.
 
 #### Key Components
 
-*   **`AppState` (`crates/qcsim-egui/src/state/app_state.rs`)**: This struct is the single source of truth for the application's state. It contains all the data needed to render the UI, including the current circuit, simulation results, and UI-specific state.
-*   **`Message` (`crates/qcsim-egui/src/messages.rs`)**: This enum defines all the possible actions a user can take in the application. When a user interacts with the UI, a `Message` is dispatched.
-*   **Handlers (`crates/qcsim-egui/src/handlers/`)**: The `handlers` module contains the business logic of the application. It receives `Message`s and updates the `AppState` accordingly.
-*   **UI Components (`crates/qcsim-egui/src/components/` and `crates/qcsim-egui/src/ui/`)**: The UI is built from a set of reusable components. These components are responsible for rendering the UI based on the `AppState` and dispatching `Message`s in response to user input.
+*   **`AppState` (`quantsim_ui/src/state/app_state.rs`)**: This struct is the single source of truth for the application's state. It contains all the data needed to render the UI, including the current circuit, simulation results, and UI-specific state.
+*   **`Message` (`quantsim_ui/src/messages.rs`)**: This enum defines all the possible actions a user can take in the application. When a user interacts with the UI, a `Message` is dispatched.
+*   **Handlers (`quantsim_ui/src/handlers/`)**: The `handlers` module contains the business logic of the application. It receives `Message`s and updates the `AppState` accordingly.
+*   **UI Components (`quantsim_ui/src/components/` and `quantsim_ui/src/ui/`)**: The UI is built from a set of reusable components. These components are responsible for rendering the UI based on the `AppState` and dispatching `Message`s in response to user input.
 
 ### Unidirectional Data Flow
 
-The `qcsim-egui` application follows a unidirectional data flow, which makes the application's logic easy to understand and debug.
+The `quantsim_ui` application follows a unidirectional data flow, which makes the application's logic easy to understand and debug.
 
 ```mermaid
 graph TD
-    subgraph "qcsim-egui"
+    subgraph "quantsim_ui"
         A[UI Components]
         B[Handlers]
         C[AppState]
@@ -191,14 +191,14 @@ The primary user workflow is as follows:
 
 ## Core Concepts
 
-This section provides a summary of the core concepts and architectural principles of the `qcsim` project.
+This section provides a summary of the core concepts and architectural principles of the `quantsim` project.
 
 ### Dual-Component Architecture
 
-The `qcsim` project is built on a clear separation of concerns, divided into two primary components:
+The `quantsim` project is built on a clear separation of concerns, divided into two primary components:
 
-*   **`qcsim`**: The backend simulation engine, written in Rust. It contains all the fundamental logic for representing quantum circuits, defining quantum gates, and executing simulations. This component is designed to be completely independent of any user interface.
-*   **`qcsim-egui`**: A graphical user interface (GUI) built using the `egui` library. It provides a user-friendly, interactive environment for building circuits, running simulations, and visualizing results. It acts as a frontend that consumes the `qcsim` library.
+*   **`quantsim_core`**: The backend simulation engine, written in Rust. It contains all the fundamental logic for representing quantum circuits, defining quantum gates, and executing simulations. This component is designed to be completely independent of any user interface.
+*   **`quantsim_ui`**: A graphical user interface (GUI) built using the `egui` library. It provides a user-friendly, interactive environment for building circuits, running simulations, and visualizing results. It acts as a frontend that consumes the `quantsim_core` library.
 
 This modular design allows for flexibility, such as creating alternative interfaces (e.g., a command-line tool) or integrating the core simulator into other projects.
 
@@ -206,7 +206,7 @@ This modular design allows for flexibility, such as creating alternative interfa
 
 ### Model-View-Update (MVU) Architectural Pattern
 
-The `qcsim-egui` application is architected around the **Model-View-Update (MVU)** pattern, which ensures a predictable, unidirectional data flow.
+The `quantsim_ui` application is architected around the **Model-View-Update (MVU)** pattern, which ensures a predictable, unidirectional data flow.
 
 *   **Model (State):** The entire state of the application is held in a central `AppState` struct. This struct acts as the single source of truth, containing everything from the circuit's structure to the UI's transient state (e.g., which tab is open).
 *   **View (UI Components):** The UI is composed of various components (e.g., the circuit grid, the gate palette) that are responsible for rendering the current `AppState`. They do not modify the state directly.
@@ -233,7 +233,7 @@ This modular approach keeps related data organized and prevents the main state o
 
 ### Key Features and Capabilities
 
-The `qcsim` simulator supports a rich set of features designed for flexibility and ease of use:
+The `quantsim` simulator supports a rich set of features designed for flexibility and ease of use:
 
 *   **User-Defined Gates:** Users can define their own custom 1-qubit and 2-qubit gates by providing a unitary matrix, extending the simulator's built-in gate set.
 *   **State Persistence via JSON:** Circuits can be saved, loaded, and shared easily through a built-in JSON editor, which allows for direct viewing and modification of the circuit's data structure.
@@ -242,15 +242,15 @@ The `qcsim` simulator supports a rich set of features designed for flexibility a
 
 ---
 
-## How to Use `qcsim`
+## How to Use `quantsim`
 
-This section provides a basic overview of how to define and simulate quantum circuits using the `qcsim` EGUI application.
+This section provides a basic overview of how to define and simulate quantum circuits using the `quantsim` EGUI application.
 
 > This app runs in your browser via **WebAssembly (WASM)**. Performance depends on your device and browser. For best results, use a recent Chromium- or Firefox-based browser on desktop.
 
 ### Defining a Quantum Circuit
 
-Quantum circuits in `qcsim` are defined visually by selecting gates from a palette and clicking on the circuit grid, or by directly editing their JSON representation.
+Quantum circuits in `quantsim` are defined visually by selecting gates from a palette and clicking on the circuit grid, or by directly editing their JSON representation.
 
 #### Method 1: Using the Gate Palette and Circuit Grid
 
@@ -301,7 +301,7 @@ This JSON defines a 2-qubit circuit. The first step applies a Hadamard gate to q
 
 ### Simulating a Quantum Circuit
 
-Once your circuit is defined, you can simulate it within the `qcsim` EGUI:
+Once your circuit is defined, you can simulate it within the `quantsim` EGUI:
 
 1.  **Run Simulation**: Click the "Run ▶" button, typically located in the circuit controls section above the circuit grid.
 2.  **View Results**: After the simulation completes, a "Results" window will pop up (or become visible).
@@ -321,7 +321,7 @@ The "Timestep" slider, located near the "Run" button, allows you to scrub throug
 
 ### Loading and Saving Circuits
 
-`qcsim` allows you to load existing circuit JSON files, save your current circuit, and load predefined templates:
+`quantsim` allows you to load existing circuit JSON files, save your current circuit, and load predefined templates:
 
 1.  **File Menu**: Access the "File" menu in the top-left corner of the application.
 2.  **Load Circuit**: Select "Load" to open a JSON circuit file from your system.
@@ -330,7 +330,7 @@ The "Timestep" slider, located near the "Run" button, allows you to scrub throug
 
 #### Available Templates
 
-The `qcsim` application comes with several pre-built circuit templates:
+The `quantsim` application comes with several pre-built circuit templates:
 
 *   **Bell**: Creates an entangled Bell state.
 *   **Bell Test Complex**: A more elaborate Bell state test.
@@ -362,14 +362,14 @@ You can view and edit custom gate definitions, and visualize the effect of singl
 
 ### Supported Gates and Information Panels
 
-`qcsim` supports a variety of common quantum gates.
+`quantsim` supports a variety of common quantum gates.
 
 *   **Gate Reference**: For a complete list of supported gates and their parameters, navigate to the "Help" menu, select "Info", and then choose the "Gate Reference" tab.
 *   **About Panel**: The "About" tab in the "Help" menu provides application details.
 
 ### In-App Tutorials
 
-`qcsim` includes a series of interactive tutorials embedded directly within the application to guide you through various quantum computing concepts and `qcsim` features.
+`quantsim` includes a series of interactive tutorials embedded directly within the application to guide you through various quantum computing concepts and `quantsim` features.
 
 1.  **Access Tutorials**: From the "Help" menu, select "Tutorial".
 
@@ -377,7 +377,7 @@ You can view and edit custom gate definitions, and visualize the effect of singl
 
 ## Potential Future Directions
 
-Based on initial concepts and roadmap documents, `qcsim` has potential for future evolution in several areas:
+Based on initial concepts and roadmap documents, `quantsim` has potential for future evolution in several areas:
 
 ### Gamification and Educational Enhancement
 *   **Structured Tutorial Campaigns:** Guided learning paths with immediate feedback, covering quantum fundamentals to advanced algorithms.

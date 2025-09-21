@@ -6,6 +6,8 @@ authors = ["Ben Schneider"]
 license = "MIT OR Apache-2.0"
 description = "A quantum circuit simulator"
 repository = "https://github.com/benschneider/quantum_algorithm_simulator"
+keywords = ["quantum", "simulation", "circuit", "physics", "education"]
+categories = ["science", "simulation"]
 
 [dependencies]
 approx = "0.5.1"
