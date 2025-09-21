@@ -1,11 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "quantsim/quantsim_ui",
+    "crates/quantsim",
+    "crates/quantsim_ui",
 ]
 exclude = [
-    "quantsim/quantsim_core",
+    "crates/quantsim_core",
 ]
 
 [workspace.dependencies]
-quantsim_core = { path = "./quantsim/quantsim_core" }
+quantsim_core = { path = "./crates/quantsim_core" }
