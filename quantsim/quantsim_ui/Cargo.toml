@@ -1,0 +1,59 @@
+[package]
+name = "quantsim_ui"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+authors = ["Ben Schneider"]
+edition = "2021"
+description = "A web-based GUI for the quantsim quantum circuit simulator."
+repository = "https://github.com/benschneider/quantum_algorithm_simulator"
+include = ["**/*.rs", "Cargo.toml"]
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+
+[dependencies]
+egui = "0.32"
+egui_plot = "0.33.0"
+egui_commonmark = "0.21.1"
+
+eframe = { version = "0.32", default-features = false, features = [
+    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+    "wayland",       # To support Linux (and CI)
+    "x11",           # To support older Linux distributions (restores one of the default features)
+] }
+log = "0.4.27"
+
+# You only need serde if you want app persistence:
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0"
+quantsim_core = { workspace = true }
+nalgebra = "0.34.0"
+smallvec = "1.11.0"
+
+[dev-dependencies]
+smallvec = { version = "1.11.0", features = ["serde"] }
+env_logger = "0.11.3"
+log = "0.4.21"
+
+[build-dependencies]
+serde_json = "1.0"
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11.8"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4.50"
+
+[lib]
+name = "quantsim_ui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "quantsim_ui"
+path = "src/main.rs"

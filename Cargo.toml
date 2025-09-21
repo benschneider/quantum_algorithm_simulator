@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "quantsim/quantsim_core",
+    "quantsim/quantsim_ui",
+]
+
+[workspace.dependencies]
+quantsim_core = { path = "./quantsim/quantsim_core" }

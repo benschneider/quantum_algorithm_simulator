@@ -1,0 +1,58 @@
+{
+  "num_qubits": 2,
+  "initial_preps": [null, null],
+  "steps": [
+    [
+      {
+        "id": "H",
+        "qubits": [0]
+      },
+      {
+        "id": "H",
+        "qubits": [1]
+      }
+    ],
+    [
+      {
+        "id": "CZ",
+        "qubits": [0, 1]
+      }
+    ],
+    [
+      {
+        "id": "H",
+        "qubits": [0]
+      },
+      {
+        "id": "H",
+        "qubits": [1]
+      }
+    ],
+    [
+      {
+        "id": "Z",
+        "qubits": [0]
+      },
+      {
+        "id": "Z",
+        "qubits": [1]
+      }
+    ],
+    [
+      {
+        "id": "CZ",
+        "qubits": [0, 1]
+      }
+    ],
+    [
+      {
+        "id": "H",
+        "qubits": [0]
+      },
+      {
+        "id": "H",
+        "qubits": [1]
+      }
+    ]
+  ]
+}

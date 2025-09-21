@@ -1,0 +1,43 @@
+{
+  "num_qubits": 3,
+  "steps": [
+    [
+      {
+        "id": "H",
+        "qubits": [1]
+      }
+    ],
+    [
+      {
+        "id": "CX",
+        "qubits": [1, 2]
+      }
+    ],
+    [
+      {
+        "id": "XPow",
+        "qubits": [0],
+        "params": [0.5]
+      }
+    ],
+    [
+      {
+        "id": "YPow",
+        "qubits": [0],
+        "params": [0.5]
+      }
+    ],
+    [
+      {
+        "id": "CX",
+        "qubits": [0, 1]
+      }
+    ],
+    [
+      {
+        "id": "H",
+        "qubits": [0]
+      }
+    ]
+  ]
+}

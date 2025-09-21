@@ -1,0 +1,18 @@
+{
+  "num_qubits": 2,
+  "initial_preps": [null, null],
+  "steps": [
+      [
+      {
+        "id": "H",
+        "qubits": [0]
+      }
+    ],
+    [
+      {
+        "id": "CX",
+        "qubits": [0, 1]
+      }
+    ]
+  ]
+}
