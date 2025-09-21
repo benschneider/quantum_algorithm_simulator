@@ -70,13 +70,13 @@ pub fn get_circuit(name: &str) -> Option<String> {
 /// // Load the Bell state circuit
 /// let circuit = circuits::load_template("bell").unwrap();
 /// ```
-pub fn load_template(name: &str) -> Result<crate::Circuit, Box<dyn std::error::Error>> {
+pub fn load_template(name: &str) -> Result<crate::core::circuit::Circuit, Box<dyn std::error::Error>> {
     let json_name = format!("{}.json", name);
     let json_content = get_circuit(&json_name)
         .ok_or_else(|| format!("Circuit template '{}' not found", name))?;
 
     let data: crate::core::circuit::CircuitData = serde_json::from_str(&json_content)?;
-    let mut circuit = crate::Circuit::new(data.num_qubits);
+    let mut circuit = crate::core::circuit::Circuit::new(data.num_qubits);
     circuit.update_from_data(data);
     Ok(circuit)
 }
