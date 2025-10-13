@@ -8,14 +8,14 @@ pub fn render(state: &mut AppState, ctx: &Context) {
         let mut open = state.ui_state.show_welcome_screen;
         let mut close_welcome_screen_on_next_frame = false; // New flag
 
-        egui::Window::new("Welcome to qcsim!")
+        egui::Window::new("Welcome to quantsim a quantum algorithm simulator!")
             .open(&mut open)
             .show(ctx, |ui| {
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     match state.ui_state.active_welcome_step {
                         WelcomeStep::Welcome => {
-                            ui.heading("Welcome to qcsim!");
+                            ui.heading("Welcome to quantsim a quantum algorithm simulator!");
 
                             // Animated hero: two orbs connected by a shimmering tether
                             ui.add_space(6.0);
