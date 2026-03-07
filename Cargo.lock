@@ -2719,8 +2719,6 @@ dependencies = [
 [[package]]
 name = "quantsim_core"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5d5028ec53fb98c20a1738d67f9af220c6796ed11901ad7b456c8ecdd16a135"
 dependencies = [
  "approx",
  "dyn-clone",

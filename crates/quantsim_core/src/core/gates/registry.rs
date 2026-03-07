@@ -1,4 +1,5 @@
 //use crate::core::endian_utils::to_sparse_little_endian;
+use crate::core::gates::parametric::{eval_rx_big, eval_ry_big, eval_rz_big};
 use crate::core::types::{Arity, Gate, GateMatrix, Param};
 use dyn_clone::DynClone;
 use nalgebra::{Complex, DMatrix};
@@ -10,6 +11,15 @@ use strum::IntoEnumIterator;
 #[inline]
 fn c(re: f32, im: f32) -> Complex<f32> {
     Complex::new(re, im)
+}
+
+fn dense_from_small_matrix<const R: usize, const C: usize, S>(
+    matrix: &nalgebra::Matrix<Complex<f32>, nalgebra::Const<R>, nalgebra::Const<C>, S>,
+) -> DMatrix<Complex<f32>>
+where
+    S: nalgebra::storage::Storage<Complex<f32>, nalgebra::Const<R>, nalgebra::Const<C>>,
+{
+    DMatrix::from_fn(R, C, |r, c| matrix[(r, c)])
 }
 
 /// Trait for gate evaluation functions.
@@ -33,6 +43,7 @@ pub trait EigenGate: DynClone + Send + Sync {
 
 dyn_clone::clone_trait_object!(EigenGate);
 
+/// Cirq-style `XPow(t) = exp(i pi t / 2) Rx(pi t)` in big-endian basis order.
 #[derive(Clone)]
 pub struct XPowGate;
 impl EigenGate for XPowGate {
@@ -51,6 +62,7 @@ impl EigenGate for XPowGate {
     }
 }
 
+/// Cirq-style `YPow(t) = exp(i pi t / 2) Ry(pi t)` in big-endian basis order.
 #[derive(Clone)]
 pub struct YPowGate;
 impl EigenGate for YPowGate {
@@ -70,6 +82,7 @@ impl EigenGate for YPowGate {
     }
 }
 
+/// Cirq-style `ZPow(t) = diag(1, exp(i pi t))` in big-endian basis order.
 #[derive(Clone)]
 pub struct ZPowGate;
 impl EigenGate for ZPowGate {
@@ -83,6 +96,7 @@ impl EigenGate for ZPowGate {
     }
 }
 
+/// Controlled Cirq-style `CCZPow(t)` with phase applied only to `|111>`.
 #[derive(Clone)]
 pub struct CCZPowGate;
 impl EigenGate for CCZPowGate {
@@ -94,6 +108,7 @@ impl EigenGate for CCZPowGate {
     }
 }
 
+/// Controlled Cirq-style `CXPow(t)` with control on the most significant qubit.
 #[derive(Clone)]
 pub struct CXPowGate;
 impl EigenGate for CXPowGate {
@@ -114,6 +129,7 @@ impl CXPowGate {
     }
 }
 
+/// Controlled Cirq-style `CYPow(t)` with control on the most significant qubit.
 #[derive(Clone)]
 pub struct CYPowGate;
 impl EigenGate for CYPowGate {
@@ -134,6 +150,7 @@ impl CYPowGate {
     }
 }
 
+/// Controlled Cirq-style `CZPow(t)` with phase on `|11>`.
 #[derive(Clone)]
 pub struct CZPowGate;
 impl EigenGate for CZPowGate {
@@ -348,32 +365,41 @@ impl GateRegistry {
             ),
             Gate::Rx => (
                 "Rx",
-                "Rotation around X-axis",
+                "Physical X-axis rotation by an angle in radians",
                 Arity::OneQ,
                 true,
                 Some(vec![0]),
-                GateKind::Eigen {
-                    gate: Box::new(XPowGate),
+                GateKind::Unitary {
+                    eval: Box::new(|params: &[_], _: &[u32]| {
+                        GateMatrix::BigEndian(dense_from_small_matrix(&eval_rx_big(params)))
+                    }),
+                    is_parametric: true,
                 },
             ),
             Gate::Ry => (
                 "Ry",
-                "Rotation around Y-axis",
+                "Physical Y-axis rotation by an angle in radians",
                 Arity::OneQ,
                 true,
                 Some(vec![0]),
-                GateKind::Eigen {
-                    gate: Box::new(YPowGate),
+                GateKind::Unitary {
+                    eval: Box::new(|params: &[_], _: &[u32]| {
+                        GateMatrix::BigEndian(dense_from_small_matrix(&eval_ry_big(params)))
+                    }),
+                    is_parametric: true,
                 },
             ),
             Gate::Rz => (
                 "Rz",
-                "Rotation around Z-axis",
+                "Physical Z-axis rotation by an angle in radians",
                 Arity::OneQ,
                 true,
                 Some(vec![0]),
-                GateKind::Eigen {
-                    gate: Box::new(ZPowGate),
+                GateKind::Unitary {
+                    eval: Box::new(|params: &[_], _: &[u32]| {
+                        GateMatrix::BigEndian(dense_from_small_matrix(&eval_rz_big(params)))
+                    }),
+                    is_parametric: true,
                 },
             ),
             Gate::CZ => (
@@ -526,7 +552,7 @@ impl GateRegistry {
             ),
             Gate::CRz => (
                 "CRz",
-                "Controlled rotation around Z-axis",
+                "Controlled phase gate diag(1, 1, 1, exp(i theta)) in big-endian order",
                 Arity::TwoQ,
                 true,
                 Some(vec![0, 1]),
@@ -548,7 +574,7 @@ impl GateRegistry {
             ),
             Gate::CXPow => (
                 "CXPow",
-                "Controlled-X power gate",
+                "Cirq-style controlled XPow exponent gate; exponent 1 is full CX",
                 Arity::TwoQ,
                 true,
                 Some(vec![0, 1]),
@@ -558,7 +584,7 @@ impl GateRegistry {
             ),
             Gate::CYPow => (
                 "CYPow",
-                "Controlled-Y power gate",
+                "Cirq-style controlled YPow exponent gate; exponent 1 is full CY",
                 Arity::TwoQ,
                 true,
                 Some(vec![0, 1]),
@@ -568,7 +594,7 @@ impl GateRegistry {
             ),
             Gate::CZPow => (
                 "CZPow",
-                "Controlled-Z power gate",
+                "Cirq-style controlled ZPow exponent gate; exponent 1 is full CZ",
                 Arity::TwoQ,
                 true,
                 Some(vec![0, 1]),
@@ -578,7 +604,7 @@ impl GateRegistry {
             ),
             Gate::XPow => (
                 "XPow",
-                "X power gate",
+                "Cirq-style XPow exponent gate; XPow(t) = exp(i pi t / 2) Rx(pi t)",
                 Arity::OneQ,
                 true,
                 Some(vec![0]),
@@ -588,7 +614,7 @@ impl GateRegistry {
             ),
             Gate::YPow => (
                 "YPow",
-                "Y power gate",
+                "Cirq-style YPow exponent gate; YPow(t) = exp(i pi t / 2) Ry(pi t)",
                 Arity::OneQ,
                 true,
                 Some(vec![0]),
@@ -598,7 +624,7 @@ impl GateRegistry {
             ),
             Gate::ZPow => (
                 "ZPow",
-                "Z power gate",
+                "Cirq-style ZPow exponent gate; ZPow(t) = diag(1, exp(i pi t))",
                 Arity::OneQ,
                 true,
                 Some(vec![0]),

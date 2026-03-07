@@ -1,8 +1,38 @@
 use crate::messages::Message;
 use crate::state::AppState;
 use egui::DragValue;
-use quantsim_core::core::types::{Operation, Param};
 use quantsim_core::core::gates::Gate;
+use quantsim_core::core::types::{Operation, Param};
+
+fn gate_semantics_text(gate: &Gate) -> &'static str {
+    match gate {
+        Gate::H => "Hadamard gate.\n\nMatrix in basis |0>, |1>:\n    (1/sqrt(2)) * [[1, 1], [1, -1]]\n\nAction:\n- |0> -> (|0> + |1>) / sqrt(2)\n- |1> -> (|0> - |1>) / sqrt(2)\n\nConvention:\n- Single-qubit basis ordering is big-endian: |0>, |1>.",
+        Gate::X => "Pauli-X gate.\n\nMatrix in basis |0>, |1>:\n    [[0, 1], [1, 0]]\n\nAction:\n- |0> -> |1>\n- |1> -> |0>",
+        Gate::Y => "Pauli-Y gate.\n\nMatrix in basis |0>, |1>:\n    [[0, -i], [i, 0]]\n\nAction:\n- |0> -> i|1>\n- |1> -> -i|0>\n\nConvention:\n- Relative phase matters; probabilities alone do not fully describe the result.",
+        Gate::Z => "Pauli-Z gate.\n\nMatrix in basis |0>, |1>:\n    [[1, 0], [0, -1]]\n\nAction:\n- |0> -> |0>\n- |1> -> -|1>",
+        Gate::SqrtX => "Square-root X gate.\n\nA principal square root of X such that (SqrtX)^2 = X up to numerical tolerance.\n\nConvention:\n- Acts on the big-endian single-qubit basis |0>, |1>.",
+        Gate::SqrtY => "Square-root Y gate.\n\nA principal square root of Y such that (SqrtY)^2 = Y up to numerical tolerance.\n\nConvention:\n- Acts on the big-endian single-qubit basis |0>, |1>.",
+        Gate::SqrtZ => "Square-root Z gate (the S gate).\n\nMatrix in basis |0>, |1>:\n    [[1, 0], [0, i]]\n\nAction:\n- |0> -> |0>\n- |1> -> i|1>",
+        Gate::Rx => "Rotation about the X axis.\n\nParameter:\n- theta in radians\n\nMatrix:\n    Rx(theta) = cos(theta/2) I - i sin(theta/2) X\n\nAction examples:\n- Rx(pi) |0> = -i|1>\n- Rx(pi/2) |0> = (|0> - i|1>) / sqrt(2)\n\nConvention:\n- Matches the standard physics convention.\n- Single-qubit basis ordering is |0>, |1>.",
+        Gate::Ry => "Rotation about the Y axis.\n\nParameter:\n- theta in radians\n\nMatrix:\n    Ry(theta) = cos(theta/2) I - i sin(theta/2) Y\n\nAction examples:\n- Ry(pi) |0> = |1>\n- Ry(pi/2) |0> = (|0> + |1>) / sqrt(2)\n\nConvention:\n- Matches the standard physics convention.\n- Single-qubit basis ordering is |0>, |1>.",
+        Gate::Rz => "Rotation about the Z axis.\n\nParameter:\n- theta in radians\n\nMatrix:\n    Rz(theta) = diag(exp(-i theta/2), exp(+i theta/2))\n\nAction:\n- |0> -> exp(-i theta/2) |0>\n- |1> -> exp(+i theta/2) |1>\n\nConvention:\n- Matches the standard physics convention.\n- Single-qubit basis ordering is |0>, |1>.",
+        Gate::CX => "Controlled-X gate (CNOT).\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    [[1, 0, 0, 0],\n     [0, 1, 0, 0],\n     [0, 0, 0, 1],\n     [0, 0, 1, 0]]\n\nAction:\n- |00> -> |00>\n- |01> -> |01>\n- |10> -> |11>\n- |11> -> |10>\n\nConvention:\n- Qubit list is interpreted as [control, target].\n- Basis ordering shown here is big-endian.",
+        Gate::CY => "Controlled-Y gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    block-diag(I, Y)\n\nAction:\n- Leaves |00>, |01> unchanged.\n- Applies Y to the target when the control is |1>.\n\nConvention:\n- Qubit list is interpreted as [control, target].\n- Basis ordering shown here is big-endian.",
+        Gate::CZ => "Controlled-Z gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    diag(1, 1, 1, -1)\n\nAction:\n- |00> -> |00>\n- |01> -> |01>\n- |10> -> |10>\n- |11> -> -|11>\n\nConvention:\n- First qubit is the control / most significant qubit.\n- Basis ordering is big-endian.",
+        Gate::SWAP => "SWAP gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    [[1, 0, 0, 0],\n     [0, 0, 1, 0],\n     [0, 1, 0, 0],\n     [0, 0, 0, 1]]\n\nAction:\n- |01> <-> |10>\n- |00> and |11> are unchanged.",
+        Gate::CCNOT => "Toffoli gate (CCNOT).\n\nAction:\n- Flips the target qubit iff both control qubits are |1>.\n\nConvention:\n- Qubit list is interpreted as [control1, control2, target].",
+        Gate::CCZ => "Controlled-controlled-Z gate.\n\nAction:\n- Applies a phase of -1 only to |111>.\n\nConvention:\n- Qubit list is interpreted as [control1, control2, target-like ordering].\n- In big-endian basis, only the |111> amplitude changes sign.",
+        Gate::CRz => "Controlled phase gate used by this simulator.\n\nParameter:\n- theta in radians\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    diag(1, 1, 1, exp(i theta))\n\nAction:\n- Only the |11> amplitude acquires phase exp(i theta).\n\nConvention:\n- This is a controlled phase form, not the block-diagonal controlled-Rz(theta) matrix.",
+        Gate::XPow => "Cirq-style XPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nDefinition:\n- XPow(t) = exp(i pi t / 2) Rx(pi t)\n\nConvention:\n- Matches Cirq up to global phase when compared to Rx(pi t).",
+        Gate::YPow => "Cirq-style YPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nDefinition:\n- YPow(t) = exp(i pi t / 2) Ry(pi t)\n\nConvention:\n- Matches Cirq up to global phase when compared to Ry(pi t).",
+        Gate::ZPow => "Cirq-style ZPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nMatrix:\n    ZPow(t) = diag(1, exp(i pi t))\n\nConvention:\n- Matches Cirq exactly in the big-endian single-qubit basis.",
+        Gate::CXPow => "Cirq-style controlled XPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nDefinition:\n- Controlled block is XPow(t)\n- CXPow(1) = CX\n\nConvention:\n- Matches the intended full-gate exponent semantics.\n- Any comparison to Rx-based forms may differ only by global phase.",
+        Gate::CYPow => "Cirq-style controlled YPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nDefinition:\n- Controlled block is YPow(t)\n- CYPow(1) = CY\n\nConvention:\n- Any comparison to Ry-based forms may differ only by global phase.",
+        Gate::CZPow => "Cirq-style controlled ZPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nMatrix in big-endian basis:\n    diag(1, 1, 1, exp(i pi t))\n\nAction:\n- Only the |11> amplitude acquires phase exp(i pi t)\n- CZPow(1) = CZ",
+        Gate::CCZPow => "Cirq-style controlled-controlled ZPow exponent gate.\n\nParameter:\n- t, an exponent, not a physical angle\n\nAction:\n- Only the |111> amplitude acquires phase exp(i pi t).",
+        Gate::Custom => "Custom user-defined gate.\n\nConvention:\n- The supplied matrix is interpreted in big-endian basis order.\n- The matrix should be unitary for physical simulation results.",
+    }
+}
 
 fn parametric_gate_editor(ui: &mut egui::Ui, op: &mut Operation, messages: &mut Vec<Message>) {
     if let Some(param) = op.params.get_mut(0) {
@@ -66,6 +96,9 @@ pub fn gate_editor_panel(state: &mut AppState, ui: &mut egui::Ui, messages: &mut
             ui.heading(gate_meta.id.to_string());
             //ui.label(&gate_meta.label);
             ui.label(&gate_meta.description);
+            ui.separator();
+            ui.label("Gate Semantics:");
+            ui.monospace(gate_semantics_text(&gate_meta.id));
             ui.separator();
 
             if state.ui_state.selected_gate_for_editing.is_some() {
