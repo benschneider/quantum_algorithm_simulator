@@ -1,6 +1,6 @@
 # Introduction to `quantsim_ui`
 
-`quantsim` is a powerful quantum circuit simulator that comes with an intuitive graphical user interface (GUI) built using the `egui` framework. This GUI application, `quantsim_ui`, allows you to easily design, simulate, and visualize quantum circuits without needing to write any code. It's an ideal tool for both learning the fundamentals of quantum computing and for more advanced research and experimentation.
+`quantsim` is a quantum circuit simulator with an interactive graphical interface built using `egui`. The UI application, `quantsim_ui`, lets you design, simulate, and inspect quantum circuits without writing code. It is aimed at both learning and experimentation.
 
 The `quantsim_ui` application is designed with a clear, user-friendly layout, making complex quantum concepts accessible. It follows a Model-View-Update (MVU) architectural pattern, ensuring a predictable and robust interaction experience.
 
@@ -10,14 +10,14 @@ The `quantsim_ui` application is organized into several interactive panels, each
 
 *   **Top Panel**: Located at the top of the application window, this panel contains the main menu bar. Here you'll find options for loading predefined circuit templates and application-level controls like changing the number of qubits and timesteps for your circuit.
     *   *Figure: Top Panel Overview*
-*   **Gate Palette (Left Panel)**: On the left-hand side, the "Gates" panel provides a comprehensive palette of quantum gates. These are organized into categories for easy selection. Simply click on a gate to select it for placement on your circuit.
+*   **Gate Palette (Left Panel)**: On the left-hand side, the "Gates" panel provides a palette of quantum gates organized into categories. Click a gate to select it for placement on your circuit.
     *   *Figure: Gate Palette*
 *   **Circuit Grid (Central Panel)**: This is the largest and most interactive area of the application, where you visually construct your quantum circuit. The grid represents qubits as rows and discrete time steps as columns.
     *   Click an empty cell to place the currently selected gate.
-    *   Click an existing gate to open the gate editor for detailed modifications.
+    *   Click an existing gate to open the gate editor.
     *   Right-click a gate to remove it from the circuit.
     *   *Figure: Circuit Grid and Gate Placement*
-*   **Results Panel (Right Panel)**: After running a simulation, the results will be displayed in this panel. You can view the raw state vector (amplitudes of non-zero basis states) and a clear bar chart visualizing the measurement probabilities for each basis state.
+*   **Results Panel (Right Panel)**: After running a simulation, the results are displayed here. You can inspect the non-zero state-vector amplitudes and a bar chart of basis-state probabilities.
     *   *Figure: Simulation Results Panel*
 
 ## Your First Quantum Circuit: Building and Simulating

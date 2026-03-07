@@ -76,6 +76,15 @@ pub fn swap_big_endian() -> crate::core::types::BigEndian2Q {
     ])
 }
 
+/// Builds a logical MOVE gate in big-endian ordering.
+///
+/// This is a logical state-transfer abstraction, not a calibrated physical
+/// Jaynes-Cummings MOVE pulse. It exchanges the single-excitation basis states
+/// `|01>` and `|10>` while leaving `|00>` and `|11>` unchanged.
+pub fn move_big_endian() -> crate::core::types::BigEndian2Q {
+    swap_big_endian()
+}
+
 /// Builds the controlled-NOT (CX) gate matrix in big-endian ordering.
 pub fn build_cx_big_endian() -> crate::core::types::BigEndian2Q {
     build_controlled_gate_big_endian(&pauli_x_big_endian())

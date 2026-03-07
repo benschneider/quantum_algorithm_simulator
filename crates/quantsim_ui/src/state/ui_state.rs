@@ -64,6 +64,12 @@ pub enum DraggedItem {
     GridGate(usize, usize),
 }
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum BlochPreviewMode {
+    IdealZero,
+    ActualLocalState,
+}
+
 use nalgebra::{Complex, DMatrix};
 
 /// The `UIState` struct contains all the state related to the user interface.
@@ -85,7 +91,7 @@ pub struct UIState {
     pub palette_gate_for_editing: Option<Gate>,
     pub circuit_json_string: String,
     pub bloch_sphere_animation_time: f64,
-    pub use_incoming_bloch_state: bool,
+    pub bloch_preview_mode: BlochPreviewMode,
     pub bloch_sphere: crate::components::bloch_sphere_view::BlochSphere,
     pub show_initial_state_editor: bool,
     pub show_gate_editor_window: bool,
@@ -115,7 +121,7 @@ impl Default for UIState {
             palette_gate_for_editing: None,
             circuit_json_string: String::new(),
             bloch_sphere_animation_time: 0.0,
-            use_incoming_bloch_state: false,
+            bloch_preview_mode: BlochPreviewMode::IdealZero,
             bloch_sphere: crate::components::bloch_sphere_view::BlochSphere::new(),
             show_initial_state_editor: false,
             show_gate_editor_window: false,

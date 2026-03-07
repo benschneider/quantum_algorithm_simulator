@@ -1,6 +1,8 @@
 use crate::messages::Message;
+use crate::state::ui_state::BlochPreviewMode;
 use crate::state::AppState;
-use egui::DragValue;
+use egui::{DragValue, Frame, RichText, ScrollArea, Stroke};
+use nalgebra::{Complex, DMatrix, Matrix2};
 use quantsim_core::core::gates::Gate;
 use quantsim_core::core::types::{Operation, Param};
 
@@ -20,6 +22,7 @@ fn gate_semantics_text(gate: &Gate) -> &'static str {
         Gate::CY => "Controlled-Y gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    block-diag(I, Y)\n\nAction:\n- Leaves |00>, |01> unchanged.\n- Applies Y to the target when the control is |1>.\n\nConvention:\n- Qubit list is interpreted as [control, target].\n- Basis ordering shown here is big-endian.",
         Gate::CZ => "Controlled-Z gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    diag(1, 1, 1, -1)\n\nAction:\n- |00> -> |00>\n- |01> -> |01>\n- |10> -> |10>\n- |11> -> -|11>\n\nConvention:\n- First qubit is the control / most significant qubit.\n- Basis ordering is big-endian.",
         Gate::SWAP => "SWAP gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    [[1, 0, 0, 0],\n     [0, 0, 1, 0],\n     [0, 1, 0, 0],\n     [0, 0, 0, 1]]\n\nAction:\n- |01> <-> |10>\n- |00> and |11> are unchanged.",
+        Gate::MOVE => "Logical MOVE gate.\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    [[1, 0, 0, 0],\n     [0, 0, 1, 0],\n     [0, 1, 0, 0],\n     [0, 0, 0, 1]]\n\nAction:\n- |00> -> |00>\n- |01> -> |10>\n- |10> -> |01>\n- |11> -> |11>\n\nConvention:\n- This is a logical state-transfer abstraction.\n- It is not a calibrated physical Jaynes-Cummings MOVE pulse.",
         Gate::CCNOT => "Toffoli gate (CCNOT).\n\nAction:\n- Flips the target qubit iff both control qubits are |1>.\n\nConvention:\n- Qubit list is interpreted as [control1, control2, target].",
         Gate::CCZ => "Controlled-controlled-Z gate.\n\nAction:\n- Applies a phase of -1 only to |111>.\n\nConvention:\n- Qubit list is interpreted as [control1, control2, target-like ordering].\n- In big-endian basis, only the |111> amplitude changes sign.",
         Gate::CRz => "Controlled phase gate used by this simulator.\n\nParameter:\n- theta in radians\n\nMatrix in big-endian computational basis |00>, |01>, |10>, |11>:\n    diag(1, 1, 1, exp(i theta))\n\nAction:\n- Only the |11> amplitude acquires phase exp(i theta).\n\nConvention:\n- This is a controlled phase form, not the block-diagonal controlled-Rz(theta) matrix.",
@@ -48,6 +51,123 @@ fn parametric_gate_editor(ui: &mut egui::Ui, op: &mut Operation, messages: &mut 
             messages.push(Message::UpdateGateAngle(*angle as f64));
         }
     }
+}
+
+fn render_semantics_panel(ui: &mut egui::Ui, gate: &Gate) {
+    Frame::group(ui.style())
+        .fill(ui.visuals().faint_bg_color)
+        .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
+        .inner_margin(10.0)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Gate Semantics").strong());
+            ui.add_space(6.0);
+
+            for section in gate_semantics_text(gate).split("\n\n") {
+                let trimmed = section.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                if let Some((title, body)) = trimmed.split_once(":\n") {
+                    ui.label(RichText::new(title).strong());
+                    for line in body.lines() {
+                        let line = line.trim();
+                        if line.is_empty() {
+                            continue;
+                        }
+                        if let Some(item) = line.strip_prefix("- ") {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(RichText::new("•").strong());
+                                ui.label(item);
+                            });
+                        } else if line.contains('=') || line.starts_with("diag(") || line.starts_with("[[") {
+                            Frame::group(ui.style())
+                                .fill(ui.visuals().extreme_bg_color)
+                                .inner_margin(6.0)
+                                .show(ui, |ui| {
+                                    ui.monospace(line);
+                                });
+                        } else {
+                            ui.label(line);
+                        }
+                    }
+                } else {
+                    ui.label(trimmed);
+                }
+                ui.add_space(8.0);
+            }
+        });
+}
+
+fn format_gate_matrix(matrix: &DMatrix<nalgebra::Complex<f32>>) -> String {
+    let mut out = String::new();
+    for row in 0..matrix.nrows() {
+        out.push_str("[ ");
+        for col in 0..matrix.ncols() {
+            let value = matrix[(row, col)];
+            out.push_str(&format!("{:>6.3}{:+6.3}i", value.re, value.im));
+            if col + 1 != matrix.ncols() {
+                out.push_str("  ");
+            }
+        }
+        out.push_str(" ]\n");
+    }
+    out
+}
+
+fn render_matrix_panel(ui: &mut egui::Ui, matrix: &DMatrix<nalgebra::Complex<f32>>) {
+    Frame::group(ui.style())
+        .fill(ui.visuals().extreme_bg_color)
+        .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
+        .inner_margin(10.0)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Gate Matrix").strong());
+            ui.small("Big-endian basis ordering");
+            ui.add_space(6.0);
+            ui.monospace(format_gate_matrix(matrix));
+        });
+}
+
+fn ideal_zero_density() -> Matrix2<Complex<f64>> {
+    Matrix2::new(
+        Complex::new(1.0, 0.0),
+        Complex::new(0.0, 0.0),
+        Complex::new(0.0, 0.0),
+        Complex::new(0.0, 0.0),
+    )
+}
+
+fn compute_local_density_matrix(
+    circuit: &mut quantsim_core::core::circuit::Circuit,
+    selected_row: usize,
+    selected_col: usize,
+) -> Matrix2<Complex<f64>> {
+    let mut quantum_state = quantsim_core::core::engine::QuantumState::new(circuit.num_qubits);
+    for i in 0..selected_col {
+        for operation in &mut circuit.steps[i] {
+            quantum_state.apply_operation(operation, &circuit.registry);
+        }
+    }
+
+    let qubit = selected_row;
+    let mut rho = Matrix2::zeros();
+    let n = quantum_state.state_vector.len();
+    for a in 0..n {
+        for b in 0..n {
+            if (a & !(1usize << qubit)) == (b & !(1usize << qubit)) {
+                let ia = (a >> qubit) & 1;
+                let ib = (b >> qubit) & 1;
+                rho[(ia, ib)] += Complex::new(
+                    quantum_state.state_vector[a].re as f64,
+                    quantum_state.state_vector[a].im as f64,
+                ) * Complex::new(
+                    quantum_state.state_vector[b].re as f64,
+                    -quantum_state.state_vector[b].im as f64,
+                );
+            }
+        }
+    }
+    rho
 }
 
 /// Renders the gate editor panel, which displays information about the
@@ -94,124 +214,113 @@ pub fn gate_editor_panel(state: &mut AppState, ui: &mut egui::Ui, messages: &mut
             .cloned();
         if let Some(gate_meta) = gate_meta {
             ui.heading(gate_meta.id.to_string());
-            //ui.label(&gate_meta.label);
             ui.label(&gate_meta.description);
             ui.separator();
-            ui.label("Gate Semantics:");
-            ui.monospace(gate_semantics_text(&gate_meta.id));
-            ui.separator();
-
-            if state.ui_state.selected_gate_for_editing.is_some() {
-                ui.label(format!("Applied to qubits: {:?}", op.qubits));
-            }
-
-            if !op.params.is_empty() {
-                parametric_gate_editor(ui, &mut op, messages);
-            } else if matches!(gate_meta.id, Gate::Custom) {
-                ui.label("Custom gate editing is handled by the dedicated custom gate editor.");
-            } else {
-                ui.label("This gate has no editable parameters.");
-            }
-
-            // Display Bloch sphere for 1-qubit gates
-            if gate_meta.arity == quantsim_core::core::types::Arity::OneQ {
-                let q_u32: Vec<u32> = op.qubits.iter().map(|&x| x).collect();
-                if let Some(gate_matrix) = &state
-                    .circuit_state
-                    .circuit
-                    .registry
-                    .eval(&op.id, &op.params, &q_u32)
-                {
-                    let matrix_d = gate_matrix.to_dmatrix();
-                    let matrix = nalgebra::Matrix2::new(
-                        matrix_d[(0, 0)],
-                        matrix_d[(0, 1)],
-                        matrix_d[(1, 0)],
-                        matrix_d[(1, 1)],
-                    );
-                    let matrix_f64 =
-                        matrix.map(|c| nalgebra::Complex::new(c.re as f64, c.im as f64));
-                    ui.separator();
-                    ui.label("Bloch Sphere Visualization:");
-                    ui.checkbox(
-                        &mut state.ui_state.use_incoming_bloch_state,
-                        "Use incoming state",
-                    );
-                    let initial_state = if state.ui_state.use_incoming_bloch_state {
-                        if let Some((row, col)) = state.ui_state.selected_gate_for_editing {
-                            let mut quantum_state = quantsim_core::core::engine::QuantumState::new(
-                                state.circuit_state.num_qubits,
-                            );
-                            for i in 0..col {
-                                for operation in &mut state.circuit_state.circuit.steps[i] {
-                                    quantum_state.apply_operation(
-                                        operation,
-                                        &state.circuit_state.circuit.registry,
-                                    );
-                                }
-                            }
-                            let mut state_vector = nalgebra::Vector2::new(
-                                nalgebra::Complex::new(0.0, 0.0),
-                                nalgebra::Complex::new(0.0, 0.0),
-                            );
-                            state_vector[(0, 0)] = nalgebra::Complex::new(
-                                quantum_state.state_vector[row].re as f64,
-                                quantum_state.state_vector[row].im as f64,
-                            );
-                            state_vector[(1, 0)] = nalgebra::Complex::new(
-                                quantum_state.state_vector[row + 1].re as f64,
-                                quantum_state.state_vector[row + 1].im as f64,
-                            );
-                            state_vector
-                        } else {
-                            nalgebra::Vector2::new(
-                                nalgebra::Complex::new(1.0, 0.0),
-                                nalgebra::Complex::new(0.0, 0.0),
-                            )
-                        }
-                    } else {
-                        nalgebra::Vector2::new(
-                            nalgebra::Complex::new(1.0, 0.0),
-                            nalgebra::Complex::new(0.0, 0.0),
-                        )
-                    };
-                    state.ui_state.bloch_sphere.draw(
-                        ui,
-                        &matrix_f64,
-                        state.ui_state.bloch_sphere_animation_time,
-                        initial_state,
-                    );
-                }
-            }
-
-            // Display control qubit options for 2-qubit gates
-            if gate_meta.arity == quantsim_core::core::types::Arity::TwoQ {
-                ui.separator();
-                ui.label("Control Qubits:");
-                for i in 0..state.circuit_state.num_qubits {
-                    let mut is_control = op.qubits.contains(&(i as u32)) && op.qubits[0] == i as u32;
-                    if ui
-                        .checkbox(&mut is_control, format!("Qubit {}", i))
-                        .changed()
-                    {
-                        log::info!("Updating control qubit {} to {}", i, is_control);
-                        messages.push(Message::UpdateGateControl(i, is_control));
-                    }
-                }
-            }
-
-            // Display the gate matrix
             let q_u32: Vec<u32> = op.qubits.iter().map(|&x| x).collect();
-            if let Some(matrix_to_display) = state
+            let evaluated_matrix = state
                 .circuit_state
                 .circuit
                 .registry
                 .eval(&op.id, &op.params, &q_u32)
-            {
-                ui.separator();
-                ui.label("Gate Matrix:");
-                ui.label(format!("{}", matrix_to_display));
-            }
+                .map(|matrix| matrix.to_dmatrix());
+
+            ui.columns(2, |columns| {
+                columns[0].vertical(|ui| {
+                    if state.ui_state.selected_gate_for_editing.is_some() {
+                        ui.label(RichText::new(format!("Applied to qubits: {:?}", op.qubits)).italics());
+                        ui.add_space(6.0);
+                    }
+
+                    if !op.params.is_empty() {
+                        Frame::group(ui.style())
+                            .fill(ui.visuals().faint_bg_color)
+                            .inner_margin(8.0)
+                            .show(ui, |ui| {
+                                ui.label(RichText::new("Parameters").strong());
+                                ui.add_space(4.0);
+                                parametric_gate_editor(ui, &mut op, messages);
+                            });
+                        ui.add_space(8.0);
+                    } else if matches!(gate_meta.id, Gate::Custom) {
+                        ui.label("Custom gate editing is handled by the dedicated custom gate editor.");
+                        ui.add_space(8.0);
+                    }
+
+                    if gate_meta.arity == quantsim_core::core::types::Arity::OneQ {
+                        if let Some(matrix_d) = evaluated_matrix.as_ref() {
+                            let matrix = nalgebra::Matrix2::new(
+                                matrix_d[(0, 0)],
+                                matrix_d[(0, 1)],
+                                matrix_d[(1, 0)],
+                                matrix_d[(1, 1)],
+                            );
+                            let matrix_f64 =
+                                matrix.map(|c| nalgebra::Complex::new(c.re as f64, c.im as f64));
+                            ui.label(RichText::new("Bloch Sphere").strong());
+                            ui.horizontal(|ui| {
+                                ui.label("Preview Mode:");
+                                ui.selectable_value(
+                                    &mut state.ui_state.bloch_preview_mode,
+                                    BlochPreviewMode::IdealZero,
+                                    "Ideal |0> Preview",
+                                );
+                                ui.selectable_value(
+                                    &mut state.ui_state.bloch_preview_mode,
+                                    BlochPreviewMode::ActualLocalState,
+                                    "Actual Local State",
+                                );
+                            });
+                            let initial_density = match state.ui_state.bloch_preview_mode {
+                                BlochPreviewMode::IdealZero => ideal_zero_density(),
+                                BlochPreviewMode::ActualLocalState => {
+                                    if let Some((row, col)) = state.ui_state.selected_gate_for_editing {
+                                        compute_local_density_matrix(
+                                            &mut state.circuit_state.circuit,
+                                            row,
+                                            col,
+                                        )
+                                    } else {
+                                        ideal_zero_density()
+                                    }
+                                }
+                            };
+                            state.ui_state.bloch_sphere.draw(
+                                ui,
+                                &matrix_f64,
+                                state.ui_state.bloch_sphere_animation_time,
+                                initial_density,
+                            );
+                        }
+                    } else if gate_meta.arity == quantsim_core::core::types::Arity::TwoQ {
+                        ui.label(RichText::new("Control Qubits").strong());
+                        for i in 0..state.circuit_state.num_qubits {
+                            let mut is_control =
+                                op.qubits.contains(&(i as u32)) && op.qubits[0] == i as u32;
+                            if ui
+                                .checkbox(&mut is_control, format!("Qubit {}", i))
+                                .changed()
+                            {
+                                log::info!("Updating control qubit {} to {}", i, is_control);
+                                messages.push(Message::UpdateGateControl(i, is_control));
+                            }
+                        }
+                    } else if op.params.is_empty() && !matches!(gate_meta.id, Gate::Custom) {
+                        ui.label("This gate has no editable parameters.");
+                    }
+                });
+
+                columns[1].vertical(|ui| {
+                    ScrollArea::vertical()
+                        .id_salt("gate_editor_right")
+                        .show(ui, |ui| {
+                            render_semantics_panel(ui, &gate_meta.id);
+                            ui.add_space(8.0);
+                            if let Some(matrix_d) = evaluated_matrix.as_ref() {
+                                render_matrix_panel(ui, matrix_d);
+                            }
+                        });
+                });
+            });
         }
     } else {
         ui.label("No gate selected or found.");

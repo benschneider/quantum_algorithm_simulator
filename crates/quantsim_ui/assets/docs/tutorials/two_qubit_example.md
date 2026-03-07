@@ -1,6 +1,6 @@
 # Tutorial: A 2-Qubit Example
 
-This tutorial will walk you through a 2-qubit example, explaining the fundamental concepts of quantum computation using `qcsim`.
+This tutorial will walk you through a 2-qubit example, explaining the fundamental concepts of quantum computation using `quantsim`.
 
 ## The Basics of Quantum Computing
 
@@ -64,4 +64,4 @@ Let's see how to create an entangled state, also known as a Bell state:
     ```
 The final state is `(1/√2)(|00⟩ + |11⟩)`. This is the famous Bell state. If you measure the first qubit and get 0, the second will also be 0. If you get 1, the second will also be 1. The outcomes are perfectly correlated.
 
-This concludes our brief tutorial. You can use `qcsim` to experiment with these concepts and build your own quantum circuits.
+This concludes our brief tutorial. You can use `quantsim` to experiment with these concepts and build your own quantum circuits.

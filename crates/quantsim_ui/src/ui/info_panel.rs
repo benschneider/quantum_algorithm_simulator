@@ -38,7 +38,7 @@ pub fn render(state: &mut AppState, ctx: &Context) {
             .show(ctx, |ui| {
                 ui.heading("quantsim_ui");
                 ui.separator();
-                ui.label("Version: 0.1.0");
+                ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
                 ui.label("Author: Ben Schneider");
             });
         state.ui_state.show_about_window = open;

@@ -8,14 +8,15 @@ pub fn render(state: &mut AppState, ctx: &Context) {
         let mut open = state.ui_state.show_welcome_screen;
         let mut close_welcome_screen_on_next_frame = false; // New flag
 
-        egui::Window::new("Welcome to quantsim a quantum algorithm simulator!")
+        egui::Window::new("Welcome to quantsim")
             .open(&mut open)
             .show(ctx, |ui| {
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     match state.ui_state.active_welcome_step {
                         WelcomeStep::Welcome => {
-                            ui.heading("Welcome to quantsim a quantum algorithm simulator!");
+                            ui.heading("Welcome to quantsim");
+                            ui.label("A visual quantum circuit simulator for learning, experimenting, and inspecting how algorithms evolve state.");
 
                             // Animated hero: two orbs connected by a shimmering tether
                             ui.add_space(6.0);
@@ -51,7 +52,7 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                             ui.ctx().request_repaint();
                             ui.add_space(4.0);
 
-                            ui.label("qcsim is a data-driven quantum circuit simulator:");
+                            ui.label("Use quantsim to:");
                             ui.add_space(2.0);
                             egui::Grid::new("welcome_bullets").num_columns(2).spacing([6.0, 2.0]).show(ui, |ui| {
                                 ui.label("•"); ui.label("Build small circuits interactively"); ui.end_row();
@@ -111,7 +112,7 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                             ui.add_space(4.0);
                             ui.collapsing("Attribution (optional)", |ui| {
                                 ui.small("Visible credit is appreciated but not required by Apache-2.0.");
-                                let credit = "Includes qcsim (Apache-2.0 / MIT) by Ben Schneider — https://github.com/benschneider/quantum_algorithm_simulator";
+                                let credit = "Includes quantsim (Apache-2.0 / MIT) by Ben Schneider — https://github.com/benschneider/quantum_algorithm_simulator";
                                 ui.monospace(credit);
                                 if ui.button("Copy attribution line").clicked() { ui.ctx().copy_text(credit.to_owned()); }
                             });

@@ -291,3 +291,14 @@ fn registry_czpow_full_gate_has_expected_phase_action() {
     let actual = cz_pow * plus_plus;
     assert_vector_close_up_to_global_phase(&actual, &expected);
 }
+
+#[test]
+fn registry_move_gate_matches_logical_state_transfer_action() {
+    let registry = GateRegistry::new_with_standard_gates();
+    let move_gate = registry_matrix(&registry, Gate::MOVE, &[], &[0, 1]);
+
+    let zero_one = basis(1, 4);
+    let one_zero = basis(2, 4);
+    assert_vectors_close(&(move_gate.clone() * zero_one), &basis(2, 4));
+    assert_vectors_close(&(move_gate * one_zero), &basis(1, 4));
+}

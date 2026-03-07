@@ -12,7 +12,7 @@ pub struct QCSimApp {
 impl QCSimApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         log::debug!("QCSimApp::new() called");
-        theme::apply_dark_theme(&cc.egui_ctx);
+        theme::apply_theme(&cc.egui_ctx);
 
         Self {
             state: AppState::new(),

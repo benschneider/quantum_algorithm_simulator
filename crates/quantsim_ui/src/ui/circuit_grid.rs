@@ -45,6 +45,8 @@ pub struct GateCell {
     /// The color of the gate, used for visual distinction, especially
     /// for multi-qubit gates.
     pub color: Color32,
+    /// Text color chosen for contrast against the gate fill.
+    pub text_color: Color32,
     /// The qubits this gate acts on.
     pub qubits: Vec<usize>,
     /// The row of the gate
@@ -61,6 +63,44 @@ pub struct GateCell {
 }
 use quantsim_core::core::circuit::Circuit;
 use std::collections::HashMap;
+
+fn choose_gate_fill(ui: &egui::Ui, gate_group: Option<usize>) -> Color32 {
+    let visuals = ui.visuals();
+    if let Some(id) = gate_group {
+        let palette_light = [
+            Color32::from_rgb(236, 244, 255),
+            Color32::from_rgb(238, 248, 242),
+            Color32::from_rgb(255, 243, 232),
+            Color32::from_rgb(244, 238, 255),
+        ];
+        let palette_dark = [
+            Color32::from_rgb(58, 87, 128),
+            Color32::from_rgb(46, 104, 76),
+            Color32::from_rgb(133, 86, 43),
+            Color32::from_rgb(88, 67, 130),
+        ];
+        if visuals.dark_mode {
+            palette_dark[id % palette_dark.len()]
+        } else {
+            palette_light[id % palette_light.len()]
+        }
+    } else if visuals.dark_mode {
+        Color32::from_rgb(72, 78, 92)
+    } else {
+        Color32::from_rgb(242, 245, 249)
+    }
+}
+
+fn choose_text_color(fill: Color32) -> Color32 {
+    let luminance = 0.2126 * (fill.r() as f32 / 255.0)
+        + 0.7152 * (fill.g() as f32 / 255.0)
+        + 0.0722 * (fill.b() as f32 / 255.0);
+    if luminance > 0.55 {
+        Color32::from_rgb(20, 24, 30)
+    } else {
+        Color32::from_rgb(245, 247, 250)
+    }
+}
 
 /// Generates an intermediate representation of the circuit grid that can be
 /// consumed by the rendering logic.
@@ -163,16 +203,13 @@ pub fn generate_circuit_grid(
                 .find(|op| op.qubits.contains(&(row as u32)));
 
             if let Some(op) = gate_op {
-                let mut color = Color32::from_rgb(100, 100, 100);
-                if op.qubits.len() > 1 {
-                    if let Some(&gate_id) = column_map.get(&row) {
-                        color = Color32::from_rgb(
-                            (gate_id as u8 * 50) % 255,
-                            (gate_id as u8 * 30) % 255,
-                            (gate_id as u8 * 70) % 255,
-                        );
-                    }
-                }
+                let gate_group = if op.qubits.len() > 1 {
+                    column_map.get(&row).copied()
+                } else {
+                    None
+                };
+                let color = choose_gate_fill(ui, gate_group);
+                let text_color = choose_text_color(color);
                 let (full_name, description) = if let Some(meta) = circuit.registry.get_meta(&op.id)
                 {
                     (meta.label.clone(), meta.description.clone())
@@ -188,6 +225,7 @@ pub fn generate_circuit_grid(
                     id: op.id.clone(),
                     rect: gate_rect,
                     color,
+                    text_color,
                     qubits: op.qubits.iter().map(|&q| q as usize).collect(),
                     row,
                     col,

@@ -16,7 +16,7 @@ pub fn draw(state: &mut AppState, ui: &mut egui::Ui, messages: &mut Vec<Message>
     for (id, meta) in state.circuit_state.circuit.registry.iter() {
         let category = match meta.id {
             Gate::H | Gate::X | Gate::Y | Gate::Z | Gate::SqrtX | Gate::SqrtY | Gate::SqrtZ => "Pauli Gates",
-            Gate::CX | Gate::SWAP | Gate::CZ | Gate::CY | Gate::CCNOT | Gate::CCZ => "Control Gates",
+            Gate::CX | Gate::SWAP | Gate::MOVE | Gate::CZ | Gate::CY | Gate::CCNOT | Gate::CCZ => "Control Gates",
             Gate::Rz | Gate::Rx | Gate::Ry | Gate::CRz | Gate::CXPow | Gate::CYPow | Gate::CZPow => "Parametric Gates",
             Gate::XPow | Gate::YPow | Gate::ZPow | Gate::CCZPow => "EigenGates",
             Gate::Custom => "Custom Gates",

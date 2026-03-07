@@ -3,7 +3,7 @@
 **Goal:** Understand and experiment with 1-qubit gates and how they act inside larger registers.
 
 **Key ideas**
-- Gates: X, Y, Z, H, S, T, Rx(theta), Ry(theta), Rz(theta)
+- Gates: X, Y, Z, H, sqrt(X), sqrt(Y), sqrt(Z), Rx(theta), Ry(theta), Rz(theta)
 - Local action: apply on target bit only; rest is untouched
 - Phases matter later (interference), even if probabilities do not change now
 - Conventions: qubits slice order == gate matrix order; first is MSB of local index
@@ -13,7 +13,7 @@
 X = [[0,1],[1,0]]
 Z = [[1,0],[0,-1]]
 H = (1/sqrt(2))*[[1,1],[1,-1]]
-S = diag(1, i)   ;  T = diag(1, e^{i*pi/4})
+sqrt(Z) = diag(1, i)
 Rx(a) = cos(a/2) I - i sin(a/2) X (and similarly for Ry,Rz)
 ```
 
@@ -45,7 +45,7 @@ pub fn apply_dense_1q(state: &mut [Complex<f32>], target_bit: usize, gate: [[Com
 ```
 
 ## Exercises
-- Compose S then H on q0 of |01>. What are the final amplitudes?
+- Compose sqrt(Z) then H on q0 of |01>. What are the final amplitudes?
 - Show that Rz(theta) followed by Z commute up to a phase.
 - On |00>, apply Rx(pi/2) on q1 and compute probabilities.
 

@@ -2,6 +2,21 @@ use crate::messages::Message;
 use crate::state::AppState;
 use crate::state::ui_state::{DraggedItem, PlacementMode};
 use crate::ui::circuit_grid::{self, GridCell};
+use egui::{Color32, RichText};
+
+fn placement_preview_colors(ui: &egui::Ui) -> (Color32, Color32) {
+    if ui.visuals().dark_mode {
+        (
+            Color32::from_rgba_unmultiplied(92, 98, 112, 180),
+            Color32::from_rgb(245, 247, 250),
+        )
+    } else {
+        (
+            Color32::from_rgba_unmultiplied(240, 245, 250, 225),
+            Color32::from_rgb(20, 24, 30),
+        )
+    }
+}
 
 /// The `circuit_grid` module is responsible for rendering the quantum circuit
 /// grid. It takes the circuit state and renders it as a grid of qubits and
@@ -50,7 +65,8 @@ pub fn circuit_grid(
                 } else {
                     gate.id.to_string()
                 };
-                let button = egui::Button::new(text).fill(gate.color);
+                let button = egui::Button::new(RichText::new(text).color(gate.text_color))
+                    .fill(gate.color);
                 let response = ui.put(gate.rect, button).on_hover_text(format!(
                     "{}\n{}\nQubits: {:?}\nParams: {:?}",
                     gate.full_name, gate.description, gate.qubits, gate.params
@@ -173,8 +189,7 @@ pub fn circuit_grid(
         ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
 
         if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
-            let gate_color = egui::Color32::from_rgba_unmultiplied(100, 100, 100, 128);
-            let text_color = egui::Color32::WHITE;
+            let (gate_color, text_color) = placement_preview_colors(ui);
             let font_id = egui::FontId::proportional(14.0);
 
             let placed_qubit_rects: Vec<_> = qubits

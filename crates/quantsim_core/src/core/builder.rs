@@ -105,6 +105,10 @@ impl CircuitBuilder {
         self.add_gate(Gate::SWAP, &[q1, q2], &[])
     }
 
+    pub fn move_gate(&mut self, q1: u32, q2: u32) -> &mut Self {
+        self.add_gate(Gate::MOVE, &[q1, q2], &[])
+    }
+
     pub fn rz(&mut self, q: u32, phi: f32) -> &mut Self {
         self.add_gate(Gate::Rz, &[q], &[phi])
     }

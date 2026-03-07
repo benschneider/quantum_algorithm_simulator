@@ -449,6 +449,24 @@ impl GateRegistry {
                     is_parametric: false,
                 },
             ),
+            Gate::MOVE => (
+                "MOVE",
+                "Logical state-transfer gate; exchanges |01> and |10> without implying a physical calibrated pulse",
+                Arity::TwoQ,
+                false,
+                Some(vec![0, 1]),
+                GateKind::Unitary {
+                    eval: Box::new(|_: &[_], _: &[u32]| {
+                        let mut big_matrix = DMatrix::zeros(4, 4);
+                        big_matrix[(0, 0)] = c(1.0, 0.0);
+                        big_matrix[(1, 2)] = c(1.0, 0.0);
+                        big_matrix[(2, 1)] = c(1.0, 0.0);
+                        big_matrix[(3, 3)] = c(1.0, 0.0);
+                        GateMatrix::BigEndian(big_matrix)
+                    }),
+                    is_parametric: false,
+                },
+            ),
             Gate::CCZPow => (
                 "CCZPow",
                 "Controlled-controlled-Z phase gate",
