@@ -13,7 +13,7 @@ echo "Building WebAssembly release..."
 
 # Build the WASM release
 cd "$ROOT_DIR/crates/quantsim_ui"
-trunk build --release
+env -u NO_COLOR trunk build --release
 
 echo "Syncing built files to docs/..."
 
@@ -36,6 +36,8 @@ cd "$DOCS_DIR"
 sed -i.bak 's|<base href="[^"]*"|<base href="/quantum_algorithm_simulator/"|g' index.html
 sed -i.bak "s|from '/quantsim_ui.js'|from './quantsim_ui.js'|g" index.html
 sed -i.bak "s|module_or_path: '/quantsim_ui_bg.wasm'|module_or_path: './quantsim_ui_bg.wasm'|g" index.html
+sed -i.bak "s|href=\"/quantsim_ui.js\"|href=\"./quantsim_ui.js\"|g" index.html
+sed -i.bak "s|href=\"/quantsim_ui_bg.wasm\"|href=\"./quantsim_ui_bg.wasm\"|g" index.html
 
 # Remove backup files
 rm -f index.html.bak

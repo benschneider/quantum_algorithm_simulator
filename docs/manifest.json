@@ -1,6 +1,6 @@
 {
-  "name": "qcsim-b",
-  "short_name": "qcsim-b",
+  "name": "quantsim-ui",
+  "short_name": "quantsim-ui",
   "icons": [
     {
       "src": "./assets/icon-256.png",
