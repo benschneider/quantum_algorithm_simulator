@@ -2718,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "quantsim"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "eframe",
  "egui",
@@ -2732,9 +2732,7 @@ dependencies = [
 
 [[package]]
 name = "quantsim_core"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5d5028ec53fb98c20a1738d67f9af220c6796ed11901ad7b456c8ecdd16a135"
+version = "0.2.1"
 dependencies = [
  "approx",
  "dyn-clone",
@@ -2755,9 +2753,7 @@ dependencies = [
 
 [[package]]
 name = "quantsim_ui"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "541e51432151782c186746fc06dbf047ffcab81bcd4bba1edcb0f9977f071150"
+version = "0.2.1"
 dependencies = [
  "eframe",
  "egui",
