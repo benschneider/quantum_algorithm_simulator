@@ -12,4 +12,4 @@ pub use custom_gate_editor_state::CustomGateEditorState;
 pub use initial_state_editor_state::InitialStateEditorState;
 pub use pagination::PaginationState;
 pub use simulation_state::SimulationState;
-pub use ui_state::{BlochPreviewMode, CentralPanelTab, DraggedItem, LeftPanelTab, PlacementMode, UIState};
+pub use ui_state::{CentralPanelTab, DraggedItem, LeftPanelTab, PlacementMode, UIState};

@@ -1,4 +1,5 @@
 //use crate::core::endian_utils::to_sparse_little_endian;
+use crate::core::gates::matrix_builders::move_big_endian;
 use crate::core::gates::parametric::{eval_rx_big, eval_ry_big, eval_rz_big};
 use crate::core::types::{Arity, Gate, GateMatrix, Param};
 use dyn_clone::DynClone;
@@ -451,18 +452,13 @@ impl GateRegistry {
             ),
             Gate::MOVE => (
                 "MOVE",
-                "Logical state-transfer gate; exchanges |01> and |10> without implying a physical calibrated pulse",
+                "Logical state-transfer gate with a -i excitation-transfer phase; not a calibrated physical pulse",
                 Arity::TwoQ,
                 false,
                 Some(vec![0, 1]),
                 GateKind::Unitary {
                     eval: Box::new(|_: &[_], _: &[u32]| {
-                        let mut big_matrix = DMatrix::zeros(4, 4);
-                        big_matrix[(0, 0)] = c(1.0, 0.0);
-                        big_matrix[(1, 2)] = c(1.0, 0.0);
-                        big_matrix[(2, 1)] = c(1.0, 0.0);
-                        big_matrix[(3, 3)] = c(1.0, 0.0);
-                        GateMatrix::BigEndian(big_matrix)
+                        GateMatrix::BigEndian(dense_from_small_matrix(&move_big_endian()))
                     }),
                     is_parametric: false,
                 },

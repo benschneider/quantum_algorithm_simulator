@@ -299,6 +299,12 @@ fn registry_move_gate_matches_logical_state_transfer_action() {
 
     let zero_one = basis(1, 4);
     let one_zero = basis(2, 4);
-    assert_vectors_close(&(move_gate.clone() * zero_one), &basis(2, 4));
-    assert_vectors_close(&(move_gate * one_zero), &basis(1, 4));
+    assert_vectors_close(
+        &(move_gate.clone() * zero_one),
+        &ket(&[c(0.0, 0.0), c(0.0, 0.0), c(0.0, -1.0), c(0.0, 0.0)]),
+    );
+    assert_vectors_close(
+        &(move_gate * one_zero),
+        &ket(&[c(0.0, 0.0), c(0.0, -1.0), c(0.0, 0.0), c(0.0, 0.0)]),
+    );
 }
