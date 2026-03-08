@@ -1,6 +1,6 @@
 [package]
 name = "quantsim"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Ben Schneider"]
 license = "MIT OR Apache-2.0"
@@ -10,8 +10,8 @@ keywords = ["quantum", "simulation", "circuit", "physics", "education"]
 categories = ["science", "simulation"]
 
 [dependencies]
-quantsim_core = { version = "0.2.1", path = "../quantsim_core" }
-quantsim_ui = { version = "0.2.1", path = "../quantsim_ui" }
+quantsim_core = { version = "0.2.2", path = "../quantsim_core" }
+quantsim_ui = { version = "0.2.2", path = "../quantsim_ui" }
 egui = "0.32"
 eframe = { version = "0.32", default-features = false, features = [
     "accesskit",

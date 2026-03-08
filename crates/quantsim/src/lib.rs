@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! quantsim = "0.2.1"
+//! quantsim = "0.2.2"
 //! ```
 //!
 //! ## Re-exports

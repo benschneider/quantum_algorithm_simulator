@@ -21,7 +21,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quantsim_core = "0.2.1"
+quantsim_core = "0.2.2"
 ```
 
 ### Basic Example
