@@ -2,12 +2,12 @@
 
 [![Demo](https://img.shields.io/badge/demo-try%20now-2ea44f)](https://benschneider.github.io/quantum_algorithm_simulator/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](COPYRIGHT.md)
-![Status](https://img.shields.io/badge/status-pre--release-yellow)
+![Status](https://img.shields.io/badge/status-active-2ea44f)
 ![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)
 ![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-> **Note:** This repository currently hosts the **web demo** and **documentation**. The full Rust sources will be published here once they are ready for release.
+> `quantsim` is developed in this repository, including the Rust crates, the web demo, and the documentation.
 
 <!-- CI badge (enable after adding .github/workflows/ci.yml):
 [![CI](https://img.shields.io/github/actions/workflow/status/benschneider/quantum_algorithm_simulator/ci.yml?branch=main)](https://github.com/benschneider/quantum_algorithm_simulator/actions)
@@ -15,7 +15,7 @@
 
 ## Quick Links
 - ▶️ **Live demo**: https://benschneider.github.io/quantum_algorithm_simulator/
-- 📄 **License**: [Apache-2.0](LICENSE)
+- 📄 **License**: [MIT OR Apache-2.0](COPYRIGHT.md)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
 ![Quick demo of quantsim UI](docs/demo.gif)

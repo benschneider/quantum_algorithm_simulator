@@ -1,6 +1,6 @@
 //! # quantsim_ui
 //!
-//! `quantsim_ui` is a graphical user interface for `qcsim`, a quantum computing
+//! `quantsim_ui` is a graphical user interface for `quantsim`, a quantum computing
 //! simulator. It is built using the `egui` framework and provides a visual
 //! way to create, edit, and simulate quantum circuits.
 //!

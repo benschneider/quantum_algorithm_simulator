@@ -18,7 +18,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "qcsim-egui",
+        "quantsim",
         native_options,
         Box::new(|cc| Ok(Box::new(quantsim_ui::QCSimApp::new(cc)))),
     )

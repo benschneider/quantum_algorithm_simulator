@@ -36,7 +36,7 @@ cargo install trunk
 
 # Clone the repository
 git clone https://github.com/benschneider/quantum_algorithm_simulator.git
-cd quantum_algorithm_simulator/quantsim/quantsim_ui
+cd quantum_algorithm_simulator/crates/quantsim_ui
 
 # Serve locally
 trunk serve

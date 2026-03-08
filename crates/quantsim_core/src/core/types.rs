@@ -1,7 +1,7 @@
 //! # Types
 //!
 //! This module defines common data structures and type aliases used throughout
-//! the `qcsim` library. These types provide the foundation for representing
+//! the `quantsim` library. These types provide the foundation for representing
 //! - quantum circuits, gates, and simulation states.
 use nalgebra::{Complex, DMatrix, OMatrix, U2, U4, U8};
 use nalgebra_sparse::csr::CsrMatrix;

@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! quantsim = "0.1.0"
+//! quantsim = "0.2.1"
 //! ```
 //!
 //! ## Re-exports
@@ -17,7 +17,7 @@
 //! This crate re-exports the main components of the quantsim ecosystem:
 //!
 //! - [`core`] - The core quantum circuit simulation library
-//! - [`ui`] - The web-based graphical user interface (when built for WASM)
+//! - [`ui`] - The graphical user interface crate (re-exported when built for `wasm32`)
 
 /// Core quantum circuit simulation library
 pub mod core {
