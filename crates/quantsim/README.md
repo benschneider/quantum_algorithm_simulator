@@ -11,8 +11,8 @@ A quantum circuit simulator ecosystem providing both a core simulation library a
 Install and run the interactive simulator:
 
 ```bash
-cargo install quantsim_ui
-quantsim_ui
+cargo install quantsim
+quantsim
 ```
 
 Or try the [live web demo](https://benschneider.github.io/quantum_algorithm_simulator/)!
@@ -23,8 +23,8 @@ This crate serves as the main entry point for the quantsim ecosystem, which cons
 
 ### 📦 [quantsim](https://crates.io/crates/quantsim) (this crate)
 - **Library** that re-exports the quantsim ecosystem
-- **Convenient dependency** for consumers that want a shared entry point
-- **No standalone binary** is provided by this crate
+- **Binary entry point** for the offline desktop app
+- **Convenient shared crate name** on crates.io
 
 ### 🧠 [quantsim_core](https://crates.io/crates/quantsim_core)
 - **Core simulation engine** written in pure Rust
@@ -43,13 +43,13 @@ This crate serves as the main entry point for the quantsim ecosystem, which cons
 ### As a Binary Application
 
 ```bash
-cargo install quantsim_ui
+cargo install quantsim
 ```
 
 This installs the interactive simulator that you can run with:
 
 ```bash
-quantsim_ui
+quantsim
 ```
 
 ### As a Library Dependency
@@ -66,8 +66,8 @@ quantsim = "0.2.1"
 ### Running the Interactive Simulator
 
 ```bash
-cargo install quantsim_ui
-quantsim_ui
+cargo install quantsim
+quantsim
 ```
 
 This launches the interactive simulator where you can:
