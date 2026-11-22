@@ -229,7 +229,10 @@ pub fn generate_circuit_grid(
                     qubits: op.qubits.iter().map(|&q| q as usize).collect(),
                     row,
                     col,
-                    full_name,
+                    full_name: match &op.name {
+                        Some(name) => format!("{name} ({full_name})"),
+                        None => full_name,
+                    },
                     description,
                     params: op.params.to_vec(),
                     instance_id,

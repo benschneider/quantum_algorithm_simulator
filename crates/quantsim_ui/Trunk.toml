@@ -1,2 +1,7 @@
 [build]
-filehash = false
+filehash = true
+
+[[hooks]]
+stage = "post_build"
+command = "python3"
+command_arguments = ["build_service_worker.py"]

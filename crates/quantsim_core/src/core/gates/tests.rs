@@ -3,7 +3,8 @@ use super::parametric::{
     eval_cx_pow_big, eval_cy_pow_big, eval_cz_pow_big, eval_rx_big, eval_ry_big, eval_rz_big,
 };
 use super::registry::GateRegistry;
-use crate::core::types::{Gate, Param};
+use crate::core::circuit::Circuit;
+use crate::core::types::{Gate, Operation, Param};
 use nalgebra::{Complex, DMatrix, DVector};
 use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
@@ -307,4 +308,51 @@ fn registry_move_gate_matches_logical_state_transfer_action() {
         &(move_gate * one_zero),
         &ket(&[c(0.0, 0.0), c(0.0, -1.0), c(0.0, 0.0), c(0.0, 0.0)]),
     );
+}
+
+#[test]
+fn ccnot_flips_the_third_wire_only_when_both_controls_are_set() {
+    for (num_qubits, wires) in [
+        (3, [1, 2, 0]),
+        (3, [2, 0, 1]),
+        (3, [0, 1, 2]),
+        (5, [4, 2, 0]),
+        (5, [0, 4, 2]),
+        (5, [2, 0, 4]),
+    ] {
+        let mut circuit = Circuit::new(num_qubits);
+        circuit.steps.push(vec![Operation::new(Gate::CCNOT, wires.to_vec(), vec![])]);
+        let dimension = 1 << num_qubits;
+        let [first, second, target] = wires;
+        let controls = (1 << first) | (1 << second);
+        for input in 0..dimension {
+            circuit.initial_state = Some(basis(input, dimension).as_slice().to_vec());
+            let result = circuit.run(&Default::default());
+            let expected = if input & controls == controls {
+                input ^ (1 << target)
+            } else {
+                input
+            };
+            assert_eq!(
+                result.final_state_vector.unwrap().as_slice(),
+                basis(expected, dimension).as_slice(),
+                "CCNOT {wires:?} on input {input:b}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ccnot_accepts_a_palette_preview_and_reports_incomplete_or_extra_wires() {
+    let mut circuit = Circuit::new(4);
+    assert_eq!(
+        circuit.registry.eval(&Gate::CCNOT, &[], &[]),
+        circuit.registry.eval(&Gate::CCNOT, &[], &[0, 1, 2])
+    );
+    for wires in [vec![], vec![0, 1], vec![0, 1, 2, 3]] {
+        circuit.steps = vec![vec![Operation::new(Gate::CCNOT, wires, vec![])]];
+        let result = circuit.run(&Default::default());
+        assert!(result.final_state_vector.is_none());
+        assert!(result.diagnostics.iter().any(|e| e.message.contains("requires 3 qubits")));
+    }
 }

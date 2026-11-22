@@ -31,7 +31,12 @@ fn main() {
     use eframe::web_sys;
 
     // Redirect `log` message to `console.log` and friends:
-    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+    let log_level = if cfg!(debug_assertions) {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
+    eframe::WebLogger::init(log_level).ok();
 
     let web_options = eframe::WebOptions::default();
 

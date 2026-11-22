@@ -1,4 +1,8 @@
-use crate::{messages::Message, state::AppState};
+use crate::{
+    messages::Message,
+    state::{AppState, PaginationState},
+};
+use quantsim_core::core::circuit::{Circuit, RunOptions};
 use quantsim_core::core::engine::QuantumState;
 
 pub fn handle_simulation_message(
@@ -6,58 +10,56 @@ pub fn handle_simulation_message(
     message: Message,
     _messages: &mut [Message],
 ) {
-    match message {
+    let timestep = match message {
         Message::RunSimulation => {
             state.ui_state.show_results_window = true;
-            let circuit_to_run = state.circuit_state.circuit.clone();
-            let result = circuit_to_run.run(&quantsim_core::core::circuit::RunOptions::default());
-            let quantum_state =
-                QuantumState::from_vector(circuit_to_run.num_qubits, &result.final_state_vector.unwrap())
-                    .unwrap();
-            state.simulation_state.quantum_state = Some(quantum_state);
-            if let Some(qs) = &state.simulation_state.quantum_state {
-                state.simulation_state.pagination.total_entries = qs.state_vector.len();
-                state.simulation_state.pagination.total_pages =
-                    (state.simulation_state.pagination.total_entries as f32
-                        / state.simulation_state.pagination.entries_per_page as f32)
-                        .ceil() as usize;
-                state.simulation_state.pagination.set_page(1);
-                state.simulation_state.page_input_text =
-                    state.simulation_state.pagination.current_page.to_string();
-            }
-            state.ui_state.current_timestep = state.circuit_state.num_timesteps;
+            None
         }
-        Message::SelectTimestep(timestep) => {
-            state.ui_state.current_timestep = timestep;
-            let circuit_to_run = state.circuit_state.circuit.clone();
-            // We can't easily run just part of the circuit anymore, so we'll just
-            // show the final state for now. A more sophisticated implementation
-            // could take snapshots.
-            let result = circuit_to_run.run(&quantsim_core::core::circuit::RunOptions {
-                snapshot_state_per_step: true,
-                ..Default::default()
-            });
-
-            let state_to_show = if let Some(snapshot) = result.snapshots.get(timestep.saturating_sub(1)) {
-                snapshot.state.clone().unwrap()
-            } else if timestep == 0 {
-                QuantumState::new(circuit_to_run.num_qubits).state_vector.as_slice().to_vec()
-            } else {
-                result.final_state_vector.unwrap()
-            };
-
-            let quantum_state =
-                QuantumState::from_vector(circuit_to_run.num_qubits, &state_to_show).unwrap();
-
-            state.simulation_state.quantum_state = Some(quantum_state);
-        }
+        Message::SelectTimestep(timestep) => Some(timestep),
         Message::SimulationResultsPageChanged(page_number) => {
             state.simulation_state.pagination.set_page(page_number);
             state.simulation_state.page_input_text =
                 state.simulation_state.pagination.current_page.to_string();
+            return;
         }
-        _ => {
-            //log::warn!("Unhandled message in simulation handler: {:?}", message);
+        _ => return,
+    };
+
+    let circuit = &state.circuit_state.circuit;
+    let step_count = timestep
+        .unwrap_or(circuit.steps.len())
+        .min(circuit.steps.len());
+    match simulate(circuit, step_count) {
+        Ok(quantum_state) => {
+            let simulation = &mut state.simulation_state;
+            if timestep.is_none() || simulation.quantum_state.is_none() {
+                simulation.pagination = PaginationState::new(
+                    quantum_state.state_vector.len(),
+                    simulation.pagination.entries_per_page,
+                );
+                simulation.page_input_text = simulation.pagination.current_page.to_string();
+            }
+            simulation.quantum_state = Some(quantum_state);
+            state.ui_state.current_timestep = step_count;
+            state.ui_state.error_message = None;
+        }
+        Err(error) => {
+            state.simulation_state = Default::default();
+            state.ui_state.current_timestep = 0;
+            state.ui_state.error_message = Some(format!("Simulation failed: {error}"));
         }
     }
+}
+
+fn simulate(circuit: &Circuit, step_count: usize) -> Result<QuantumState, String> {
+    let result = circuit.run_prefix(step_count, &RunOptions::default());
+    if let Some(error) = result.diagnostics.into_iter().next() {
+        return Err(error.message);
+    }
+
+    let state_vector = result
+        .final_state_vector
+        .as_deref()
+        .ok_or("No state vector was produced.")?;
+    QuantumState::from_vector(circuit.num_qubits, state_vector).map_err(str::to_owned)
 }

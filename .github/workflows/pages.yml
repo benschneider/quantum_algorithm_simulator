@@ -1,0 +1,60 @@
+name: Build and publish web simulator
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: simulator-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      source: ${{ steps.pages.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: rustup target add wasm32-unknown-unknown
+        working-directory: crates/quantsim_ui
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@0.21.14
+      - run: ./deploy-web.sh
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+      # Branch-based Pages already publishes docs/. Only one workflow should deploy.
+      - name: Check Pages publishing source
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type)
+          echo "source=$source" >> "$GITHUB_OUTPUT"
+          if [[ "$source" == legacy ]]; then
+            echo 'Pages publishes the committed docs/ folder. Select GitHub Actions in Settings → Pages to publish this freshly built artifact.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.source == 'workflow'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

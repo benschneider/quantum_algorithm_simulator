@@ -1,5 +1,5 @@
 use crate::messages::Message;
-use crate::state::AppState;
+use crate::state::{AppState, CircuitState};
 use egui::widgets::DragValue;
 
 /// Renders the circuit controls, which include the "Run" button, qubit and
@@ -21,7 +21,7 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         let mut num_qubits = state.circuit_state.num_qubits;
         ui.label("Qubits:");
         if ui
-            .add(DragValue::new(&mut num_qubits).range(1..=21))
+            .add(DragValue::new(&mut num_qubits).range(1..=CircuitState::MAX_QUBITS))
             .changed()
         {
             messages.push(Message::ChangeQubits(num_qubits));

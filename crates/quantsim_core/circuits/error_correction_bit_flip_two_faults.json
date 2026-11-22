@@ -1,0 +1,16 @@
+{
+  "num_qubits": 3,
+  "steps": [
+    [{ "id": "Ry", "name": "Prepare the logical amplitudes", "params": [1.0471975511965976], "qubits": [1] }],
+    [{ "id": "SqrtZ", "name": "Add a relative phase", "qubits": [1] }],
+    [{ "id": "CX", "name": "Encode across q1 and q0", "qubits": [1, 0] }],
+    [{ "id": "CX", "name": "Complete the repetition encoding", "qubits": [1, 2] }],
+    [
+      { "id": "X", "name": "Inject a bit flip on q0", "qubits": [0] },
+      { "id": "X", "name": "Inject a bit flip on q2", "qubits": [2] }
+    ],
+    [{ "id": "CX", "name": "Decode the q1–q2 parity into q2", "qubits": [1, 2] }],
+    [{ "id": "CX", "name": "Decode the q1–q0 parity into q0", "qubits": [1, 0] }],
+    [{ "id": "CCNOT", "name": "Both parity bits are one, so the decoder flips the intact q1", "qubits": [0, 2, 1] }]
+  ]
+}

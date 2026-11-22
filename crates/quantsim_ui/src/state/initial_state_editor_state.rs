@@ -1,4 +1,5 @@
 use nalgebra::Complex;
+use quantsim_core::circuit::Circuit;
 
 use super::pagination::PaginationState;
 
@@ -12,6 +13,16 @@ pub struct InitialStateEditorState {
 }
 
 impl InitialStateEditorState {
+    pub(crate) fn from_circuit(circuit: &Circuit) -> Self {
+        let mut editor = Self::new(circuit.num_qubits);
+        if let Some(vector) = &circuit.initial_state {
+            if vector.len() == editor.state_vector.len() {
+                editor.state_vector.copy_from_slice(vector);
+            }
+        }
+        editor
+    }
+
     /// Creates a new `InitialStateEditorState` with a default state vector
     /// for the given number of qubits.
     pub fn new(num_qubits: usize) -> Self {

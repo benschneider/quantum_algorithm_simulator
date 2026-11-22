@@ -49,6 +49,9 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
         ui.separator();
 
         circuit_controls::circuit_controls(ui, state, messages);
+        if let Some(error) = &state.ui_state.error_message {
+            ui.colored_label(ui.visuals().error_fg_color, error);
+        }
         egui::ScrollArea::both().show(ui, |ui| match state.ui_state.active_central_tab {
             crate::state::ui_state::CentralPanelTab::Circuit => {
                 circuit_grid::circuit_grid(state, ui, messages, state.ui_state.current_timestep);

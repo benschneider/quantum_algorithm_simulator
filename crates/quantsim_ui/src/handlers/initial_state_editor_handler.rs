@@ -9,15 +9,10 @@ pub fn handle_initial_state_editor_message(
         Message::ToggleInitialStateEditor => {
             state.ui_state.show_initial_state_editor = !state.ui_state.show_initial_state_editor;
             if state.ui_state.show_initial_state_editor {
-                state.initial_state_editor_state = crate::state::InitialStateEditorState::new(
-                    state.circuit_state.circuit.num_qubits,
-                );
-                if let Some(initial_state) = &state.circuit_state.circuit.initial_state {
-                    state.initial_state_editor_state.state_vector = initial_state
-                        .iter()
-                        .map(|c| nalgebra::Complex::new(c.re, c.im))
-                        .collect();
-                }
+                state.initial_state_editor_state =
+                    crate::state::InitialStateEditorState::from_circuit(
+                        &state.circuit_state.circuit,
+                    );
             }
         }
         Message::ApplyInitialStateFromEditor(state_vector) => {

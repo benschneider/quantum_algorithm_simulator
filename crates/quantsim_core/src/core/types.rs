@@ -5,89 +5,56 @@
 //! - quantum circuits, gates, and simulation states.
 use nalgebra::{Complex, DMatrix, OMatrix, U2, U4, U8};
 use nalgebra_sparse::csr::CsrMatrix;
-use serde::{Deserialize, Serialize, Deserializer};
+use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
 use strum::EnumIter;
 
-/// Custom deserializer for DMatrix<Complex<f32>> that supports both nested arrays and simple floats
+/// Reads both the row arrays used in circuit templates and nalgebra's saved matrix format.
 fn deserialize_complex_matrix<'de, D>(deserializer: D) -> Result<DMatrix<Complex<f32>>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    use serde::de::{self, SeqAccess, Visitor};
-    use std::fmt;
-
-    struct MatrixVisitor;
-
-    impl<'de> Visitor<'de> for MatrixVisitor {
-        type Value = DMatrix<Complex<f32>>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a 2D array of complex numbers")
-        }
-
-        fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
-        where
-            V: SeqAccess<'de>,
-        {
-            let mut rows = Vec::new();
-            let mut ncols = None;
-
-            while let Some(row_seq) = seq.next_element::<Vec<serde_json::Value>>()? {
-                let mut row = Vec::new();
-                for value in row_seq {
-                    let complex = match value {
-                        serde_json::Value::Number(n) => {
-                            if let Some(f) = n.as_f64() {
-                                Complex::new(f as f32, 0.0)
-                            } else {
-                                return Err(de::Error::custom("expected number"));
-                            }
-                        }
-                        serde_json::Value::Array(arr) => {
-                            if arr.len() == 2 {
-                                let re = arr[0].as_f64().ok_or_else(|| de::Error::custom("expected number for real part"))?;
-                                let im = arr[1].as_f64().ok_or_else(|| de::Error::custom("expected number for imaginary part"))?;
-                                Complex::new(re as f32, im as f32)
-                            } else {
-                                return Err(de::Error::custom("complex number array must have exactly 2 elements"));
-                            }
-                        }
-                        _ => return Err(de::Error::custom("expected number or array for complex number")),
-                    };
-                    row.push(complex);
-                }
-
-                if let Some(n) = ncols {
-                    if row.len() != n {
-                        return Err(de::Error::custom("all rows must have the same number of columns"));
-                    }
-                } else {
-                    ncols = Some(row.len());
-                }
-
-                rows.push(row);
-            }
-
-            let nrows = rows.len();
-            let ncols = ncols.unwrap_or(0);
-
-            if nrows == 0 || ncols == 0 {
-                return Ok(DMatrix::zeros(0, 0));
-            }
-
-            let mut matrix = DMatrix::zeros(nrows, ncols);
-            for (i, row) in rows.into_iter().enumerate() {
-                for (j, complex) in row.into_iter().enumerate() {
-                    matrix[(i, j)] = complex;
-                }
-            }
-
-            Ok(matrix)
-        }
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Coefficient {
+        Real(f32),
+        Complex(Complex<f32>),
     }
 
-    deserializer.deserialize_seq(MatrixVisitor)
+    #[derive(Deserialize)]
+    #[serde(untagged, expecting = "matrix rows or [column-major coefficients, rows, columns]")]
+    enum MatrixData {
+        ColumnMajor(Vec<Complex<f32>>, usize, usize),
+        Rows(Vec<Vec<Coefficient>>),
+    }
+
+    match MatrixData::deserialize(deserializer)? {
+        MatrixData::ColumnMajor(values, rows, cols) => {
+            if rows.checked_mul(cols) != Some(values.len()) {
+                return Err(D::Error::custom(
+                    "matrix dimensions do not match coefficient count",
+                ));
+            }
+            Ok(DMatrix::from_vec(rows, cols, values))
+        }
+        MatrixData::Rows(rows) => {
+            let nrows = rows.len();
+            let ncols = rows.first().map_or(0, Vec::len);
+            if rows.iter().any(|row| row.len() != ncols) {
+                return Err(D::Error::custom(
+                    "all rows must have the same number of columns",
+                ));
+            }
+            if ncols == 0 {
+                return Ok(DMatrix::zeros(0, 0));
+            }
+            let values = rows.into_iter().flatten().map(|value| match value {
+                Coefficient::Real(re) => Complex::new(re, 0.0),
+                Coefficient::Complex(c) => c,
+            });
+            Ok(DMatrix::from_row_iterator(nrows, ncols, values))
+        }
+    }
 }
 
 /// A 2x2 complex matrix, typically used for single-qubit gates.
@@ -224,7 +191,7 @@ impl From<GateMatrix> for DMatrix<Complex<f32>> {
 pub struct Operation {
     /// The unique identifier for the gate.
     pub id: Gate,
-    /// An optional name for the gate, used for custom gates.
+    /// An optional label for this operation, such as its role in a circuit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// A list of parameters for the gate.
@@ -301,4 +268,39 @@ pub enum QubitPrep {
     Plus,
     /// The |-⟩ state.
     Minus,
+}
+
+#[cfg(test)]
+mod matrix_json_tests {
+    use super::*;
+    use crate::core::circuit::CircuitData;
+
+    #[test]
+    fn grover_custom_gates_survive_a_json_round_trip() {
+        let grover = crate::circuits::load_template("grover_algorithm").unwrap();
+        let data = CircuitData::from(grover);
+        let json = serde_json::to_string_pretty(&data).unwrap();
+        let reloaded: CircuitData = serde_json::from_str(&json).unwrap();
+        assert_eq!(reloaded.steps, data.steps);
+    }
+
+    #[test]
+    fn matrix_rows_and_saved_column_major_coefficients_agree() {
+        let rows = r#"{"BigEndian":[[1,[2,-1]],[[3,4],0]]}"#;
+        let saved = r#"{"BigEndian":[[[1,0],[3,4],[2,-1],[0,0]],2,2]}"#;
+        let matrix: GateMatrix = serde_json::from_str(rows).unwrap();
+        assert_eq!(matrix.to_dmatrix()[(0, 1)], Complex::new(2.0, -1.0));
+        assert_eq!(serde_json::from_str::<GateMatrix>(saved).unwrap(), matrix);
+    }
+
+    #[test]
+    fn invalid_matrix_dimensions_return_errors() {
+        for json in [
+            r#"{"BigEndian":[[1,0],[1]]}"#,
+            r#"{"BigEndian":[[[1,0]],2,2]}"#,
+            r#"{"BigEndian":[[],18446744073709551615,2]}"#,
+        ] {
+            assert!(serde_json::from_str::<GateMatrix>(json).is_err());
+        }
+    }
 }

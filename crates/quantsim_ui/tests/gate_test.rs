@@ -8,14 +8,15 @@ use quantsim_ui::simulation;
 #[test]
 fn test_ccnot_gate() {
     let mut circuit = Circuit::new(3);
+    // The simulator orders basis labels as |q2 q1 q0>.
     circuit.initial_state = Some(vec![
         Complex::new(0.0, 0.0),
         Complex::new(0.0, 0.0),
         Complex::new(0.0, 0.0),
-        Complex::new(0.0, 0.0),
-        Complex::new(0.0, 0.0),
-        Complex::new(0.0, 0.0),
         Complex::new(1.0, 0.0),
+        Complex::new(0.0, 0.0),
+        Complex::new(0.0, 0.0),
+        Complex::new(0.0, 0.0),
         Complex::new(0.0, 0.0),
     ]);
     circuit.steps.push(vec![Operation {

@@ -20,6 +20,12 @@
 
 ![Quick demo of quantsim UI](docs/demo.gif)
 
+### Publishing the web demo
+
+With **Settings → Pages → Build and deployment → Source** set to **GitHub Actions**, each push to `main` builds the simulator from that commit and deploys it. You can also run **Build and publish web simulator** manually on `main`. [GitHub Pages publishing settings](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+
+If Pages is set to publish from **main /docs**, run `./deploy-web.sh` and commit the updated `docs/` files alongside the source before pushing. The script uses Trunk 0.21.14, Python 3 and the `wasm32-unknown-unknown` Rust target. New releases give the JavaScript and WebAssembly content-hashed filenames so browsers request the matching pair on reload.
+
 # Introduction to `quantsim`
 
 `quantsim` is a quantum circuit simulator designed for both learning and research. It provides a robust backend for simulating quantum circuits and a user-friendly graphical interface for building, simulating, and visualizing quantum computations. This document serves as a comprehensive introduction to `quantsim`, covering its architecture, core concepts, and how to effectively use the application.
@@ -321,12 +327,7 @@ The "Timestep" slider, located near the "Run" button, allows you to scrub throug
 
 ### Loading and Saving Circuits
 
-`quantsim` allows you to load existing circuit JSON files, save your current circuit, and load predefined templates:
-
-1.  **File Menu**: Access the "File" menu in the top-left corner of the application.
-2.  **Load Circuit**: Select "Load" to open a JSON circuit file from your system.
-3.  **Save Circuit**: Select "Save" to save your current circuit to a JSON file.
-4.  **Load Template**: Under the "File" menu, you can also select "Load Template" to load from a list of predefined example circuits.
+Open **File → Load Template** to choose a bundled circuit. To import your own circuit, paste its JSON into the **JSON** tab and select **Apply Changes**. To save an editable copy, open the **JSON** tab, choose **Copy to Clipboard**, and paste the result into a JSON file.
 
 #### Available Templates
 
@@ -335,13 +336,18 @@ The `quantsim` application comes with several pre-built circuit templates:
 *   **Bell**: Creates an entangled Bell state.
 *   **Bell Test Complex**: A more elaborate Bell state test.
 *   **Deutsch Algorithm**: Implements the Deutsch algorithm.
-*   **Deutsch Jozsa**: Implements the Deutsch-Jozsa algorithm.
 *   **GHZ**: Creates a Greenberger–Horne–Zeilinger (GHZ) state.
 *   **Grover**: Implements Grover's search algorithm (basic).
 *   **Grover Algorithm**: A more complete implementation of Grover's search.
 *   **QFT**: Implements the Quantum Fourier Transform.
 *   **QFT4**: A 4-qubit Quantum Fourier Transform.
 *   **Quantum Teleportation**: Demonstrates the quantum teleportation protocol.
+*   **Error correction bit flip** encodes one logical qubit across three wires and recovers it after a single X fault.
+*   **Error correction bit flip two faults** flips both outer wires at the same step. Compare it with the single-fault run to see the same syndrome lead the decoder to flip a healthy logical qubit.
+*   **Error correction phase flip** uses a change of basis to recover the same logical state after a single Z fault.
+*   **Error correction phase flip two faults** applies Z to both outer wires together. Compare it with the single phase flip to see different amplitude signs at step 6, the same syndrome at step 9, and opposite logical outcomes at step 10.
+
+Open the examples from **File → Load Template** and follow along under **Help → Tutorial → Error correction**. [Read the walkthrough](crates/quantsim_ui/assets/docs/tutorials/error_correction.md).
 
 ### Initial State Setup and Gate Editor
 

@@ -535,30 +535,16 @@ impl GateRegistry {
                 Some(vec![0, 1, 2]),
                 GateKind::Unitary {
                     eval: Box::new(|_params: &[_], qubits: &[u32]| {
+                        // In the local big-endian basis the lowest wire is the
+                        // most significant bit. Only the target's rank matters.
+                        let target_bit = match qubits {
+                            [a, b, target] => usize::from(a > target) + usize::from(b > target),
+                            // Canonical [0, 1, 2] preview. Circuit validation
+                            // checks an operation's arity against the 8x8 matrix.
+                            _ => 0,
+                        };
                         let mut big_matrix = DMatrix::identity(8, 8);
-                        let control1 = qubits[0];
-                        let control2 = qubits[1];
-                        let target = qubits[2];
-
-                        for i in 0..8 {
-                            // Check if control bits are set for this basis state.
-                            if (i >> control1) & 1 == 1 && (i >> control2) & 1 == 1 {
-                                // Find the state to swap with by flipping the target bit.
-                                let j = i ^ (1 << target);
-
-                                // To avoid performing the swap twice, only modify the matrix
-                                // for the smaller of the two indices in the pair.
-                                if i < j {
-                                    // Zero out the diagonal elements for the pair.
-                                    big_matrix[(i, i)] = c(0.0, 0.0);
-                                    big_matrix[(j, j)] = c(0.0, 0.0);
-
-                                    // Set the off-diagonal elements to perform the swap.
-                                    big_matrix[(i, j)] = c(1.0, 0.0);
-                                    big_matrix[(j, i)] = c(1.0, 0.0);
-                                }
-                            }
-                        }
+                        big_matrix.swap_rows(0b111, 0b111 ^ (1 << target_bit));
                         GateMatrix::BigEndian(big_matrix)
                     }),
                     is_parametric: false,

@@ -24,7 +24,12 @@ fn main() {
     use eframe::wasm_bindgen::JsCast as _;
     use eframe::web_sys;
 
-    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+    let log_level = if cfg!(debug_assertions) {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
+    eframe::WebLogger::init(log_level).ok();
 
     let web_options = eframe::WebOptions::default();
 

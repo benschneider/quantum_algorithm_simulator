@@ -31,6 +31,7 @@ pub enum TutorialStep {
     InitialStates,
     Simulations,
     Analytics,
+    ErrorCorrection,
     Conclusion,
 }
 

@@ -27,12 +27,27 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
             "The state vector is represented in a sparse format, showing only non-zero amplitudes.",
         );
 
-        // Render pagination controls
+        let non_zero_states: Vec<_> = quantum_state
+            .state_vector
+            .iter()
+            .enumerate()
+            .filter(|(_, state)| state.re.abs() > 1e-6 || state.im.abs() > 1e-6)
+            .collect();
+
+        let pagination = &mut state.simulation_state.pagination;
+        pagination.total_entries = non_zero_states.len();
+        pagination.total_pages = pagination
+            .total_entries
+            .div_ceil(pagination.entries_per_page);
+        let previous_page = pagination.current_page;
+        pagination.set_page(previous_page);
+        if pagination.current_page != previous_page {
+            state.simulation_state.page_input_text = pagination.current_page.to_string();
+        }
+
         ui.horizontal(|ui| {
-            if let Some(msg) = state
-                .simulation_state
-                .pagination
-                .render_controls(ui, &mut state.simulation_state.page_input_text)
+            if let Some(msg) =
+                pagination.render_controls(ui, &mut state.simulation_state.page_input_text)
             {
                 // Adjust message type for simulation results
                 if let Message::InitialStateEditorPageChanged(page_num) = msg {
@@ -43,40 +58,25 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
             }
         });
 
-        let non_zero_states: Vec<_> = quantum_state
-            .state_vector
-            .iter()
-            .enumerate()
-            .filter(|(_, state)| state.re.abs() > 1e-6 || state.im.abs() > 1e-6)
-            .collect();
-
         // Precompute magnitude and phase (arg) for coloring
         let (mag_phase, phases_present): (Vec<(usize, f32, f32)>, bool) = {
             let mut any_phase = false;
-            let v = quantum_state
-                .state_vector
+            let v = non_zero_states
                 .iter()
-                .enumerate()
-                .filter(|(_, c)| c.re.abs() > 1e-6 || c.im.abs() > 1e-6)
                 .map(|(i, c)| {
                     let mag = (c.re * c.re + c.im * c.im).sqrt();
                     let phase = c.im.atan2(c.re); // [-pi, pi]
                     if phase.abs() > 1e-6 {
                         any_phase = true;
                     }
-                    (i, mag, phase)
+                    (*i, mag, phase)
                 })
                 .collect();
             (v, any_phase)
         };
 
-        state.simulation_state.pagination.total_entries = non_zero_states.len();
-        state.simulation_state.pagination.total_pages = (non_zero_states.len() as f32
-            / state.simulation_state.pagination.entries_per_page as f32)
-            .ceil() as usize;
-
-        let start_index = state.simulation_state.pagination.get_start_index();
-        let end_index = state.simulation_state.pagination.get_end_index();
+        let start_index = pagination.get_start_index();
+        let end_index = pagination.get_end_index();
 
         for (i, state) in non_zero_states
             .iter()
@@ -99,22 +99,8 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
         ui.small("Plot is paginated; hover for labels. Legend toggles the phase/Re/Im overlays.");
 
         // ==== Build paginated probabilities over ALL basis states (include zeros) ====
-        let total_states: usize = 1usize << quantum_state.num_qubits;
-
-        // Temporarily compute start/end for the full space using the existing paginator
-        let old_total_entries = state.simulation_state.pagination.total_entries;
-        let old_total_pages = state.simulation_state.pagination.total_pages;
-        state.simulation_state.pagination.total_entries = total_states;
-        state.simulation_state.pagination.total_pages = (total_states as f32
-            / state.simulation_state.pagination.entries_per_page as f32)
-            .ceil() as usize;
-
-        let page_start = state.simulation_state.pagination.get_start_index();
-        let page_end = state.simulation_state.pagination.get_end_index();
-
-        // Restore paginator book-keeping for any subsequent UI that expects non-zero count
-        state.simulation_state.pagination.total_entries = old_total_entries;
-        state.simulation_state.pagination.total_pages = old_total_pages;
+        let page_start = start_index;
+        let page_end = (page_start + pagination.entries_per_page).min(probabilities.len());
 
         // Build bars for the current page (including zero-prob states)
         let mut bars: Vec<Bar> = Vec::with_capacity(page_end.saturating_sub(page_start));

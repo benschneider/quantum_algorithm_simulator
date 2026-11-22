@@ -235,6 +235,7 @@ pub fn gate_editor_panel(state: &mut AppState, ui: &mut egui::Ui, messages: &mut
                                 state.ui_state.bloch_sphere_animation_time,
                                 reference_density,
                             );
+                            ui.ctx().request_repaint();
                         }
                     } else if gate_meta.arity == quantsim_core::core::types::Arity::TwoQ {
                         ui.label(RichText::new("Control Qubits").strong());

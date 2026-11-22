@@ -39,7 +39,7 @@ impl PaginationState {
 
     /// Sets the current page.
     pub fn set_page(&mut self, page: usize) {
-        self.current_page = page.max(1).min(self.total_pages);
+        self.current_page = page.clamp(1, self.total_pages.max(1));
     }
 
     /// Gets the starting index of the current page.

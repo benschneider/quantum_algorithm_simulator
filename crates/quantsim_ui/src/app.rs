@@ -59,10 +59,10 @@ impl eframe::App for QCSimApp {
             handlers::handle_message(&mut self.state, message, &mut self.messages);
         }
 
-        let mut state = std::mem::take(&mut self.state);
+        let state = &mut self.state;
         let mut ui_messages = Vec::new();
 
-        let top_panel_messages = crate::ui::top_panel::render(&mut state, ctx);
+        let top_panel_messages = crate::ui::top_panel::render(state, ctx);
         ui_messages.extend(top_panel_messages);
 
         if state.ui_state.show_gate_editor_window {
@@ -71,11 +71,7 @@ impl eframe::App for QCSimApp {
                 .vscroll(true)
                 .open(&mut open)
                 .show(ctx, |ui| {
-                    crate::components::gate_editor::gate_editor_panel(
-                        &mut state,
-                        ui,
-                        &mut ui_messages,
-                    );
+                    crate::components::gate_editor::gate_editor_panel(state, ui, &mut ui_messages);
                 });
             if !open {
                 state.ui_state.palette_gate_for_editing = None;
@@ -89,39 +85,38 @@ impl eframe::App for QCSimApp {
                 .vscroll(true)
                 .open(&mut open)
                 .show(ctx, |ui| {
-                    if let Some(msg) =
-                        crate::components::results_panel::results_panel(ui, &mut state)
-                    {
+                    if let Some(msg) = crate::components::results_panel::results_panel(ui, state) {
                         ui_messages.push(msg);
                     }
                 });
             state.ui_state.show_results_window = open;
         }
 
-        crate::ui::central_panel::render(&mut state, ctx, &mut ui_messages);
-        crate::ui::welcome_screen::render(&mut state, ctx);
-        crate::ui::info_panel::render(&mut state, ctx);
-        crate::ui::tutorial::render(&mut state, ctx);
+        crate::ui::central_panel::render(state, ctx, &mut ui_messages);
+        crate::ui::welcome_screen::render(state, ctx);
+        crate::ui::info_panel::render(state, ctx);
+        crate::ui::tutorial::render(state, ctx);
 
         if let Some(message) =
-            crate::components::initial_state_editor::initial_state_editor(&mut state, ctx)
+            crate::components::initial_state_editor::initial_state_editor(state, ctx)
         {
             ui_messages.push(message);
         }
 
         crate::components::custom_gate_definition_editor::custom_gate_definition_editor(
-            &mut state,
+            state,
             ctx,
             &mut ui_messages,
         );
 
-        self.state = state;
         self.messages.extend(ui_messages);
 
         self.state.ui_state.bloch_sphere_animation_time += ctx.input(|i| i.unstable_dt) as f64;
         if self.state.ui_state.bloch_sphere_animation_time > 1.0 {
             self.state.ui_state.bloch_sphere_animation_time = 0.0;
         }
-        ctx.request_repaint();
+        if !self.messages.is_empty() {
+            ctx.request_repaint();
+        }
     }
 }

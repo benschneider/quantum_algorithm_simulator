@@ -17,6 +17,8 @@ pub struct CircuitState {
 }
 
 impl CircuitState {
+    pub const MAX_QUBITS: usize = 21;
+
     /// Places a gate on the circuit grid.
     ///
     /// # Arguments

@@ -210,8 +210,15 @@ impl Circuit {
     ///
     /// 5.  **Measure**: The final state is measured if shots are requested.
     pub fn run(&self, opts: &RunOptions) -> RunResult {
-        // 1. Build the full sequence of operations for this run.
-        let mut run_steps = self.build_run_steps();
+        self.run_prefix(self.steps.len(), opts)
+    }
+
+    /// Runs the initial preparation and the first `step_count` circuit columns.
+    /// At zero this returns the prepared input. Counts beyond the final column
+    /// run the full circuit. Validation and execution cover the selected prefix.
+    pub fn run_prefix(&self, step_count: usize, opts: &RunOptions) -> RunResult {
+        let steps = &self.steps[..step_count.min(self.steps.len())];
+        let mut run_steps = self.build_run_steps(steps);
 
         // 2. Prepare and validate the steps.
         let diagnostics = self.prepare_and_validate_steps(&mut run_steps);
@@ -243,13 +250,12 @@ impl Circuit {
         }
     }
 
-    /// Builds the complete list of operational steps for a simulation run.
+    /// Builds the list of operational steps for a simulation run.
     ///
     /// This function creates a temporary, side-effect-free list of operations.
     /// It first converts any `initial_preps` into concrete gate operations,
-    /// then appends a clone of the main circuit steps. This ensures that the
-    /// original `Circuit` definition is not mutated during a run.
-    fn build_run_steps(&self) -> Vec<Vec<Operation>> {
+    /// then appends the requested columns so they can be prepared for this run.
+    fn build_run_steps(&self, steps: &[Vec<Operation>]) -> Vec<Vec<Operation>> {
         let mut run_steps: Vec<Vec<Operation>> = Vec::new();
         if self.initial_state.is_none() {
             let mut prep_ops_step1 = Vec::new();
@@ -274,7 +280,7 @@ impl Circuit {
                 run_steps.push(prep_ops_step2);
             }
         }
-        run_steps.append(&mut self.steps.clone());
+        run_steps.extend_from_slice(steps);
         run_steps
     }
 

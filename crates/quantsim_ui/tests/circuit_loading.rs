@@ -19,6 +19,78 @@ fn process_messages(app: &mut QCSimApp) {
 }
 
 #[test]
+fn shorter_json_can_render_on_the_load_frame() {
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::LoadTemplate("qft4.json".into()));
+    app.handle_message(Message::RunSimulation);
+    app.handle_message(Message::SelectGateForEditing(0, 12));
+    let bell = circuits::get_circuit("bell.json").unwrap();
+    app.dispatch(Message::UpdateCircuitFromJson(bell));
+
+    let ctx = egui::Context::default();
+    let mut frame = eframe::Frame::_new_kittest();
+    let _ = ctx.run(Default::default(), |ctx| {
+        eframe::App::update(&mut app, ctx, &mut frame);
+    });
+
+    assert_eq!(app.state.circuit_state.num_timesteps, 2);
+    assert_eq!(app.state.initial_state_editor_state.num_qubits, 2);
+    assert_eq!(app.state.ui_state.current_timestep, 0);
+    assert!(app.state.ui_state.selected_gate_for_editing.is_none());
+    assert!(app.state.simulation_state.quantum_state.is_none());
+    app.handle_message(Message::RunSimulation);
+    let probabilities = app
+        .state
+        .simulation_state
+        .quantum_state
+        .unwrap()
+        .probabilities();
+    assert!((probabilities[0] - 0.5).abs() < 1e-6);
+    assert!((probabilities[3] - 0.5).abs() < 1e-6);
+}
+
+#[test]
+fn template_replaces_the_json_draft_and_previous_results() {
+    let mut app = QCSimApp::default();
+    let json = r#"{"num_qubits":1,"steps":[[]],"initial_state":[[0,0],[1,0]]}"#;
+    app.handle_message(Message::UpdateCircuitFromJson(json.into()));
+    assert_eq!(app.state.initial_state_editor_state.state_vector[1].re, 1.0);
+    app.handle_message(Message::RunSimulation);
+
+    app.handle_message(Message::LoadTemplate("bell.json".into()));
+
+    assert_eq!(
+        app.state.ui_state.circuit_json_string,
+        circuits::get_circuit("bell.json").unwrap()
+    );
+    assert_eq!(app.state.ui_state.current_timestep, 0);
+    assert!(app.state.simulation_state.quantum_state.is_none());
+    assert_eq!(app.state.initial_state_editor_state.state_vector.len(), 4);
+    assert_eq!(app.state.initial_state_editor_state.state_vector[0].re, 1.0);
+}
+
+#[test]
+fn rejected_json_keeps_the_last_working_circuit_and_results() {
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::LoadTemplate("bell.json".into()));
+    app.handle_message(Message::RunSimulation);
+
+    for invalid in [
+        "{",
+        r#"{"num_qubits":128,"steps":[]}"#,
+        r#"{"num_qubits":2,"steps":[],"initial_state":[[1,0]]}"#,
+    ] {
+        app.handle_message(Message::UpdateCircuitFromJson(invalid.into()));
+        assert!(app.state.ui_state.error_message.is_some());
+        assert_eq!(app.state.circuit_state.circuit.steps[1][0].id, Gate::CX);
+        assert!(app.state.simulation_state.quantum_state.is_some());
+    }
+    app.handle_message(Message::LoadTemplate("ghz.json".into()));
+    assert!(app.state.ui_state.error_message.is_none());
+    assert_eq!(app.state.circuit_state.num_qubits, 3);
+}
+
+#[test]
 fn test_load_bell_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();

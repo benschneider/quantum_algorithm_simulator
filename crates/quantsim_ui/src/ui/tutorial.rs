@@ -6,12 +6,13 @@ pub fn render(state: &mut AppState, ctx: &Context) {
     if state.ui_state.show_tutorial_window {
         let mut open = state.ui_state.show_tutorial_window;
         egui::Window::new("Tutorial")
+            .default_size([660.0, 440.0])
             .vscroll(false)
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.heading("Quantsim Tutorial");
 
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(
                         &mut state.ui_state.active_tutorial_step,
                         TutorialStep::TutorialIntro,
@@ -59,6 +60,11 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                     );
                     ui.selectable_value(
                         &mut state.ui_state.active_tutorial_step,
+                        TutorialStep::ErrorCorrection,
+                        "Error correction",
+                    );
+                    ui.selectable_value(
+                        &mut state.ui_state.active_tutorial_step,
                         TutorialStep::Conclusion,
                         "Conclusion",
                     );
@@ -94,6 +100,9 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                     TutorialStep::Analytics => {
                         include_str!("../../assets/docs/tutorials/analytics.md")
                     }
+                    TutorialStep::ErrorCorrection => {
+                        include_str!("../../assets/docs/tutorials/error_correction.md")
+                    }
                     TutorialStep::Conclusion => {
                         include_str!("../../assets/docs/tutorials/conclusion.md")
                     }
@@ -110,13 +119,13 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                         });
                 }
 
-                egui::CentralPanel::default().show_inside(ui, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
                         use egui_commonmark::CommonMarkCache;
                         let mut cache = CommonMarkCache::default();
                         CommonMarkViewer::new().show(ui, &mut cache, content);
                     });
-                });
             });
         state.ui_state.show_tutorial_window = open;
     }
