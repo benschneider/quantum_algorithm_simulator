@@ -27,11 +27,11 @@
 //! operations to the state.
 use super::circuit::Circuit;
 use super::formatters;
-use super::types::{GateMatrix, Operation};
+use super::types::{Gate, GateMatrix, Operation};
 use nalgebra::{Complex, DVector};
-use nalgebra_sparse::ops::{serial::spmm_csr_dense, Op};
 use nalgebra_sparse::CsrMatrix;
 use rayon::prelude::*;
+use smallvec::SmallVec;
 
 const MIN_SUBSPACE_PROBABILITY: f32 = 1e-12;
 
@@ -103,6 +103,29 @@ impl QuantumState {
         num_qubits: usize,
         state_vector: &[Complex<f32>],
     ) -> Result<Self, &'static str> {
+        Self::validate_vector(num_qubits, state_vector)?;
+        Ok(Self {
+            num_qubits,
+            state_vector: DVector::from_vec(state_vector.to_vec()),
+        })
+    }
+
+    /// Validates the amplitudes as in [`Self::from_vector`] and takes ownership of their storage.
+    pub fn from_owned_vector(
+        num_qubits: usize,
+        state_vector: Vec<Complex<f32>>,
+    ) -> Result<Self, &'static str> {
+        Self::validate_vector(num_qubits, &state_vector)?;
+        Ok(Self {
+            num_qubits,
+            state_vector: DVector::from_vec(state_vector),
+        })
+    }
+
+    fn validate_vector(
+        num_qubits: usize,
+        state_vector: &[Complex<f32>],
+    ) -> Result<(), &'static str> {
         let expected_dim = 1 << num_qubits;
         if state_vector.len() != expected_dim {
             return Err("Invalid state vector dimension.");
@@ -113,10 +136,7 @@ impl QuantumState {
             return Err("State vector is not normalized.");
         }
 
-        Ok(Self {
-            num_qubits,
-            state_vector: DVector::from_vec(state_vector.to_vec()),
-        })
+        Ok(())
     }
 
     /// Applies a quantum operation to the state.
@@ -127,12 +147,14 @@ impl QuantumState {
         // 2. `op.qubits` contains the correct qubits to act upon.
 
         let matrix = op.matrix.as_ref().expect("Matrix not prepared for execution");
-        let qubits_to_apply: Vec<usize> = op.qubits.iter().map(|&q| q as usize).collect();
+        let mut qubits_to_apply: SmallVec<[usize; 4]> =
+            op.qubits.iter().map(|&q| q as usize).collect();
 
         if !qubits_to_apply.is_empty() {
             match matrix {
                 GateMatrix::LittleEndian(smat) => {
-                    self.apply_sparse_gate(smat, &qubits_to_apply, &op.id.to_string())
+                    qubits_to_apply.sort_unstable();
+                    self.apply_sparse_gate(smat, &qubits_to_apply, &op.id)
                 }
                 GateMatrix::BigEndian(_) => {
                     // This path should be unreachable if the circuit was prepared correctly.
@@ -151,8 +173,7 @@ impl QuantumState {
     /// subset of qubits, the state vector can be decomposed into independent
     /// subspaces. Each subspace corresponds to a fixed state of the non-gate
     /// qubits. This function iterates through these subspaces, applies the
-    /// gate transformation to each one, and assembles the results into the
-    /// new state vector.
+    /// gate transformation to each one, and writes it back in place.
     ///
     /// Single-qubit gates use disjoint amplitude pairs. The general case uses
     /// the gather-apply-scatter algorithm below and supports per-subspace logs.
@@ -166,17 +187,14 @@ impl QuantumState {
     ///     the main state vector into a smaller `sub_vector`.
     /// 4.  **Apply**: Multiply the gate matrix `u` by the `sub_vector` to get
     ///     the transformed `new_sub_vector`.
-    /// 5.  **Scatter**: Place the amplitudes from `new_sub_vector` into their
-    ///     correct positions in a `next_state_vector`.
-    /// 6.  **Update**: Replace the old state vector with the new one.
+    /// 5.  **Scatter**: Overwrite this subspace in the state vector. Every
+    ///     other subspace uses a disjoint set of indices.
     ///
     /// # Arguments
     /// * `u` - The sparse matrix (`CsrMatrix`) representing the quantum gate.
     /// * `qubits` - A slice of qubit indices that the gate `u` acts on.
-    fn apply_sparse_gate(&mut self, u: &CsrMatrix<Complex<f32>>, qubits: &[usize], op_id: &str) {
-        let mut sorted_qubits = qubits.to_vec();
-        sorted_qubits.sort_unstable();
-        log::debug!("Apply_sparse_gate for '{}' gate on qubits: {:?} (sorted)", op_id, &sorted_qubits);
+    fn apply_sparse_gate(&mut self, u: &CsrMatrix<Complex<f32>>, qubits: &[usize], op_id: &Gate) {
+        log::debug!("Apply_sparse_gate for '{}' gate on qubits: {:?} (sorted)", op_id, qubits);
         let n_qubits = self.num_qubits;
         let n_gate_qubits = qubits.len();
 
@@ -190,20 +208,19 @@ impl QuantumState {
             return;
         }
 
-        if let [qubit] = sorted_qubits.as_slice() {
+        if let [qubit] = qubits {
             if u.nrows() == 2 && u.ncols() == 2 && !log::log_enabled!(log::Level::Debug) {
                 self.apply_one_qubit_gate(u, *qubit);
                 return;
             }
         }
 
-        let mut next_state_vector = DVector::from_element(1 << n_qubits, Complex::new(0.0, 0.0));
-
-        let mut subspace = GateSubspace::new(self, u, &sorted_qubits);
-        for other_q_state in OtherQubitStateIterator::new(n_qubits, &sorted_qubits) {
-            subspace.transform(&self.state_vector, other_q_state, &mut next_state_vector);
+        let mut subspace = GateSubspace::new(self, u, qubits);
+        for other_q_state in OtherQubitStateIterator::new(n_qubits, qubits) {
+            for (index, amplitude) in subspace.transform(&self.state_vector, other_q_state) {
+                self.state_vector[index] = amplitude;
+            }
         }
-        self.state_vector = next_state_vector;
     }
 
     /// Within each block, the amplitudes in a pair differ only in the target bit.
@@ -252,11 +269,12 @@ impl QuantumState {
         other_q_state: usize,
         next_state_vector: &mut DVector<Complex<f32>>,
     ) {
-        GateSubspace::new(self, u, qubits).transform(
-            &self.state_vector,
-            other_q_state,
-            next_state_vector,
-        );
+        let mut subspace = GateSubspace::new(self, u, qubits);
+        for (index, amplitude) in subspace.transform(&self.state_vector, other_q_state) {
+            if amplitude != Complex::default() {
+                next_state_vector[index] += amplitude;
+            }
+        }
     }
 
     /// Extracts the local state of the gate qubits from a global state index.
@@ -330,6 +348,7 @@ struct GateSubspace<'a> {
 impl<'a> GateSubspace<'a> {
     fn new(state: &QuantumState, matrix: &'a CsrMatrix<Complex<f32>>, qubits: &[usize]) -> Self {
         let dim = 1 << qubits.len();
+        assert_eq!((matrix.nrows(), matrix.ncols()), (dim, dim));
         Self {
             matrix,
             offsets: (0..dim)
@@ -344,20 +363,17 @@ impl<'a> GateSubspace<'a> {
         &mut self,
         state: &DVector<Complex<f32>>,
         base: usize,
-        next: &mut DVector<Complex<f32>>,
-    ) {
+    ) -> impl Iterator<Item = (usize, Complex<f32>)> + '_ {
         for (input, &offset) in self.input.iter_mut().zip(&self.offsets) {
             *input = state[base | offset];
         }
-        // spmm scales the old output by zero, even when a custom gate produced NaN.
-        self.output.fill(Complex::new(0.0, 0.0));
-        spmm_csr_dense(
-            Complex::new(0.0, 0.0),
-            &mut self.output,
-            Complex::new(1.0, 0.0),
-            Op::NoOp(self.matrix),
-            Op::NoOp(&self.input),
-        );
+        for (output, row) in self.output.iter_mut().zip(self.matrix.row_iter()) {
+            let mut amplitude = Complex::default();
+            for (&column, &coefficient) in row.col_indices().iter().zip(row.values()) {
+                amplitude += coefficient * self.input[column];
+            }
+            *output = amplitude;
+        }
 
         if log::log_enabled!(log::Level::Debug) {
             log::debug!("Subspace other_q_state={base}: sub_vector_in = {:?}", self.input);
@@ -367,13 +383,15 @@ impl<'a> GateSubspace<'a> {
                 formatters::format_transform(self.matrix, &self.input, &self.output)
             );
         }
-        for (local, (&amp, &offset)) in self.output.iter().zip(&self.offsets).enumerate() {
-            if amp.norm_sqr() > MIN_SUBSPACE_PROBABILITY {
-                let global = base | offset;
+        self.output.iter().zip(&self.offsets).enumerate().map(move |(local, (&amp, &offset))| {
+            let global = base | offset;
+            if amp.is_finite() && amp.norm_sqr() > MIN_SUBSPACE_PROBABILITY {
                 log::debug!("  Scattering j_out={local} (local |{local:b}>) to global index {global} (|{global:b}>) with amp {amp:?}");
-                next[global] += amp;
+                (global, amp)
+            } else {
+                (global, Complex::default())
             }
-        }
+        })
     }
 }
 
@@ -403,6 +421,20 @@ impl Simulator {
 mod tests {
     use super::*;
     use crate::core::types::Gate;
+
+    #[test]
+    fn owned_state_reuses_storage_and_checks_the_input() {
+        let amplitudes = vec![Complex::new(0.0, 0.0), Complex::new(0.0, 1.0)];
+        let source = amplitudes.as_ptr();
+        let state = QuantumState::from_owned_vector(1, amplitudes).unwrap();
+        assert_eq!(state.state_vector.as_ptr(), source);
+        assert_eq!(state.state_vector[1], Complex::new(0.0, 1.0));
+
+        for invalid in [vec![], vec![Complex::default(); 2]] {
+            let expected = QuantumState::from_vector(1, &invalid).unwrap_err();
+            assert_eq!(QuantumState::from_owned_vector(1, invalid).unwrap_err(), expected);
+        }
+    }
 
     #[test]
     fn subspace_iterator_visits_each_assignment_in_order() {
@@ -459,6 +491,39 @@ mod tests {
                 assert_eq!(actual.state_vector, expected);
             }
         }
+    }
+
+    #[test]
+    fn in_place_two_qubit_gate_matches_independent_blocks_and_clears_dropped_outputs() {
+        let mut state = QuantumState::new(4);
+        for (i, amp) in state.state_vector.iter_mut().enumerate() {
+            *amp = Complex::new(i as f32 / 32.0, (15 - i) as f32 / 64.0);
+        }
+        // q0 and q2 are the gate bits. Include tiny and nonfinite values in
+        // different blocks so stale outputs or scratch contamination are visible.
+        state.state_vector[0] = Complex::new(0.5e-6, 0.0);
+        state.state_vector[2] = Complex::new(f32::INFINITY, 0.0);
+        let one = Complex::new(1.0, 0.0);
+        let i = Complex::new(0.0, 1.0);
+        let gate = CsrMatrix::try_from_csr_data(
+            4, 4, vec![0, 1, 3, 4, 4], vec![0, 1, 3, 2], vec![one, i, one, -i],
+        ).unwrap();
+        let mut expected = DVector::zeros(16);
+        let mut accumulated = DVector::from_element(16, one);
+        for base in [0, 2, 8, 10] {
+            let indices = [base, base | 1, base | 4, base | 5];
+            let input = DVector::from_iterator(4, indices.map(|index| state.state_vector[index]));
+            let output = &gate * input;
+            for (index, &amp) in indices.iter().zip(output.iter()) {
+                if amp.norm_sqr() > MIN_SUBSPACE_PROBABILITY {
+                    expected[*index] = amp;
+                }
+            }
+            state.transform_subspace(&gate, &[0, 2], base, &mut accumulated);
+        }
+        state.apply_sparse_gate(&gate, &[0, 2], &Gate::Custom);
+        assert_eq!(state.state_vector, expected);
+        assert_eq!(accumulated, expected.map(|amp| one + amp));
     }
 
     #[test]

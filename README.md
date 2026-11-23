@@ -14,7 +14,9 @@ Build a circuit gate by gate, place its qubits on a 2D map, and follow each wire
 -->
 
 ## Quick Links
+
 - ▶️ **Live demo**: https://benschneider.github.io/quantum_algorithm_simulator/
+- [What's new in 0.3.0, with screenshots](RELEASES.md)
 - 📄 **License**: [MIT OR Apache-2.0](COPYRIGHT.md)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 

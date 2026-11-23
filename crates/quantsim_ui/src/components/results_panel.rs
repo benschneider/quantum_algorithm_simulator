@@ -112,8 +112,16 @@ fn probability_plot(
     let chart = BarChart::new("Joint probability", bars)
         .element_formatter(Box::new(|bar, _| bar.name.clone()));
 
-    Plot::new("joint_probability_percent")
-        .view_aspect(1.6)
+    // Keep horizontal zoom while inspecting the same basis states, and fit new ones on arrival.
+    let page_id = egui::Id::new((state.num_qubits, page));
+    let last_page_id = ui.make_persistent_id("joint_probability_page");
+    let page_changed = ui.data_mut(|data| {
+        let previous = data.get_temp_mut_or_insert_with(last_page_id, || page_id);
+        std::mem::replace(previous, page_id) != page_id
+    });
+    let plot = Plot::new("joint_probability_percent");
+    let plot = if page_changed { plot.reset() } else { plot };
+    plot.view_aspect(1.6)
         .x_axis_label("Basis state index")
         .show_x(false)
         .x_axis_formatter(|mark, _| {
@@ -238,6 +246,7 @@ mod tests {
         let ctx = egui::Context::default();
         let render = |state: &QuantumState, page: &[usize], events: Vec<egui::Event>| {
             let mut frame = egui::Rect::NOTHING;
+            let mut x_bounds = [0.0; 2];
             let output = ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -252,6 +261,7 @@ mod tests {
                         let plot = probability_plot(ui, state, page);
                         let bounds = plot.transform.bounds();
                         assert_eq!((bounds.min()[1], bounds.max()[1]), (0.0, 100.0));
+                        x_bounds = [bounds.min()[0], bounds.max()[0]];
                         frame = *plot.transform.frame();
                     });
                 },
@@ -267,22 +277,29 @@ mod tests {
                     "Expected a bar {height} points high in a {frame:?} plot"
                 );
             }
-            frame
+            (frame, x_bounds)
         };
         let initial = QuantumState::new(2);
         let amplitudes = [0.5_f32.sqrt(), 0.5, 0.5, 0.0].map(|v| nalgebra::Complex::new(v, 0.0));
         let split = QuantumState::from_vector(2, &amplitudes).unwrap();
-        render(&initial, &[0], vec![]);
-        render(&split, &[0], vec![]);
-        let frame = render(&split, &[1, 2], vec![]);
-        render(
-            &split,
-            &[1, 2],
+        let (_, single_bounds) = render(&initial, &[0], vec![]);
+        let (_, pair_bounds) = render(&split, &[1, 2], vec![]);
+        assert!(single_bounds[0] <= -0.425 && single_bounds[1] >= 0.425);
+        assert!(pair_bounds[0] <= -0.425 && pair_bounds[1] >= 1.425);
+
+        let (frame, _) = render(&initial, &[0], vec![]);
+        let (_, zoomed) = render(
+            &initial,
+            &[0],
             vec![
                 egui::Event::PointerMoved(frame.center()),
                 egui::Event::Zoom(2.0),
             ],
         );
+        assert!(zoomed[1] - zoomed[0] < single_bounds[1] - single_bounds[0]);
+        assert_eq!(render(&initial, &[0], vec![]).1, zoomed);
+        assert_eq!(render(&split, &[1, 2], vec![]).1, pair_bounds);
+        assert_eq!(render(&initial, &[0], vec![]).1, single_bounds);
     }
 
     #[test]

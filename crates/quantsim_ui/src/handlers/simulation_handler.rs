@@ -67,9 +67,8 @@ fn simulate(circuit: &Circuit, step_count: usize) -> Result<(QuantumState, Vec<f
 
     let state_vector = result
         .final_state_vector
-        .as_deref()
         .ok_or("No state vector was produced.")?;
-    let state = QuantumState::from_vector(circuit.num_qubits, state_vector)?;
+    let state = QuantumState::from_owned_vector(circuit.num_qubits, state_vector)?;
     Ok((state, result.final_probabilities))
 }
 

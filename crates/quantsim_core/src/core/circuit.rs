@@ -293,14 +293,16 @@ impl Circuit {
         };
 
         // 4. Execute the simulation.
-        let (final_state, snapshots) = self.execute_steps(&mut state, &run_steps, opts);
+        let snapshots = self.execute_steps(&mut state, &run_steps, opts);
+        drop(run_steps);
 
         // 5. Perform measurements.
-        let measurements = self.perform_measurements(&final_state, opts);
+        let final_probabilities = state.probabilities();
+        let measurements = self.perform_measurements(&final_probabilities, opts);
 
         RunResult {
-            final_probabilities: final_state.probabilities(),
-            final_state_vector: Some(final_state.state_vector.as_slice().to_vec()),
+            final_probabilities,
+            final_state_vector: Some(state.state_vector.data.into()),
             snapshots,
             measurements,
             diagnostics: vec![],
@@ -376,7 +378,7 @@ impl Circuit {
     ///
     /// This function iterates through the `run_steps`, applies each operation to the
     /// `QuantumState`, and collects snapshots if requested.
-    fn execute_steps<'a>(&self, state: &'a mut QuantumState, run_steps: &[Vec<Operation>], opts: &RunOptions) -> (&'a QuantumState, Vec<StepSnapshot>) {
+    fn execute_steps(&self, state: &mut QuantumState, run_steps: &[Vec<Operation>], opts: &RunOptions) -> Vec<StepSnapshot> {
         let mut snapshots = Vec::new();
         for (i, step) in run_steps.iter().enumerate() {
             for op in step.iter() {
@@ -393,13 +395,13 @@ impl Circuit {
                 });
             }
         }
-        (state, snapshots)
+        snapshots
     }
 
     /// Performs measurements on the final quantum state if `shots` are requested.
-    fn perform_measurements(&self, final_state: &QuantumState, opts: &RunOptions) -> Option<Vec<Vec<u8>>> {
+    fn perform_measurements(&self, probabilities: &[f32], opts: &RunOptions) -> Option<Vec<Vec<u8>>> {
         if let Some(shots) = opts.shots {
-            let dist = WeightedIndex::new(final_state.probabilities()).unwrap();
+            let dist = WeightedIndex::new(probabilities).unwrap();
             let results = if let Some(seed) = opts.rng_seed {
                 let mut rng = StdRng::seed_from_u64(seed);
                 (0..shots)

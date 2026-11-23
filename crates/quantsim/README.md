@@ -11,7 +11,7 @@ A quantum circuit simulator ecosystem providing both a core simulation library a
 Install and run the interactive simulator:
 
 ```bash
-cargo install quantsim
+cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.3.0 --locked quantsim
 quantsim
 ```
 
@@ -43,7 +43,7 @@ This crate serves as the main entry point for the quantsim ecosystem, which cons
 ### As a Binary Application
 
 ```bash
-cargo install quantsim
+cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.3.0 --locked quantsim
 ```
 
 This installs the interactive simulator that you can run with:
@@ -58,7 +58,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quantsim = "0.2.2"
+quantsim = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.3.0" }
 ```
 
 ## Usage
@@ -66,7 +66,7 @@ quantsim = "0.2.2"
 ### Running the Interactive Simulator
 
 ```bash
-cargo install quantsim
+cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.3.0 --locked quantsim
 quantsim
 ```
 
