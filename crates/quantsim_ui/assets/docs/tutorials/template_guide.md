@@ -6,6 +6,7 @@ Open **File > Load Template**. Click a numbered column to read all wires after t
 
 - **Bell** — Click step 1. The two populated rows are `00` and `01`, so only q0 is uncertain. At step 2 the rows are `00` and `11`. Each wire now reads 1 half the time, and the two always agree.
 - **GHZ** — Compare steps 2 and 3. The rows change from `000` and `011` to `000` and `111`. The second CNOT extends the correlation to q2. Only two of the eight possible outcomes occur.
+- **ghz 50** — At step 6 the first 32 wires agree and q49 still reads zero. At step 7 all 50 agree. In **Joint samples**, each shot records either 50 zeros or 50 ones. Each wire's exact probability of reading one is 50%.
 - **Bell test complex** — q0 and q1 share a Bell pair. Ancillas q2 and q3 control the rotations used to read it. At step 5, group the rows by their first two bits (q3 q2). Each setting has 25% total probability. Within setting `00`, the last two bits agree about 85% of the time. Within setting `11`, they agree about 15% of the time. To check a setting, add the probabilities of its two matching rows and divide by 0.25.
 
 ## Turn a phase into an answer

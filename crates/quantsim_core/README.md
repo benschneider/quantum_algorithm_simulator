@@ -36,6 +36,12 @@ assert!(result.diagnostics.is_empty());
 assert!((result.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 ```
 
+### Compact Clifford readout (current checkout)
+
+`circuit.run_stabilizer_prefix(step_count)` accepts 1–64 wires with per-wire preparations and the built-in H, SqrtZ (S), CX, X, Y, and Z gates. Call `state.probability_one(wire)` for an exact wire probability or `state.sample(shots, seed)` for joint computational-basis samples packed into `u64`, with q0 at bit zero. See the [50-wire GHZ example](src/core/stabilizer.rs).
+
+The native GHZ50 test measured **13,192 bytes of peak additional live heap** on Apple Silicon after circuit construction, including evolution, all 50 wire probabilities, sampling scratch space, and 1,024 returned samples. To reproduce from the workspace root, run `cargo test --manifest-path crates/quantsim_core/Cargo.toml --test stabilizer_scale -- --nocapture`.
+
 ### Loading Built-in Templates
 
 The current checkout includes a five-qubit plaquette with an explicit physical layout.

@@ -1,4 +1,5 @@
 use crate::messages::Message;
+use crate::state::simulation_state::{CompactSamples, COMPACT_SHOTS};
 use crate::state::AppState;
 use egui_plot::{Bar, BarChart, GridMark, Plot};
 use quantsim_core::{circuit::QubitRole, core::engine::QuantumState};
@@ -7,13 +8,13 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
     let circuit = &state.circuit_state.circuit;
     let simulation = &mut state.simulation_state;
     let step = state.ui_state.current_timestep;
-    let Some(quantum_state) = &simulation.quantum_state else {
+    if !simulation.has_readout() {
         ui.label(format!("No readout for step {step}."));
         return ui
             .button(format!("Read step {step}"))
             .clicked()
             .then_some(Message::SelectTimestep(step));
-    };
+    }
     if step == 0 {
         ui.heading("Step 0 · Initial state");
     } else if let Some(section) = circuit.section_at(step) {
@@ -22,8 +23,13 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
         ui.heading(format!("After step {step}"));
     }
 
+    if let Some(samples) = &simulation.compact_samples {
+        show_joint_samples(ui, samples, circuit.num_qubits);
+        ui.separator();
+    }
+
     ui.strong("Wire readout");
-    ui.small("P(1) is the probability of measuring 1 in the computational basis.");
+    ui.small("P(1) is the exact probability of measuring 1 in the computational basis.");
     egui::Grid::new("wire_readout")
         .striped(true)
         .show(ui, |ui| {
@@ -50,6 +56,7 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
             }
         });
 
+    let quantum_state = simulation.quantum_state.as_ref()?;
     ui.separator();
     ui.strong("Joint state");
     ui.small("Each ket shows q0 at the right. Amplitudes below the display threshold are hidden.");
@@ -82,6 +89,57 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
     ui.small("Bar color shows phase. Hover over a state for its amplitude and phase.");
     probability_plot(ui, quantum_state, page);
     message
+}
+
+fn show_joint_samples(ui: &mut egui::Ui, samples: &CompactSamples, width: usize) {
+    ui.strong("Joint samples");
+    let shown = samples.rows.len();
+    if samples.distinct > shown {
+        ui.small(format!(
+            "{COMPACT_SHOTS} shots · {shown} most frequent of {} observed outcomes",
+            samples.distinct
+        ));
+    } else {
+        let noun = if shown == 1 { "outcome" } else { "outcomes" };
+        ui.small(format!("{COMPACT_SHOTS} shots · {shown} observed {noun}"));
+    }
+
+    egui::Grid::new("joint_samples")
+        .max_col_width((ui.available_width() - 60.0).max(64.0))
+        .striped(true)
+        .show(ui, |ui| {
+            ui.strong("Shots");
+            ui.strong(format!("Outcome (q{} … q0)", width - 1));
+            ui.end_row();
+            for &(outcome, count) in &samples.rows {
+                ui.monospace(count.to_string());
+                ui.add(
+                    egui::Label::new(egui::RichText::new(grouped_bits(outcome, width)).monospace())
+                        .wrap(),
+                );
+                ui.end_row();
+            }
+            if samples.distinct > shown {
+                let displayed_shots: u32 = samples.rows.iter().map(|&(_, count)| count).sum();
+                ui.monospace((COMPACT_SHOTS - displayed_shots).to_string());
+                ui.label(format!(
+                    "Other {} observed outcomes",
+                    samples.distinct - shown
+                ));
+                ui.end_row();
+            }
+        });
+}
+
+fn grouped_bits(outcome: u64, width: usize) -> String {
+    let mut bits = format!("{outcome:0width$b}");
+    // Group from q0 so each full group corresponds to eight consecutive wires.
+    let mut boundary = width;
+    while boundary > 8 {
+        boundary -= 8;
+        bits.insert(boundary, ' ');
+    }
+    bits
 }
 
 fn probability_plot(
@@ -169,6 +227,81 @@ mod tests {
     use super::*;
     use crate::app::QCSimApp;
     use quantsim_core::core::types::Gate;
+
+    #[test]
+    fn narrow_compact_results_show_sample_counts_and_wrap_all_64_bits() {
+        use crate::state::SimulationState;
+        use quantsim_core::{circuit::Circuit, types::Operation};
+
+        let mut circuit = Circuit::new(64);
+        let mut column = vec![Operation::new(Gate::X, vec![63], vec![])];
+        column.extend((0..12).map(|wire| Operation::new(Gate::H, vec![wire], vec![])));
+        circuit.steps.push(column);
+        let state = circuit.run_stabilizer_prefix(1).unwrap();
+        let mut app = QCSimApp::default();
+        app.state.circuit_state.circuit = circuit;
+        app.state.ui_state.current_timestep = 1;
+        app.state.simulation_state = SimulationState::from_stabilizer(&state, 64);
+
+        let ctx = egui::Context::default();
+        let mut render = || {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(360.0, 1600.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default()
+                        .show(ctx, |ui| {
+                            results_panel(ui, &mut app.state);
+                        })
+                        .inner
+                },
+            )
+        };
+        render();
+        let output = render();
+        let samples = app.state.simulation_state.compact_samples.as_ref().unwrap();
+        let texts: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) => Some(text),
+                _ => None,
+            })
+            .collect();
+        let label = |needle: &str| {
+            texts
+                .iter()
+                .find(|text| text.galley.text() == needle)
+                .unwrap_or_else(|| panic!("missing label {needle}"))
+        };
+        assert!(label("Joint samples").pos.y < label("Wire readout").pos.y);
+        label("Outcome (q63 … q0)");
+        label(&format!(
+            "1024 shots · 16 most frequent of {} observed outcomes",
+            samples.distinct
+        ));
+        let displayed: u32 = samples.rows.iter().map(|&(_, n)| n).sum();
+        label(&(COMPACT_SHOTS - displayed).to_string());
+        label(&format!(
+            "Other {} observed outcomes",
+            samples.distinct - 16
+        ));
+        for &(bits, _) in &samples.rows {
+            let text = label(&grouped_bits(bits, 64));
+            assert!(text.galley.text().starts_with("10000000 "));
+            assert_eq!(text.galley.text().replace(' ', ""), format!("{bits:064b}"));
+            assert!(text.galley.rows.len() > 1);
+            assert!(text.visual_bounding_rect().right() <= 360.0);
+        }
+        assert!(texts
+            .iter()
+            .all(|text| !matches!(text.galley.text(), "Joint state" | "Joint probabilities")));
+    }
 
     #[test]
     fn results_label_the_selected_section_and_sparse_plot_with_real_basis_indices() {

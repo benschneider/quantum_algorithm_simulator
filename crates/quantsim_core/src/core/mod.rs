@@ -20,6 +20,8 @@ pub mod builder;
 pub mod circuit;
 /// Contains the `Simulator` for running quantum circuit simulations.
 pub mod engine;
+/// Packed stabilizer simulation of Clifford circuit prefixes.
+pub mod stabilizer;
 /// Pretty-printing formatters for matrices and state vectors.
 pub mod formatters;
 /// Defines the standard quantum gates and their properties.

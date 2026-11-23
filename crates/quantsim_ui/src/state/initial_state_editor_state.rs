@@ -2,6 +2,7 @@ use nalgebra::Complex;
 use quantsim_core::circuit::Circuit;
 
 use super::pagination::PaginationState;
+use super::CircuitState;
 
 /// Represents the state of the initial state editor.
 #[derive(Clone, Debug, PartialEq)]
@@ -23,10 +24,10 @@ impl InitialStateEditorState {
         editor
     }
 
-    /// Creates a new `InitialStateEditorState` with a default state vector
-    /// for the given number of qubits.
+    /// Wide circuits use per-wire preparations and have no amplitude editor buffer.
     pub fn new(num_qubits: usize) -> Self {
-        let mut vector = vec![Complex::new(0.0, 0.0); 1 << num_qubits];
+        let count = CircuitState::dense_amplitude_count(num_qubits).unwrap_or(0);
+        let mut vector = vec![Complex::new(0.0, 0.0); count];
         if !vector.is_empty() {
             vector[0] = Complex::new(1.0, 0.0);
         }

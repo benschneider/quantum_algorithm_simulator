@@ -91,6 +91,109 @@ fn rejected_json_keeps_the_last_working_circuit_and_results() {
 }
 
 #[test]
+fn wide_imports_and_editor_actions_keep_input_storage_bounded() {
+    use quantsim_core::types::QubitPrep;
+
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::ToggleInitialStateEditor);
+    let json = r#"{"num_qubits":64,"initial_preps":["Plus"],"steps":[[{"id":"X","qubits":[63]}],[{"id":"Rz","qubits":[0],"params":[0.1]}]]}"#;
+    app.handle_message(Message::UpdateCircuitFromJson(json.into()));
+    assert!(app.state.ui_state.error_message.is_none());
+    assert_eq!(
+        app.state.circuit_state.circuit.initial_preps[0],
+        Some(QubitPrep::Plus)
+    );
+    assert_eq!(app.state.initial_state_editor_state.num_qubits, 64);
+    assert_eq!(
+        app.state.initial_state_editor_state.state_vector.capacity(),
+        0
+    );
+
+    let ctx = egui::Context::default();
+    let mut frame = eframe::Frame::_new_kittest();
+    let _ = ctx.run(Default::default(), |ctx| {
+        eframe::App::update(&mut app, ctx, &mut frame);
+    });
+    app.handle_message(Message::ApplyInitialStateFromEditor(vec![]));
+    assert!(app
+        .state
+        .ui_state
+        .error_message
+        .as_ref()
+        .unwrap()
+        .contains("initial_preps"));
+    assert!(app.state.circuit_state.circuit.initial_state.is_none());
+    app.handle_message(Message::ResetInitialState);
+    app.handle_message(Message::ToggleInitialStateEditor);
+    assert!(app.state.ui_state.show_initial_state_editor);
+    assert_eq!(
+        app.state.initial_state_editor_state.state_vector.capacity(),
+        0
+    );
+
+    app.handle_message(Message::UpdateCircuitFromJson(
+        r#"{"num_qubits":50,"initial_state":[[1,0]],"steps":[]}"#.into(),
+    ));
+    assert!(app
+        .state
+        .ui_state
+        .error_message
+        .as_ref()
+        .unwrap()
+        .contains("initial_preps"));
+    assert_eq!(app.state.circuit_state.circuit.num_qubits, 64);
+    assert_eq!(app.state.circuit_state.circuit.steps.len(), 2);
+}
+
+#[test]
+fn width_changes_preserve_explicit_input_and_validate_both_dimension_messages() {
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::UpdateCircuitFromJson(
+        r#"{"num_qubits":1,"initial_state":[[0,0],[1,0]],"steps":[[]]}"#.into(),
+    ));
+    for width in [0, 50, 65] {
+        app.handle_message(Message::ChangeQubits(width));
+        assert!(app.state.ui_state.error_message.is_some());
+        assert_eq!(app.state.circuit_state.num_qubits, 1);
+        assert_eq!(
+            app.state
+                .circuit_state
+                .circuit
+                .initial_state
+                .as_ref()
+                .unwrap()[1]
+                .re,
+            1.0
+        );
+    }
+    app.handle_message(Message::CircuitDimensionsChanged {
+        num_qubits: 65,
+        num_timesteps: 8,
+    });
+    assert_eq!(app.state.circuit_state.num_timesteps, 1);
+
+    app.handle_message(Message::ResetInitialState);
+    app.handle_message(Message::ChangeQubits(50));
+    assert_eq!(app.state.circuit_state.circuit.initial_preps.len(), 50);
+    assert_eq!(
+        app.state.initial_state_editor_state.state_vector.capacity(),
+        0
+    );
+    app.handle_message(Message::CircuitDimensionsChanged {
+        num_qubits: 64,
+        num_timesteps: 2,
+    });
+    assert_eq!(app.state.initial_state_editor_state.num_qubits, 64);
+    assert_eq!(
+        app.state.initial_state_editor_state.state_vector.capacity(),
+        0
+    );
+    app.handle_message(Message::ChangeQubits(2));
+    app.handle_message(Message::ToggleInitialStateEditor);
+    assert_eq!(app.state.initial_state_editor_state.state_vector.len(), 4);
+}
+
+#[test]
 fn test_load_bell_circuit() {
     let _ = env_logger::try_init();
     let mut app = QCSimApp::default();

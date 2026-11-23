@@ -2,6 +2,7 @@ pub mod app_state;
 pub mod circuit_state;
 pub mod custom_gate_editor_state;
 pub mod initial_state_editor_state;
+pub(crate) mod memory_estimate;
 pub mod pagination;
 pub mod simulation_state;
 pub mod ui_state;

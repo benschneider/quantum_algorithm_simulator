@@ -1,4 +1,7 @@
-use crate::{messages::Message, state::AppState};
+use crate::{
+    messages::Message,
+    state::{AppState, CircuitState, SimulationState},
+};
 use quantsim_core::core::circuit::{Circuit, RunOptions};
 use quantsim_core::core::engine::QuantumState;
 
@@ -22,9 +25,7 @@ pub fn handle_simulation_message(
                 return;
             }
             state.ui_state.selected_layout_wire = Some(wire);
-            if step == state.ui_state.current_timestep
-                && state.simulation_state.quantum_state.is_some()
-            {
+            if step == state.ui_state.current_timestep && state.simulation_state.has_readout() {
                 state.ui_state.show_results_window = true;
                 return;
             }
@@ -44,14 +45,21 @@ pub fn handle_simulation_message(
     let step_count = timestep
         .unwrap_or(circuit.steps.len())
         .min(circuit.steps.len());
+    if timestep.is_some()
+        && step_count == state.ui_state.current_timestep
+        && state.simulation_state.compact_samples.is_some()
+    {
+        state.ui_state.error_message = None;
+        return;
+    }
     state.ui_state.current_timestep = step_count;
-    match simulate(circuit, step_count) {
-        Ok((quantum_state, probabilities)) => {
-            state
-                .simulation_state
-                .set_readout(quantum_state, &probabilities, timestep.is_none());
-            state.ui_state.error_message = None;
-        }
+    match simulate(
+        circuit,
+        step_count,
+        &mut state.simulation_state,
+        timestep.is_none(),
+    ) {
+        Ok(()) => state.ui_state.error_message = None,
         Err(error) => {
             state.simulation_state = Default::default();
             state.ui_state.error_message = Some(format!("Simulation failed: {error}"));
@@ -59,7 +67,29 @@ pub fn handle_simulation_message(
     }
 }
 
-fn simulate(circuit: &Circuit, step_count: usize) -> Result<(QuantumState, Vec<f32>), String> {
+fn simulate(
+    circuit: &Circuit,
+    step_count: usize,
+    readout: &mut SimulationState,
+    reset_page: bool,
+) -> Result<(), String> {
+    if circuit.num_qubits > CircuitState::MAX_DENSE_QUBITS {
+        let state = circuit.run_stabilizer_prefix(step_count).map_err(|error| {
+            // Input diagnostics share (0, 0) with the first authored gate.
+            if error.step == 0 && error.op_index == 0 && circuit.run_stabilizer_prefix(0).is_err() {
+                error.message
+            } else {
+                format!(
+                    "Step {}, gate {}: {}",
+                    error.step + 1,
+                    error.op_index + 1,
+                    error.message
+                )
+            }
+        })?;
+        *readout = SimulationState::from_stabilizer(&state, circuit.num_qubits);
+        return Ok(());
+    }
     let result = circuit.run_prefix(step_count, &RunOptions::default());
     if let Some(error) = result.diagnostics.into_iter().next() {
         return Err(error.message);
@@ -69,13 +99,75 @@ fn simulate(circuit: &Circuit, step_count: usize) -> Result<(QuantumState, Vec<f
         .final_state_vector
         .ok_or("No state vector was produced.")?;
     let state = QuantumState::from_owned_vector(circuit.num_qubits, state_vector)?;
-    Ok((state, result.final_probabilities))
+    readout.set_readout(state, &result.final_probabilities, reset_page);
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::state::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS};
     use crate::{app::QCSimApp, messages::Message};
     use quantsim_core::{circuit::QubitRole, core::types::Gate};
+    use serde_json::json;
+
+    #[test]
+    fn wide_ghz_samples_only_correlated_outcomes_at_the_selected_step() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::LoadTemplate("ghz_50.json".to_owned()));
+        assert!(app.state.ui_state.error_message.is_none());
+        for (step, entangled_wires) in [(6, 32), (7, 50)] {
+            app.handle_message(Message::SelectTimestep(step));
+            assert!(app.state.ui_state.error_message.is_none());
+            let readout = &app.state.simulation_state;
+            let samples = readout.compact_samples.as_ref().unwrap();
+            assert_eq!(samples.distinct, 2);
+            let ones = (1_u64 << entangled_wires) - 1;
+            assert!(samples.rows.iter().any(|&(bits, _)| bits == 0));
+            assert!(samples.rows.iter().any(|&(bits, _)| bits == ones));
+            assert_eq!(samples.rows.iter().map(|r| r.1).sum::<u32>(), COMPACT_SHOTS);
+            assert!(readout.quantum_state.is_none());
+            assert!(readout.populated_indices.is_empty());
+            assert_eq!(readout.wire_one_probabilities.len(), 50);
+            assert!(readout.wire_one_probabilities[..entangled_wires]
+                .iter()
+                .all(|&p| p == 0.5));
+            assert!(readout.wire_one_probabilities[entangled_wires..]
+                .iter()
+                .all(|&p| p == 0.0));
+        }
+    }
+
+    #[test]
+    fn wide_uniform_shows_bounded_rows_and_an_unsupported_later_gate_leaves_earlier_steps_readable()
+    {
+        let independent: Vec<_> = (0..50).map(|q| json!({"id":"H","qubits":[q]})).collect();
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::UpdateCircuitFromJson(
+            json!({"num_qubits":50,"steps":[independent,[{"id":"Rz","qubits":[0],"params":[0.3]}]]}).to_string(),
+        ));
+        app.handle_message(Message::RunSimulation);
+        let error = app.state.ui_state.error_message.as_ref().unwrap();
+        assert!(
+            error.contains("Step 2, gate 1") && error.contains("Rz"),
+            "{error}"
+        );
+        assert!(!app.state.simulation_state.has_readout());
+
+        app.handle_message(Message::SelectTimestep(1));
+        assert!(app.state.ui_state.error_message.is_none());
+        let readout = &app.state.simulation_state;
+        assert!(readout.wire_one_probabilities.iter().all(|&p| p == 0.5));
+        let samples = readout.compact_samples.as_ref().unwrap();
+        assert!(samples.distinct > MAX_SAMPLE_ROWS && samples.distinct <= COMPACT_SHOTS as usize);
+        assert_eq!(samples.rows.len(), MAX_SAMPLE_ROWS);
+        assert!(samples
+            .rows
+            .is_sorted_by_key(|&(bits, count)| (std::cmp::Reverse(count), bits)));
+        assert!(samples.rows.iter().map(|r| r.1).sum::<u32>() < COMPACT_SHOTS);
+
+        app.handle_message(Message::DeleteGate(0, 0));
+        assert!(!app.state.simulation_state.has_readout());
+    }
 
     #[test]
     fn selected_prefix_reports_every_wire_and_high_index_joint_states() {

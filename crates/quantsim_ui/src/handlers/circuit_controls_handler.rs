@@ -1,4 +1,7 @@
-use crate::{messages::Message, state::AppState};
+use crate::{
+    messages::Message,
+    state::{AppState, CircuitState, InitialStateEditorState},
+};
 
 pub fn handle_circuit_controls_message(
     state: &mut AppState,
@@ -7,7 +10,9 @@ pub fn handle_circuit_controls_message(
 ) {
     match message {
         Message::ChangeQubits(new_qubits) => {
-            resize_wires(state, new_qubits);
+            if !resize_wires(state, new_qubits) {
+                return;
+            }
             state
                 .circuit_state
                 .circuit
@@ -55,15 +60,12 @@ pub fn handle_circuit_controls_message(
             num_qubits,
             num_timesteps,
         } => {
-            resize_wires(state, num_qubits);
+            if !resize_wires(state, num_qubits) {
+                return;
+            }
             resize_steps(state, num_timesteps);
-            state
-                .circuit_state
-                .circuit
-                .initial_preps
-                .resize(num_qubits, None);
             state.initial_state_editor_state =
-                crate::state::InitialStateEditorState::new(num_qubits);
+                InitialStateEditorState::from_circuit(&state.circuit_state.circuit);
         }
         _ => {}
     }
@@ -83,11 +85,29 @@ fn resize_steps(state: &mut AppState, count: usize) {
     }
 }
 
-fn resize_wires(state: &mut AppState, count: usize) {
+fn resize_wires(state: &mut AppState, count: usize) -> bool {
+    if !(1..=CircuitState::MAX_QUBITS).contains(&count) {
+        state.ui_state.error_message = Some(format!(
+            "Choose between 1 and {} qubits for this simulator.",
+            CircuitState::MAX_QUBITS
+        ));
+        return false;
+    }
+    if count > CircuitState::MAX_DENSE_QUBITS && state.circuit_state.circuit.initial_state.is_some()
+    {
+        state.ui_state.error_message = Some(format!(
+            "Reset the explicit input in Settings → Set Initial State before resizing to {count} qubits."
+        ));
+        return false;
+    }
     if count != state.circuit_state.num_qubits {
         state.simulation_state = Default::default();
         state.ui_state.current_timestep = 0;
+        state.ui_state.error_message = None;
         state.ui_state.layout_draft = None;
+        if count > CircuitState::MAX_DENSE_QUBITS {
+            state.initial_state_editor_state = InitialStateEditorState::new(count);
+        }
         state.ui_state.selected_layout_wire = state
             .ui_state
             .selected_layout_wire
@@ -99,4 +119,10 @@ fn resize_wires(state: &mut AppState, count: usize) {
     state.circuit_state.num_qubits = count;
     state.circuit_state.circuit.num_qubits = count;
     state.circuit_state.circuit.qubit_roles.resize(count, None);
+    state
+        .circuit_state
+        .circuit
+        .initial_preps
+        .resize(count, None);
+    true
 }

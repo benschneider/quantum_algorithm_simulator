@@ -1,0 +1,69 @@
+{
+  "num_qubits": 50,
+  "sections": [
+    {"start": 1, "end": 2, "label": "Bell pair"},
+    {"start": 3, "end": 7, "label": "Extend to 50 wires"}
+  ],
+  "steps": [
+    [{"id": "H", "qubits": [0]}],
+    [{"id": "CX", "qubits": [0, 1]}],
+    [
+      {"id": "CX", "qubits": [0, 2]},
+      {"id": "CX", "qubits": [1, 3]}
+    ],
+    [
+      {"id": "CX", "qubits": [0, 4]},
+      {"id": "CX", "qubits": [1, 5]},
+      {"id": "CX", "qubits": [2, 6]},
+      {"id": "CX", "qubits": [3, 7]}
+    ],
+    [
+      {"id": "CX", "qubits": [0, 8]},
+      {"id": "CX", "qubits": [1, 9]},
+      {"id": "CX", "qubits": [2, 10]},
+      {"id": "CX", "qubits": [3, 11]},
+      {"id": "CX", "qubits": [4, 12]},
+      {"id": "CX", "qubits": [5, 13]},
+      {"id": "CX", "qubits": [6, 14]},
+      {"id": "CX", "qubits": [7, 15]}
+    ],
+    [
+      {"id": "CX", "qubits": [0, 16]},
+      {"id": "CX", "qubits": [1, 17]},
+      {"id": "CX", "qubits": [2, 18]},
+      {"id": "CX", "qubits": [3, 19]},
+      {"id": "CX", "qubits": [4, 20]},
+      {"id": "CX", "qubits": [5, 21]},
+      {"id": "CX", "qubits": [6, 22]},
+      {"id": "CX", "qubits": [7, 23]},
+      {"id": "CX", "qubits": [8, 24]},
+      {"id": "CX", "qubits": [9, 25]},
+      {"id": "CX", "qubits": [10, 26]},
+      {"id": "CX", "qubits": [11, 27]},
+      {"id": "CX", "qubits": [12, 28]},
+      {"id": "CX", "qubits": [13, 29]},
+      {"id": "CX", "qubits": [14, 30]},
+      {"id": "CX", "qubits": [15, 31]}
+    ],
+    [
+      {"id": "CX", "qubits": [0, 32]},
+      {"id": "CX", "qubits": [1, 33]},
+      {"id": "CX", "qubits": [2, 34]},
+      {"id": "CX", "qubits": [3, 35]},
+      {"id": "CX", "qubits": [4, 36]},
+      {"id": "CX", "qubits": [5, 37]},
+      {"id": "CX", "qubits": [6, 38]},
+      {"id": "CX", "qubits": [7, 39]},
+      {"id": "CX", "qubits": [8, 40]},
+      {"id": "CX", "qubits": [9, 41]},
+      {"id": "CX", "qubits": [10, 42]},
+      {"id": "CX", "qubits": [11, 43]},
+      {"id": "CX", "qubits": [12, 44]},
+      {"id": "CX", "qubits": [13, 45]},
+      {"id": "CX", "qubits": [14, 46]},
+      {"id": "CX", "qubits": [15, 47]},
+      {"id": "CX", "qubits": [16, 48]},
+      {"id": "CX", "qubits": [17, 49]}
+    ]
+  ]
+}

@@ -2,7 +2,11 @@ use egui::{
     epaint::TextShape, Event, FullOutput, PointerButton, Pos2, RawInput, Rect, Shape, Vec2,
 };
 use quantsim_core::circuit::QubitLayout;
-use quantsim_ui::{messages::Message, state::ui_state::LayoutView, QCSimApp};
+use quantsim_ui::{
+    messages::Message,
+    state::{ui_state::LayoutView, CircuitState},
+    QCSimApp,
+};
 use serde_json::json;
 
 fn visible_labels(output: &FullOutput) -> impl Iterator<Item = (Rect, &TextShape)> {
@@ -52,7 +56,9 @@ fn assert_stack_opens_without_running(wires: usize, steps: usize) {
     app.state.ui_state.show_welcome_screen = false;
     app.dispatch(Message::UpdateCircuitFromJson(circuit.to_string()));
     let ctx = egui::Context::default();
-    let mut render = |events| render(&mut app, &ctx, egui::vec2(1440.0, 1500.0), events);
+    // The layout selector sits below the circuit grid (30 points per wire).
+    let size = egui::vec2(1440.0, 1500.0 + 30.0 * wires as f32);
+    let mut render = |events| render(&mut app, &ctx, size, events);
     let button = painted_label(&render(Vec::new()), "3D stack");
     let click = |pressed| Event::PointerButton {
         pos: button,
@@ -83,7 +89,7 @@ fn empty_timeline_has_only_the_initial_slice() {
 
 #[test]
 fn maximum_editor_dimensions_paint_without_running_the_circuit() {
-    assert_stack_opens_without_running(21, 100);
+    assert_stack_opens_without_running(CircuitState::MAX_QUBITS, 100);
 }
 
 fn import_stack(circuit: serde_json::Value) -> QCSimApp {

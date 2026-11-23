@@ -20,7 +20,13 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
         return;
     }
     if let Some(vector) = &data.initial_state {
-        let expected = 1 << data.num_qubits;
+        let Some(expected) = CircuitState::dense_amplitude_count(data.num_qubits) else {
+            state.ui_state.error_message = Some(format!(
+                "For {} qubits, use initial_preps in place of an initial_state amplitude vector.",
+                data.num_qubits
+            ));
+            return;
+        };
         if vector.len() != expected {
             state.ui_state.error_message = Some(format!(
                 "Expected {expected} initial amplitudes for {} qubits, found {}.",

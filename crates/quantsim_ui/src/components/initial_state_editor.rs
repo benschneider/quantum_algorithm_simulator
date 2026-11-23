@@ -1,7 +1,7 @@
 // crates/qcsim-egui/src/components/initial_state_editor.rs
 
 use crate::messages::Message;
-use crate::state::{AppState, InitialStateEditorState};
+use crate::state::{AppState, CircuitState, InitialStateEditorState};
 use egui::{Align, Button, Color32, Layout, RichText, Window};
 use nalgebra::Complex;
 
@@ -26,6 +26,10 @@ pub fn initial_state_editor(state: &mut AppState, ctx: &egui::Context) -> Option
             .resizable(true)
             .scroll(true)
             .show(ctx, |ui| {
+                if state.circuit_state.num_qubits > CircuitState::MAX_DENSE_QUBITS {
+                    ui.label("Set each input wire in the JSON tab using initial_preps. Values are Zero, One, Plus, or Minus, starting with q0.");
+                    return;
+                }
                 // Check if the number of qubits has changed
                 if state.initial_state_editor_state.num_qubits != state.circuit_state.num_qubits {
                     // If so, create a new state with the correct number of qubits

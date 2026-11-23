@@ -1,4 +1,7 @@
-use crate::{messages::Message, state::AppState};
+use crate::{
+    messages::Message,
+    state::{AppState, CircuitState},
+};
 
 pub fn handle_initial_state_editor_message(
     state: &mut AppState,
@@ -16,7 +19,14 @@ pub fn handle_initial_state_editor_message(
             }
         }
         Message::ApplyInitialStateFromEditor(state_vector) => {
-            let expected_len = 1 << state.circuit_state.circuit.num_qubits;
+            let Some(expected_len) =
+                CircuitState::dense_amplitude_count(state.circuit_state.circuit.num_qubits)
+            else {
+                state.ui_state.error_message = Some(
+                    "Set wide-circuit input wires with initial_preps in the circuit JSON.".into(),
+                );
+                return;
+            };
             if state_vector.len() == expected_len {
                 state.circuit_state.circuit.initial_state = Some(
                     state_vector

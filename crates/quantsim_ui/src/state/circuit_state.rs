@@ -20,7 +20,13 @@ pub struct CircuitState {
 }
 
 impl CircuitState {
-    pub const MAX_QUBITS: usize = 21;
+    pub const MAX_DENSE_QUBITS: usize = 21;
+    pub const MAX_QUBITS: usize = 64;
+
+    /// Only the dense simulator and its amplitude editor enumerate basis states.
+    pub(crate) fn dense_amplitude_count(num_qubits: usize) -> Option<usize> {
+        (num_qubits <= Self::MAX_DENSE_QUBITS).then(|| 1usize << num_qubits)
+    }
 
     /// Places a gate on the circuit grid.
     ///

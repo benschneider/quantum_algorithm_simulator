@@ -1,4 +1,5 @@
 use crate::messages::Message;
+use crate::state::memory_estimate::estimated_peak_bytes;
 use crate::state::ui_state::{CentralPanelTab, SectionDraft};
 use crate::state::{AppState, CircuitState};
 use egui::widgets::DragValue;
@@ -17,6 +18,7 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         if ui.button("Run ▶").clicked() {
             messages.push(Message::RunSimulation);
         }
+        show_memory_estimate(ui, state);
 
         ui.separator();
 
@@ -67,4 +69,32 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
     if circuit_view {
         super::section_editor::show(ui.ctx(), state, messages);
     }
+}
+
+fn show_memory_estimate(ui: &mut egui::Ui, state: &AppState) {
+    const KIB: u64 = 1024;
+    const MIB: u64 = KIB * KIB;
+    const GUIDELINE_MIB: u64 = if cfg!(target_arch = "wasm32") {
+        64
+    } else {
+        128
+    };
+
+    let Some(bytes) = estimated_peak_bytes(state) else {
+        ui.label("Estimate unavailable");
+        return;
+    };
+    let (unit, divisor) = if bytes < MIB {
+        ("KiB", KIB)
+    } else {
+        ("MiB", MIB)
+    };
+    let mut label = format!("Est. peak RAM ≤ {} {unit}", bytes.div_ceil(divisor));
+    if bytes > GUIDELINE_MIB * MIB {
+        label.push_str(&format!(" · above {GUIDELINE_MIB} MiB guideline"));
+    }
+    ui.label(label).on_hover_text(format!(
+        "Estimated upper bound for a full run’s simulation buffers, including input, editor buffers, \
+         and previous results. Total app memory can be higher. The {GUIDELINE_MIB} MiB guideline is advisory."
+    ));
 }

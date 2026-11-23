@@ -186,7 +186,7 @@ The layout uses `egui`'s panel system to create a clear, organized workspace.
 *   **Top Panel**: Contains the main menu bar and circuit controls.
 *   **Left Panel**: Contains the `Gate Palette`.
 *   **Central panel** holds the circuit grid, the synchronized qubit layout below it, and the **JSON** tab for importing and exporting circuits.
-*   **Results** shows probabilities and amplitudes after the selected step. On smaller screens it opens below the circuit.
+*   **Results** shows wire probabilities after the selected step. The joint readout shows amplitudes for small circuits and sampled outcomes for wide circuits. On smaller screens it opens below the circuit.
 
 ### User Interaction Flow
 
@@ -345,8 +345,8 @@ Once your circuit is defined, you can simulate it within the `quantsim` EGUI:
 The "Results" window displays the outcome of your simulation:
 
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
-*   **Joint state** shows the populated basis states, their amplitudes and the distribution for a readout of all wires together. The rightmost bit is q0.
-*   **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
+*   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
+*   For **22–64 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wide circuits support per-wire preparations and built-in H, SqrtZ, CX, X, Y, and Z gates. Wire probabilities remain exact.
 
 
 #### Time Scrubber
@@ -365,6 +365,7 @@ Open **File → Load Template** to choose a bundled circuit. To import your own 
 For a step-by-step reading of the examples, open **Help → Tutorial → Template guide**. [Read the template guide](crates/quantsim_ui/assets/docs/tutorials/template_guide.md).
 
 *   **Bell** and **GHZ** show how a controlled gate turns one wire's superposition into correlations between two or three data wires.
+*   **ghz 50** extends a Bell pair to 50 wires in seven steps. Compare steps 6 and 7 to see q49 join the correlated group.
 *   **Bell test complex** uses two extra wires to select rotations of a Bell pair. Group the final rows by those setting bits to see how often the two data wires agree.
 *   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
 *   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.

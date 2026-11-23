@@ -12,8 +12,8 @@
     <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
     
 <script type="module">
-import init, * as bindings from './quantsim_ui-b124a168f6095c77.js';
-const wasm = await init({ module_or_path: './quantsim_ui-b124a168f6095c77_bg.wasm' });
+import init, * as bindings from './quantsim_ui-464f223291c99ec.js';
+const wasm = await init({ module_or_path: './quantsim_ui-464f223291c99ec_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -126,7 +126,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
             }
         }
     </style>
-<link rel="modulepreload" href="./quantsim_ui-b124a168f6095c77.js" crossorigin="anonymous" integrity="sha384-67Gk1OxNBoN4791coi7e0+AUYv1i5c6vsXomxyLu8B4aMHkOzbW94VYZwe7qQwf5"><link rel="preload" href="./quantsim_ui-b124a168f6095c77_bg.wasm" crossorigin="anonymous" integrity="sha384-5m4B8wHsRtkza9brxE2NLEtDLIuNMQ5BDR+qIdmllijTRl5dGLYuCCUsd4tN10XE" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="./quantsim_ui-464f223291c99ec.js" crossorigin="anonymous" integrity="sha384-ak7nOvPgsM751glxx+82FWx2FS+n1YfCD2NjZftwqC0P/wmcLZTI9pTzp0aRYC1l"><link rel="preload" href="./quantsim_ui-464f223291c99ec_bg.wasm" crossorigin="anonymous" integrity="sha384-jYfDXW/KZxMhfuRez6GyqSMJ8V8SyxX6tQkHNINlOvVhVJJST/oFqRROkUSq2I79" as="fetch" type="application/wasm"></head>
 
 <body>
     <!-- The WASM code will resize the canvas dynamically -->
