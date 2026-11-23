@@ -79,29 +79,10 @@ impl eframe::App for QCSimApp {
             state.ui_state.show_gate_editor_window = open;
         }
 
-        if state.ui_state.show_results_window {
-            let mut open = state.ui_state.show_results_window;
-            let viewport = ctx.available_rect();
-            egui::Window::new("Results")
-                .default_pos(egui::pos2(
-                    (viewport.right() - 380.0).max(viewport.left()),
-                    viewport.top() + 280.0,
-                ))
-                .default_size(egui::vec2(350.0, 300.0))
-                .vscroll(true)
-                .open(&mut open)
-                .show(ctx, |ui| {
-                    if let Some(msg) = crate::components::results_panel::results_panel(ui, state) {
-                        ui_messages.push(msg);
-                    }
-                });
-            state.ui_state.show_results_window = open;
-        }
-
+        crate::ui::learning_panels::render(state, ctx, &mut ui_messages);
         crate::ui::central_panel::render(state, ctx, &mut ui_messages);
         crate::ui::welcome_screen::render(state, ctx);
         crate::ui::info_panel::render(state, ctx);
-        crate::ui::tutorial::render(state, ctx, &mut ui_messages);
 
         if let Some(message) =
             crate::components::initial_state_editor::initial_state_editor(state, ctx)

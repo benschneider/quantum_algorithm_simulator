@@ -3,6 +3,7 @@ pub mod circuit_canvas;
 pub mod circuit_grid;
 pub mod gate_palette;
 pub mod info_panel;
+pub(crate) mod learning_panels;
 pub mod theme;
 pub mod top_panel;
 pub mod tutorial;

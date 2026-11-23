@@ -1,6 +1,7 @@
 use quantsim_core::core::circuit::Circuit;
 use smallvec::smallvec;
-use quantsim_core::core::types::Gate;
+use nalgebra::{Complex, DMatrix};
+use quantsim_core::core::types::{Gate, GateMatrix};
 
 /// The `CircuitState` struct contains all the state related to the quantum
 /// circuit itself. This includes the circuit definition, the number of qubits,
@@ -14,6 +15,8 @@ pub struct CircuitState {
     pub circuit: Circuit,
     pub num_qubits: usize,
     pub num_timesteps: usize,
+    /// Copied into each new Custom operation so its circuit JSON is self-contained.
+    pub(crate) palette_custom_matrix: DMatrix<Complex<f32>>,
 }
 
 impl CircuitState {
@@ -80,7 +83,8 @@ impl CircuitState {
                 name: None,
                 params,
                 qubits,
-                matrix: None,
+                matrix: (gate_id == Gate::Custom)
+                    .then(|| GateMatrix::BigEndian(self.palette_custom_matrix.clone())),
             };
             self.circuit.steps[col].push(op);
             return true;
@@ -128,7 +132,7 @@ impl CircuitState {
                 }
             }
 
-            let params = if meta.label.contains("Gate") {
+            let params = if meta.is_parametric {
                 smallvec![quantsim_core::core::types::Param::Scalar(0.0)]
             } else {
                 smallvec![]
@@ -200,6 +204,7 @@ impl Default for CircuitState {
             circuit,
             num_qubits,
             num_timesteps,
+            palette_custom_matrix: DMatrix::identity(2, 2),
         }
     }
 }

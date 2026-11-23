@@ -32,8 +32,7 @@ pub enum Message {
 
     // Info Panel Messages
     UpdateGateAngle(f64),
-    UpdateGateControl(usize, bool),
-    UpdateCustomGate(Gate, nalgebra::DMatrix<nalgebra::Complex<f32>>),
+    SwapControlAndTarget,
 
     // Custom Gate Definition Editor Messages
     OpenCustomGateEditor(Gate),
@@ -43,6 +42,7 @@ pub enum Message {
         real: String,
         imag: String,
     },
+    MakeCustomGateMatrixUnitary,
     SaveCustomGateMatrix,
     CloseCustomGateEditor,
 

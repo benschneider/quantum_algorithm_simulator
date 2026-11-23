@@ -37,19 +37,22 @@ fn gate_semantics_text(gate: &Gate) -> &'static str {
     }
 }
 
-fn parametric_gate_editor(ui: &mut egui::Ui, op: &mut Operation, messages: &mut Vec<Message>) {
-    if let Some(param) = op.params.get_mut(0) {
-        let Param::Scalar(angle) = param;
-        let mut angle_degrees = angle.to_degrees();
-        ui.label("Angle (degrees):");
-        if ui
-            .add(DragValue::new(&mut angle_degrees).speed(1.0))
-            .changed()
-        {
-            *angle = angle_degrees.to_radians();
-            log::info!("Updating gate angle to {}", angle);
-            messages.push(Message::UpdateGateAngle(*angle as f64));
-        }
+fn parametric_gate_editor(ui: &mut egui::Ui, op: &Operation, messages: &mut Vec<Message>) {
+    let &Param::Scalar(value) = op.params.first().unwrap_or(&Param::Scalar(0.0));
+    let is_angle = matches!(op.id, Gate::Rx | Gate::Ry | Gate::Rz | Gate::CRz);
+    let (label, mut displayed, speed) = if is_angle {
+        ("Angle (degrees)", value.to_degrees(), 1.0)
+    } else {
+        ("Exponent", value, 0.01)
+    };
+    ui.label(label);
+    if ui.add(DragValue::new(&mut displayed).speed(speed)).changed() {
+        let value = if is_angle {
+            displayed.to_radians()
+        } else {
+            displayed
+        };
+        messages.push(Message::UpdateGateAngle(f64::from(value)));
     }
 }
 
@@ -163,15 +166,17 @@ pub fn gate_editor_panel(state: &mut AppState, ui: &mut egui::Ui, messages: &mut
             } else {
                 vec![]
             };
-            op = Some(Operation::new_for_editing(
-                gate_id.clone(),
-                params,
-                gate_meta.arity,
-            ));
+            let mut preview = Operation::new_for_editing(gate_id.clone(), params, gate_meta.arity);
+            if gate_id == Gate::Custom {
+                preview.matrix = Some(GateMatrix::BigEndian(
+                    state.circuit_state.palette_custom_matrix.clone(),
+                ));
+            }
+            op = Some(preview);
         }
     }
 
-    if let Some(mut op) = op {
+    if let Some(op) = op {
         let gate_meta = state
             .circuit_state
             .circuit
@@ -182,38 +187,45 @@ pub fn gate_editor_panel(state: &mut AppState, ui: &mut egui::Ui, messages: &mut
             ui.heading(gate_meta.id.to_string());
             ui.label(&gate_meta.description);
             ui.separator();
-            let q_u32: Vec<u32> = op.qubits.iter().map(|&x| x).collect();
-            let evaluated_matrix = state
-                .circuit_state
-                .circuit
-                .registry
-                .eval(&op.id, &op.params, &q_u32)
-                .map(|matrix| matrix.to_dmatrix());
+            let evaluated_matrix = op.matrix.as_ref().map(GateMatrix::to_dmatrix).or_else(|| {
+                state.circuit_state.circuit.registry.eval(&op.id, &op.params, &op.qubits)
+                    .map(|matrix| matrix.to_dmatrix())
+            });
 
             ui.columns(2, |columns| {
                 columns[0].vertical(|ui| {
                     if state.ui_state.selected_gate_for_editing.is_some() {
-                        ui.label(RichText::new(format!("Applied to qubits: {:?}", op.qubits)).italics());
+                        if let Some((controls, target, _)) = op.controlled_action() {
+                            for wire in controls {
+                                ui.label(format!("Control  q{wire}"));
+                            }
+                            ui.label(format!("Target  q{target}"));
+                            if controls.len() == 1 && ui.button("Swap control and target").clicked() {
+                                messages.push(Message::SwapControlAndTarget);
+                            }
+                        } else {
+                            ui.label(RichText::new(format!("Applied to qubits: {:?}", op.qubits)).italics());
+                        }
                         ui.add_space(6.0);
                     }
 
-                    if !op.params.is_empty() {
+                    if gate_meta.is_parametric && op.matrix.is_none() {
                         Frame::group(ui.style())
                             .fill(ui.visuals().faint_bg_color)
                             .inner_margin(8.0)
                             .show(ui, |ui| {
                                 ui.label(RichText::new("Parameters").strong());
                                 ui.add_space(4.0);
-                                parametric_gate_editor(ui, &mut op, messages);
+                                let placed = state.ui_state.selected_gate_for_editing.is_some();
+                                ui.add_enabled_ui(placed, |ui| {
+                                    parametric_gate_editor(ui, &op, messages);
+                                });
                             });
-                        ui.add_space(8.0);
-                    } else if matches!(gate_meta.id, Gate::Custom) {
-                        ui.label("Custom gate editing is handled by the dedicated custom gate editor.");
                         ui.add_space(8.0);
                     }
 
                     if gate_meta.arity == quantsim_core::core::types::Arity::OneQ {
-                        if let Some(matrix_d) = evaluated_matrix.as_ref() {
+                        if let Some(matrix_d) = evaluated_matrix.as_ref().filter(|m| m.shape() == (2, 2)) {
                             let matrix = nalgebra::Matrix2::new(
                                 matrix_d[(0, 0)],
                                 matrix_d[(0, 1)],
@@ -237,21 +249,6 @@ pub fn gate_editor_panel(state: &mut AppState, ui: &mut egui::Ui, messages: &mut
                             );
                             ui.ctx().request_repaint();
                         }
-                    } else if gate_meta.arity == quantsim_core::core::types::Arity::TwoQ {
-                        ui.label(RichText::new("Control Qubits").strong());
-                        for i in 0..state.circuit_state.num_qubits {
-                            let mut is_control =
-                                op.qubits.contains(&(i as u32)) && op.qubits[0] == i as u32;
-                            if ui
-                                .checkbox(&mut is_control, format!("Qubit {}", i))
-                                .changed()
-                            {
-                                log::info!("Updating control qubit {} to {}", i, is_control);
-                                messages.push(Message::UpdateGateControl(i, is_control));
-                            }
-                        }
-                    } else if op.params.is_empty() && !matches!(gate_meta.id, Gate::Custom) {
-                        ui.label("This gate has no editable parameters.");
                     }
                 });
 

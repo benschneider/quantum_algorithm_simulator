@@ -44,6 +44,7 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
         | Message::OpenGateEditor(_)
         | Message::OpenCustomGateEditor(_)
         | Message::UpdateCustomGateEditorValue { .. }
+        | Message::MakeCustomGateMatrixUnitary
         | Message::SaveCustomGateMatrix
         | Message::CloseCustomGateEditor => {
             gate_palette_handler::handle_gate_palette_message(state, message, messages)
@@ -55,9 +56,7 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
         | Message::SelectGateForEditing(_, _) => {
             circuit_grid_handler::handle_circuit_grid_message(state, message, messages)
         }
-        Message::UpdateGateAngle(_)
-        | Message::UpdateGateControl(_, _)
-        | Message::UpdateCustomGate(_, _) => {
+        Message::UpdateGateAngle(_) | Message::SwapControlAndTarget => {
             info_panel_handler::handle_info_panel_message(state, message, messages)
         }
         Message::UpdateJsonFromCircuit

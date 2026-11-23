@@ -1,6 +1,6 @@
 use crate::components::{circuit_controls, circuit_grid, gate_palette, json_editor_panel};
 use crate::messages::Message;
-use crate::state::{AppState, ui_state::LeftPanelTab};
+use crate::state::{ui_state::LeftPanelTab, AppState};
 
 /// The `central_panel` module is responsible for rendering the main content of
 /// the application. This includes the circuit grid, the JSON editor, and the
@@ -10,26 +10,40 @@ use crate::state::{AppState, ui_state::LeftPanelTab};
 /// composed of several smaller components, each of which is responsible for
 /// a specific part of the UI.
 pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Message>) {
-    egui::SidePanel::left("left_panel").show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            ui.selectable_value(
-                &mut state.ui_state.active_left_tab,
-                LeftPanelTab::GatePalette,
-                "Gates",
-            );
-        });
+    let compact_palette = ctx.available_rect().width() < 600.0;
+    if !compact_palette {
+        egui::SidePanel::left("left_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.selectable_value(
+                    &mut state.ui_state.active_left_tab,
+                    LeftPanelTab::GatePalette,
+                    "Gates",
+                );
+            });
 
-        ui.separator();
+            ui.separator();
 
-        match state.ui_state.active_left_tab {
-            LeftPanelTab::GatePalette => {
-                gate_palette::gate_palette(state, ui, messages);
+            match state.ui_state.active_left_tab {
+                LeftPanelTab::GatePalette => {
+                    gate_palette::gate_palette(state, ui, messages);
+                }
             }
-        }
-    });
+        });
+    }
 
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.horizontal(|ui| {
+            if compact_palette {
+                ui.menu_button("Gates", |ui| {
+                    let before = messages.len();
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        gate_palette::gate_palette(state, ui, messages);
+                    });
+                    if messages.len() != before {
+                        ui.close();
+                    }
+                });
+            }
             ui.selectable_value(
                 &mut state.ui_state.active_central_tab,
                 crate::state::ui_state::CentralPanelTab::Circuit,

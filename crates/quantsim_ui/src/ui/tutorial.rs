@@ -69,12 +69,10 @@ const CHAPTERS: &[(TutorialStep, &str, &str)] = &[
 ];
 
 pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Message>) {
-    let ui_state = &mut state.ui_state;
-    if !ui_state.show_tutorial_window {
+    let mut open = state.ui_state.show_tutorial_window;
+    if !open {
         return;
     }
-
-    // Leave the gate columns above the lesson within reach on a desktop.
     let bounds = ctx.screen_rect().shrink(8.0);
     let size = bounds.size().min(egui::vec2(540.0, 345.0));
     let top = (bounds.height() - size.y - 44.0).clamp(0.0, 282.0);
@@ -82,83 +80,87 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
         .default_pos(bounds.min + egui::vec2(0.0, top))
         .default_size(size)
         .min_width(200.0)
-        .open(&mut ui_state.show_tutorial_window)
-        .show(ctx, |ui| {
-            let mut index = CHAPTERS
-                .iter()
-                .position(|chapter| chapter.0 == ui_state.active_tutorial_step)
-                .expect("every tutorial step has a chapter");
-            ui.horizontal_wrapped(|ui| {
-                egui::ComboBox::from_id_salt("tutorial_chapter")
-                    .width(175.0)
-                    .height(280.0)
-                    .show_index(ui, &mut index, CHAPTERS.len(), |i| {
-                        format!("{}. {}", i + 1, CHAPTERS[i].1)
-                    })
-                    .on_hover_text("Choose a chapter");
-                if ui
-                    .add_enabled(index > 0, egui::Button::new("Back"))
-                    .clicked()
-                {
-                    index -= 1;
-                }
-                if ui
-                    .add_enabled(index + 1 < CHAPTERS.len(), egui::Button::new("Next"))
-                    .clicked()
-                {
-                    index += 1;
-                }
-                if CHAPTERS[index].0 == TutorialIntro
-                    && ui
-                        .button("Load Bell example")
-                        .on_hover_text("Replace the current circuit with the two-wire Bell example")
-                        .clicked()
-                {
-                    ui_state.active_central_tab = CentralPanelTab::Circuit;
-                    messages.push(Message::LoadTemplate("bell.json".into()));
-                }
-            });
-            ui.separator();
+        .open(&mut open)
+        .show(ctx, |ui| contents(state, ui, messages));
+    state.ui_state.show_tutorial_window = open;
+}
 
-            let (step, _, content) = CHAPTERS[index];
-            ui_state.active_tutorial_step = step;
-            egui::ScrollArea::vertical()
-                .id_salt(("tutorial_text", index))
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    CommonMarkViewer::new().show(ui, &mut ui_state.tutorial_cache, content);
-                    if step == SingleQubitGatesEntangledStates {
-                        ui.collapsing("Worked example on the middle wire", |ui| {
-                            CommonMarkViewer::new().show(
-                                ui,
-                                &mut ui_state.tutorial_cache,
-                                include_str!("../../assets/docs/tutorials/middle_wire_example.md"),
-                            );
-                            let width = ui.available_width();
-                            // Both source charts are 1120 by 480 pixels.
-                            let chart_size = egui::vec2(width, width * 480.0 / 1120.0);
-                            for (image, description) in [
-                                (
-                                    egui::include_image!(
-                                        "../../assets/docs/tutorials/t1/prob_before_H_B.png"
-                                    ),
-                                    "Joint probabilities before H on q1",
-                                ),
-                                (
-                                    egui::include_image!(
-                                        "../../assets/docs/tutorials/t1/prob_after_H_B.png"
-                                    ),
-                                    "Joint probabilities after H on q1",
-                                ),
-                            ] {
-                                ui.add(
-                                    egui::Image::new(image)
-                                        .fit_to_exact_size(chart_size)
-                                        .alt_text(description),
-                                );
-                            }
-                        });
+pub(super) fn contents(state: &mut AppState, ui: &mut egui::Ui, messages: &mut Vec<Message>) {
+    let ui_state = &mut state.ui_state;
+    let mut index = CHAPTERS
+        .iter()
+        .position(|chapter| chapter.0 == ui_state.active_tutorial_step)
+        .expect("every tutorial step has a chapter");
+    ui.horizontal_wrapped(|ui| {
+        egui::ComboBox::from_id_salt("tutorial_chapter")
+            .width(175.0)
+            .height(280.0)
+            .show_index(ui, &mut index, CHAPTERS.len(), |i| {
+                format!("{}. {}", i + 1, CHAPTERS[i].1)
+            })
+            .on_hover_text("Choose a chapter");
+        if ui
+            .add_enabled(index > 0, egui::Button::new("Back"))
+            .clicked()
+        {
+            index -= 1;
+        }
+        if ui
+            .add_enabled(index + 1 < CHAPTERS.len(), egui::Button::new("Next"))
+            .clicked()
+        {
+            index += 1;
+        }
+        if CHAPTERS[index].0 == TutorialIntro
+            && ui
+                .button("Load Bell example")
+                .on_hover_text("Replace the current circuit with the two-wire Bell example")
+                .clicked()
+        {
+            ui_state.active_central_tab = CentralPanelTab::Circuit;
+            messages.push(Message::LoadTemplate("bell.json".into()));
+        }
+    });
+    ui.separator();
+
+    let (step, _, content) = CHAPTERS[index];
+    ui_state.active_tutorial_step = step;
+    egui::ScrollArea::vertical()
+        .id_salt(("tutorial_text", index))
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            CommonMarkViewer::new().show(ui, &mut ui_state.tutorial_cache, content);
+            if step == SingleQubitGatesEntangledStates {
+                ui.collapsing("Worked example on the middle wire", |ui| {
+                    CommonMarkViewer::new().show(
+                        ui,
+                        &mut ui_state.tutorial_cache,
+                        include_str!("../../assets/docs/tutorials/middle_wire_example.md"),
+                    );
+                    let width = ui.available_width();
+                    // Both source charts are 1120 by 480 pixels.
+                    let chart_size = egui::vec2(width, width * 480.0 / 1120.0);
+                    for (image, description) in [
+                        (
+                            egui::include_image!(
+                                "../../assets/docs/tutorials/t1/prob_before_H_B.png"
+                            ),
+                            "Joint probabilities before H on q1",
+                        ),
+                        (
+                            egui::include_image!(
+                                "../../assets/docs/tutorials/t1/prob_after_H_B.png"
+                            ),
+                            "Joint probabilities after H on q1",
+                        ),
+                    ] {
+                        ui.add(
+                            egui::Image::new(image)
+                                .fit_to_exact_size(chart_size)
+                                .alt_text(description),
+                        );
                     }
                 });
+            }
         });
 }

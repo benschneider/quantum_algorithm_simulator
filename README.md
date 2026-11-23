@@ -260,11 +260,11 @@ Quantum circuits in `quantsim` are defined visually by selecting gates from a pa
 
 #### Method 1: Using the Gate Palette and Circuit Grid
 
-1.  **Access the Gate Palette**: On the left-hand side of the application, you will find the "Gates" panel (Gate Palette) containing various quantum gates (e.g., Hadamard, Pauli-X, CNOT).
+1.  Open **Gates** beside the circuit. On narrow screens, use the **Gates** menu next to **Circuit**.
 2.  **Select a Gate**: Click on a gate in the palette to select it. The selected gate will be highlighted.
 3.  **Place the Gate**: Click on an empty cell in the central circuit grid to place the selected gate.
     *   Place gates on specific qubits and at desired time steps.
-    *   For multi-qubit gates like CNOT, ensure you select the appropriate qubits after placing the gate.
+    *   For CNOT, click the control wire first and the target wire second in the same column. Click either end of a placed CNOT to inspect or swap its control and target.
     *   To deselect a gate, click on it again in the palette, or click on an empty area of the circuit grid.
     *   The circuit grid allows you to visually construct your quantum circuit step-by-step.
 
@@ -320,6 +320,7 @@ The "Results" window displays the outcome of your simulation:
 
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
 *   **Joint state** shows the populated basis states, their amplitudes and the distribution for a readout of all wires together. The rightmost bit is q0.
+*   **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
 
 
 #### Time Scrubber
@@ -362,10 +363,9 @@ You can set a custom initial state for your qubits:
 
 #### Gate Editor with Bloch Spheres
 
-You can view and edit custom gate definitions, and visualize the effect of single-qubit gates on a Bloch Sphere:
+Open **Gates → Custom Gates → Edit** to enter a one-qubit unitary matrix. **Save** sets the palette matrix for future placements in this session. Each placed Custom gate carries its own matrix in the circuit JSON.
 
-1.  **Access Editor**: From the "View" menu, select "Gate Editor".
-2.  **Bloch Sphere Visualization**: For single-qubit gates, the Bloch Sphere will dynamically update to show the transformation of a qubit's state.
+Click a placed gate to inspect its matrix. For single-qubit gates, the Bloch sphere shows how the gate transforms the indicated reference input.
 
 ### Supported Gates and Information Panels
 
@@ -379,6 +379,7 @@ You can view and edit custom gate definitions, and visualize the effect of singl
 Choose **Start tutorial** on the welcome screen or open **Help → Tutorial**. In **First circuit**, click **Load Bell example** and compare steps 1 and 2 in the live grid. The example button replaces the circuit just like **File → Load Template**.
 
 Use **Next** and **Back** to follow the exercises, or choose a chapter from the dropdown. Closing the tutorial and reopening it from Help returns you to the same chapter for the rest of the session.
+On narrower screens, the tutorial sits below the circuit and Results sits below the tutorial. Each can be scrolled independently.
 
 ---
 

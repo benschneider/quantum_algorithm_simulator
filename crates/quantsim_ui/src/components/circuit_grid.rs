@@ -129,13 +129,8 @@ pub fn circuit_grid(
                 }
             }
             GridCell::Gate(gate) => {
-                let text = if let Some(id) = gate.instance_id {
-                    format!("{}{}", gate.id, id)
-                } else {
-                    gate.id.to_string()
-                };
-                let button =
-                    egui::Button::new(RichText::new(text).color(gate.text_color)).fill(gate.color);
+                let button = egui::Button::new(RichText::new(&gate.label).color(gate.text_color))
+                    .fill(gate.color);
                 let response = ui.put(gate.rect, button).on_hover_text(format!(
                     "{}\n{}\nQubits: {:?}\nParams: {:?}",
                     gate.full_name, gate.description, gate.qubits, gate.params

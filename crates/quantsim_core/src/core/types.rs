@@ -205,6 +205,23 @@ pub struct Operation {
 }
 
 impl Operation {
+    /// The controls, target wire, and gate applied to that target for directional built-ins.
+    pub fn controlled_action(&self) -> Option<(&[u32], u32, Gate)> {
+        // An explicit matrix overrides the gate named by the ID.
+        if self.matrix.is_some() {
+            return None;
+        }
+        let action = match (&self.id, self.qubits.as_slice()) {
+            (Gate::CX, [_, _]) | (Gate::CCNOT, [_, _, _]) => Gate::X,
+            (Gate::CY, [_, _]) => Gate::Y,
+            (Gate::CXPow, [_, _]) => Gate::XPow,
+            (Gate::CYPow, [_, _]) => Gate::YPow,
+            _ => return None,
+        };
+        let (target, controls) = self.qubits.split_last()?;
+        Some((controls, *target, action))
+    }
+
     /// Creates a new `Operation`.
     pub fn new(id: Gate, qubits: Vec<u32>, params: Vec<f32>) -> Self {
         Self {

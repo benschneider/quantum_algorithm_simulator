@@ -1,6 +1,6 @@
 use crate::messages::Message;
 use crate::state::AppState;
-use egui_plot::{Bar, BarChart, Corner, HLine, Plot, Points};
+use egui_plot::{Bar, BarChart, GridMark, Plot};
 use quantsim_core::{circuit::QubitRole, core::engine::QuantumState};
 
 pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message> {
@@ -64,62 +64,50 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
         let amp = quantum_state.state_vector[index];
         let ket = bitstring(index, quantum_state.num_qubits);
         ui.monospace(format!(
-            "{ket}  {:+.4}{:+.4}i  p={:.4}",
+            "{ket}  {:+.4}{:+.4}i  p={}",
             amp.re,
             amp.im,
-            amp.norm_sqr()
+            format_probability(amp.norm_sqr())
         ));
     }
 
     ui.separator();
     ui.strong("Joint probabilities");
-    ui.small("Bars show the states on this page. Hover for amplitude and phase.");
+    ui.small("Bar color shows phase. Hover over a state for its amplitude and phase.");
     probability_plot(ui, quantum_state, page);
     message
 }
 
-fn probability_plot(ui: &mut egui::Ui, state: &QuantumState, page: &[usize]) {
-    let max_probability = page
-        .iter()
-        .map(|&i| state.state_vector[i].norm_sqr())
-        .fold(0.0, f32::max);
-    let y_top = (1.1 * f64::from(max_probability)).clamp(f64::EPSILON, 1.0);
-    let max_amp = f64::from(max_probability.sqrt()).max(f64::EPSILON);
-    let has_phase = page
-        .iter()
-        .any(|&i| state.state_vector[i].arg().abs() > 1e-6);
-    let mut bars = Vec::with_capacity(page.len());
-    let mut phase_points = Vec::with_capacity(page.len());
-    let mut re_points = Vec::with_capacity(page.len());
-    let mut im_points = Vec::with_capacity(page.len());
-
+fn probability_plot(
+    ui: &mut egui::Ui,
+    state: &QuantumState,
+    page: &[usize],
+) -> egui_plot::PlotResponse<()> {
     // Each populated state gets one column so widely separated basis indices are legible.
-    for (column, &index) in page.iter().enumerate() {
-        let amp = state.state_vector[index];
-        let probability = amp.norm_sqr();
-        let phase = amp.arg();
-        let x = column as f64;
-        let ket = bitstring(index, state.num_qubits);
-        bars.push(
-            Bar::new(x, f64::from(probability))
-                .name(format!("{ket} (index {index})\n{:+.4}{:+.4}i\np={probability:.4}\nphase={phase:.4} rad", amp.re, amp.im))
+    let bars = page
+        .iter()
+        .enumerate()
+        .map(|(column, &index)| {
+            let amp = state.state_vector[index];
+            let percent = amp.norm_sqr() * 100.0;
+            let phase = amp.arg();
+            let ket = bitstring(index, state.num_qubits);
+            // Zero phase is blue. Opposite phases lie half a turn apart on the color wheel.
+            let hue = (0.58 + phase / std::f32::consts::TAU).rem_euclid(1.0);
+            Bar::new(column as f64, f64::from(percent))
+                .name(format!(
+                    "{ket} (index {index})\nProbability {}%\nAmplitude {:+.4}{:+.4}i\nPhase {phase:.4} rad",
+                    format_probability(percent), amp.re, amp.im
+                ))
                 .width(0.85)
-                .fill(phase_color(phase, has_phase))
-                .stroke(egui::Stroke::new(1.0_f32, egui::Color32::WHITE)),
-        );
-        let phase_y = 0.5 * (1.0 + f64::from(phase) / std::f64::consts::PI) * y_top;
-        phase_points.push([x, phase_y]);
-        re_points.push([x, 0.5 * (1.0 + f64::from(amp.re) / max_amp) * y_top]);
-        im_points.push([x, 0.5 * (1.0 + f64::from(amp.im) / max_amp) * y_top]);
-    }
-
-    let chart = BarChart::new("Probabilities", bars)
-        .color(egui::Color32::TRANSPARENT)
+                .fill(egui::ecolor::Hsva::new(hue, 0.65, 0.95, 1.0))
+        })
+        .collect();
+    let chart = BarChart::new("Joint probability", bars)
         .element_formatter(Box::new(|bar, _| bar.name.clone()));
 
-    Plot::new("probabilities_plot")
+    Plot::new("joint_probability_percent")
         .view_aspect(1.6)
-        .legend(egui_plot::Legend::default().position(Corner::LeftTop))
         .x_axis_label("Basis state index")
         .show_x(false)
         .x_axis_formatter(|mark, _| {
@@ -131,53 +119,35 @@ fn probability_plot(ui: &mut egui::Ui, state: &QuantumState, page: &[usize]) {
             String::new()
         })
         .y_axis_label("Probability")
-        .include_y(0.0)
-        .include_y(y_top)
+        .default_y_bounds(0.0, 100.0)
+        .y_grid_spacer(|_| {
+            [0.0, 25.0, 50.0, 75.0, 100.0]
+                .into_iter()
+                .map(|value| GridMark {
+                    value,
+                    step_size: 25.0,
+                })
+                .collect()
+        })
+        .y_axis_formatter(|mark, _| format!("{:.0}%", mark.value))
+        .allow_zoom([true, false])
+        .allow_axis_zoom_drag([true, false])
+        .allow_drag([true, false])
+        .allow_scroll([true, false])
         .allow_boxed_zoom(false)
-        .show(ui, |plot_ui| {
-            let midline = HLine::new("", y_top * 0.5)
-                .color(egui::Color32::from_gray(96))
-                .allow_hover(false);
-            plot_ui.hline(midline);
-            for (name, points, color) in [
-                (
-                    "phase (scaled)",
-                    phase_points,
-                    egui::Color32::from_rgb(240, 180, 80),
-                ),
-                (
-                    "Re(amp) (scaled)",
-                    re_points,
-                    egui::Color32::from_rgb(160, 220, 255),
-                ),
-                (
-                    "Im(amp) (scaled)",
-                    im_points,
-                    egui::Color32::from_rgb(140, 200, 180),
-                ),
-            ] {
-                plot_ui.points(
-                    Points::new(name, points)
-                        .radius(2.5_f32)
-                        .color(color)
-                        .allow_hover(false),
-                );
-            }
-            plot_ui.bar_chart(chart);
-        });
+        .show(ui, |plot_ui| plot_ui.bar_chart(chart))
+}
+
+fn format_probability(value: f32) -> String {
+    if value > 0.0 && value < 0.0001 {
+        format!("{value:.3e}")
+    } else {
+        format!("{value:.4}")
+    }
 }
 
 fn bitstring(idx: usize, width: usize) -> String {
     format!("|{idx:0width$b}⟩")
-}
-
-fn phase_color(phase: f32, has_phase: bool) -> egui::Color32 {
-    if has_phase {
-        let hue = (phase + std::f32::consts::PI) / std::f32::consts::TAU;
-        egui::Rgba::from_rgba_unmultiplied(hue, 0.85, 0.95, 1.0).into()
-    } else {
-        egui::Color32::from_rgb(80, 180, 255)
-    }
 }
 
 #[cfg(test)]
@@ -244,6 +214,9 @@ mod tests {
             "q4",
             "Ancilla",
             "50.00%",
+            "0%",
+            "50%",
+            "100%",
             "24",
             "26",
         ] {
@@ -252,5 +225,64 @@ mod tests {
                 "Missing {expected} in {labels:?}"
             );
         }
+    }
+
+    #[test]
+    fn probability_scale_is_fixed_across_steps_pages_and_zoom() {
+        let ctx = egui::Context::default();
+        let render = |state: &QuantumState, page: &[usize], events: Vec<egui::Event>| {
+            let mut frame = egui::Rect::NOTHING;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(400.0, 320.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let plot = probability_plot(ui, state, page);
+                        let bounds = plot.transform.bounds();
+                        assert_eq!((bounds.min()[1], bounds.max()[1]), (0.0, 100.0));
+                        frame = *plot.transform.frame();
+                    });
+                },
+            );
+            for &index in page {
+                let height = frame.height() * state.state_vector[index].norm_sqr();
+                assert!(
+                    output.shapes.iter().any(|shape| {
+                        matches!(&shape.shape, egui::Shape::Rect(bar)
+                        if (bar.rect.bottom() - frame.bottom()).abs() < 0.1
+                            && (bar.rect.height() - height).abs() < 0.1)
+                    }),
+                    "Expected a bar {height} points high in a {frame:?} plot"
+                );
+            }
+            frame
+        };
+        let initial = QuantumState::new(2);
+        let amplitudes = [0.5_f32.sqrt(), 0.5, 0.5, 0.0].map(|v| nalgebra::Complex::new(v, 0.0));
+        let split = QuantumState::from_vector(2, &amplitudes).unwrap();
+        render(&initial, &[0], vec![]);
+        render(&split, &[0], vec![]);
+        let frame = render(&split, &[1, 2], vec![]);
+        render(
+            &split,
+            &[1, 2],
+            vec![
+                egui::Event::PointerMoved(frame.center()),
+                egui::Event::Zoom(2.0),
+            ],
+        );
+    }
+
+    #[test]
+    fn small_positive_probabilities_remain_distinguishable_from_zero() {
+        assert_eq!(format_probability(0.0), "0.0000");
+        assert_eq!(format_probability(0.5), "0.5000");
+        assert_eq!(format_probability(1.0 / 32768.0), "3.052e-5");
     }
 }

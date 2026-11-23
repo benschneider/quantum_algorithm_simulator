@@ -42,6 +42,8 @@ pub enum GridCell {
 pub struct GateCell {
     /// A unique identifier for the gate instance.
     pub id: Gate,
+    /// Visible cell label, including this wire's role in a directional gate.
+    pub label: String,
     /// The pre-calculated bounding box for the gate.
     pub rect: Rect,
     /// The color of the gate, used for visual distinction, especially
@@ -200,11 +202,11 @@ pub fn generate_circuit_grid(
                 multi_gate_counter += 1;
             }
         }
-        column_maps.push(multi_gate_map);
+        column_maps.push((multi_gate_map, multi_gate_counter));
     }
 
     for row in 0..num_qubits {
-        for (col, column_map) in column_maps.iter().enumerate().take(num_steps) {
+        for (col, (column_map, group_count)) in column_maps.iter().enumerate() {
             let gate_rect = egui::Rect::from_min_size(
                 grid_rect.min + egui::vec2(col as f32 * cell_width, (row + 1) as f32 * cell_height),
                 egui::vec2(cell_width, cell_height),
@@ -216,26 +218,36 @@ pub fn generate_circuit_grid(
                 .find(|op| op.qubits.contains(&(row as u32)));
 
             if let Some(op) = gate_op {
-                let gate_group = if op.qubits.len() > 1 {
-                    column_map.get(&row).copied()
-                } else {
-                    None
-                };
+                let gate_group = column_map.get(&row).copied();
                 let color = choose_gate_fill(ui, gate_group);
                 let text_color = choose_text_color(color);
-                let (full_name, description) = if let Some(meta) = circuit.registry.get_meta(&op.id)
-                {
-                    (meta.label.clone(), meta.description.clone())
+                let (full_name, mut description) =
+                    if let Some(meta) = circuit.registry.get_meta(&op.id) {
+                        (meta.label.clone(), meta.description.clone())
+                    } else {
+                        (op.id.to_string(), "Unknown gate".to_string())
+                    };
+                let mut label = if let Some((_, target, action)) = op.controlled_action() {
+                    if row as u32 == target {
+                        description.push_str(&format!("\nTarget wire q{row}"));
+                        match action {
+                            Gate::XPow => "X^t tgt".to_owned(),
+                            Gate::YPow => "Y^t tgt".to_owned(),
+                            _ => format!("{action} tgt"),
+                        }
+                    } else {
+                        description.push_str(&format!("\nControl wire q{row}"));
+                        "Ctrl".to_owned()
+                    }
                 } else {
-                    (op.id.to_string(), "Unknown gate".to_string())
+                    op.id.to_string()
                 };
-                let instance_id = if op.qubits.len() > 1 {
-                    column_map.get(&row).copied()
-                } else {
-                    None
-                };
+                if let Some(group) = gate_group.filter(|_| *group_count > 1) {
+                    label.push_str(&format!("·{}", group + 1));
+                }
                 cells.push(GridCell::Gate(GateCell {
                     id: op.id.clone(),
+                    label,
                     rect: gate_rect,
                     color,
                     text_color,
@@ -248,7 +260,7 @@ pub fn generate_circuit_grid(
                     },
                     description,
                     params: op.params.to_vec(),
-                    instance_id,
+                    instance_id: gate_group,
                 }));
             } else {
                 cells.push(GridCell::Empty {

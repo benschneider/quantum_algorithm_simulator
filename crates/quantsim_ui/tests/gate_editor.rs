@@ -71,3 +71,40 @@ fn test_update_gate_angle() {
     let op = &app.state.circuit_state.circuit.steps[0][0];
     assert_eq!(op.params[0], Param::Scalar(new_angle as f32));
 }
+
+#[test]
+fn swapping_the_bell_gate_preserves_its_wires_and_recomputes_the_readout() {
+    let populated = |app: &QCSimApp| {
+        app.state
+            .simulation_state
+            .quantum_state
+            .as_ref()
+            .unwrap()
+            .state_vector
+            .iter()
+            .enumerate()
+            .filter_map(|(index, amplitude)| (amplitude.norm_sqr() > 1e-6).then_some(index))
+            .collect::<Vec<_>>()
+    };
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::LoadTemplate("bell.json".into()));
+    app.handle_message(Message::RunSimulation);
+    assert_eq!(populated(&app), [0, 3]);
+
+    app.handle_message(Message::SelectGateForEditing(1, 1));
+    app.handle_message(Message::SwapControlAndTarget);
+    assert_eq!(app.state.ui_state.selected_gate_for_editing, Some((1, 1)));
+    assert!(app.state.simulation_state.quantum_state.is_none());
+    app.handle_message(Message::RunSimulation);
+    assert_eq!(app.state.ui_state.error_message, None);
+    assert_eq!(populated(&app), [0, 1]);
+
+    app.handle_message(Message::UpdateJsonFromCircuit);
+    let saved = &app.state.ui_state.circuit_json_string;
+    let data: quantsim_core::circuit::CircuitData = serde_json::from_str(saved).unwrap();
+    assert_eq!(data.steps[1][0].qubits.as_slice(), &[1, 0]);
+
+    app.handle_message(Message::SwapControlAndTarget);
+    app.handle_message(Message::RunSimulation);
+    assert_eq!(populated(&app), [0, 3]);
+}
