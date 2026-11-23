@@ -15,7 +15,7 @@ cargo install quantsim
 quantsim
 ```
 
-Or try the [live web demo](https://benschneider.github.io/quantum_algorithm_simulator/)!
+Run this checkout with `cargo run --manifest-path crates/quantsim/Cargo.toml`, or open the [live web demo](https://benschneider.github.io/quantum_algorithm_simulator/).
 
 ## Architecture
 
@@ -79,17 +79,12 @@ This launches the interactive simulator where you can:
 ### Using as a Library
 
 ```rust
-use quantsim::core::*;
+use quantsim::core::{circuit::RunOptions, circuits};
 
-// Create and simulate a quantum circuit
-let mut circuit = Circuit::new(2);
-circuit.add_gate("H", &[0]).unwrap();
-circuit.add_gate("CX", &[0, 1]).unwrap();
-
-let engine = Engine::new();
-let result = engine.run(&circuit, None).unwrap();
-
-println!("Final state: {:?}", result.final_state);
+let circuit = circuits::load_template("bell").unwrap();
+let first = circuit.run_prefix(1, &RunOptions::default());
+assert!(first.diagnostics.is_empty());
+assert!((first.final_probabilities[0b01] - 0.5).abs() < 1e-6);
 ```
 
 ### WebAssembly UI (Advanced)
@@ -117,23 +112,24 @@ use quantsim::ui;
 ### Bell State Preparation
 
 ```rust
-use quantsim::core::*;
+use quantsim::core::{circuit::RunOptions, CircuitBuilder};
 
-let mut circuit = Circuit::new(2);
-circuit.add_gate("H", &[0])?;      // Hadamard on qubit 0
-circuit.add_gate("CX", &[0, 1])?;  // CNOT gate
-
-let result = Engine::new().run(&circuit, None)?;
-println!("Entangled state: {:?}", result.final_state);
+let mut builder = CircuitBuilder::new(2);
+builder.h(0).next_step().cx(0, 1);
+let result = builder.build().run(&RunOptions::default());
+assert!(result.diagnostics.is_empty());
+assert!((result.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 ```
 
 ### Loading Built-in Templates
 
 ```rust
-use quantsim::core::circuits;
+use quantsim::core::{circuit::RunOptions, circuits};
 
-let grover_circuit = circuits::load_template("grover")?;
-let result = Engine::new().run(&grover_circuit, None)?;
+let grover = circuits::load_template("grover").unwrap();
+let result = grover.run(&RunOptions::default());
+assert!(result.diagnostics.is_empty());
+assert!((result.final_probabilities[0b11] - 1.0).abs() < 1e-6);
 ```
 
 ## Documentation

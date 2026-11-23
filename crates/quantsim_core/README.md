@@ -27,29 +27,26 @@ quantsim_core = "0.2.2"
 ### Basic Example
 
 ```rust
-use quantsim_core::{Circuit, Engine, GateRegistry};
+use quantsim_core::{circuit::RunOptions, CircuitBuilder};
 
-let mut registry = GateRegistry::new();
-registry.register_standard_gates();
-
-// Create a Bell state circuit
-let mut circuit = Circuit::new(2);
-circuit.add_gate("H", &[0]).unwrap();
-circuit.add_gate("CX", &[0, 1]).unwrap();
-
-// Simulate
-let mut engine = Engine::new();
-let result = engine.run(&circuit, None).unwrap();
-
-println!("Final state: {:?}", result.final_state);
+let mut builder = CircuitBuilder::new(2);
+builder.h(0).next_step().cx(0, 1);
+let result = builder.build().run(&RunOptions::default());
+assert!(result.diagnostics.is_empty());
+assert!((result.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 ```
 
 ### Loading Built-in Templates
 
+The current checkout includes a five-qubit plaquette with an explicit physical layout.
+
 ```rust
 use quantsim_core::circuits;
 
-let bell_circuit = circuits::load_template("bell").unwrap();
+let plaquette = circuits::load_template("plaquette_z_check").unwrap();
+let layout = plaquette.layout.as_ref().unwrap();
+assert_eq!(layout.positions.len(), 5);
+assert_eq!(layout.links.len(), 4);
 ```
 
 ## Architecture

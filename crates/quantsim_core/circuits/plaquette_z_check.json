@@ -1,0 +1,19 @@
+{
+  "num_qubits": 5,
+  "qubit_roles": ["data", "data", "data", "data", "ancilla"],
+  "layout": {
+    "positions": [[1, 0], [2, 1], [1, 2], [0, 1], [1, 1]],
+    "links": [[0, 4], [1, 4], [2, 4], [3, 4]]
+  },
+  "sections": [
+    {"start": 1, "end": 1, "label": "Inject X"},
+    {"start": 2, "end": 5, "label": "Z coupling"}
+  ],
+  "steps": [
+    [{"id": "X", "name": "Inject a bit flip on q3", "qubits": [3]}],
+    [{"id": "CX", "name": "Couple q0 to the central ancilla", "qubits": [0, 4]}],
+    [{"id": "CX", "name": "Add q1 to the running parity", "qubits": [1, 4]}],
+    [{"id": "CX", "name": "Add q2 to the running parity", "qubits": [2, 4]}],
+    [{"id": "CX", "name": "Add q3 to complete the four-data-qubit Z check", "qubits": [3, 4]}]
+  ]
+}

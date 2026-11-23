@@ -183,9 +183,14 @@ impl From<GateMatrix> for DMatrix<Complex<f32>> {
 /// let h_gate = Operation::new(Gate::H, vec![0], vec![]);
 /// ```
 ///
-/// Create a rotation gate with parameters:
+/// Rotate q1 around the X axis by a quarter turn. Rotation angles are in radians.
 /// ```rust
-/// let rx_gate = Operation::new(Gate::Rx, vec![1], vec![std::f32::consts::PI / 2.0]);
+/// use quantsim_core::types::{Gate, Operation, Param};
+/// use std::f32::consts::FRAC_PI_2;
+///
+/// let rx_gate = Operation::new(Gate::Rx, vec![1], vec![FRAC_PI_2]);
+/// assert_eq!(rx_gate.qubits.as_slice(), &[1]);
+/// assert_eq!(rx_gate.params.as_slice(), &[Param::Scalar(FRAC_PI_2)]);
 /// ```
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Operation {

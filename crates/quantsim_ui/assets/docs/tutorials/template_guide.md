@@ -25,4 +25,10 @@ Step 2 of **quantum teleportation** creates a shared Bell pair on q1 and q2. At 
 
 Click step 6. The receiver q2 still reads 1 half the time. The X correction at step 7 restores its 25% probability. To see why the Z correction at step 8 matters, follow the `101` row in **Joint state**. Its amplitude changes from `−0.25i` to `+0.25i`, restoring the message's relative phase in that branch. This circuit uses quantum controls for the two corrections. In a separated sender–receiver protocol, the sender measures and communicates two classical bits. [Teleportation protocol](https://quantum.cloud.ibm.com/learning/en/courses/basics-of-quantum-information/entanglement-in-action/quantum-teleportation)
 
+## Inspect a parity check
+
+In **plaquette z check**, four data qubits surround one ancilla, q4. This is one local check from a surface-code-style layout. Under **Qubit layout**, choose **2D layout** and click the central square **A0 (q4)** to highlight its four neighbors.
+
+Step 1 flips q3. Predict when q4 will first read 1. Switch to **3D stack** and click the central ancilla at **t4**, then **t5**. The dashed links show its physical neighbors. At t5 the gold connection shows the CNOT from q3 to q4. In **Results**, q4's probability of reading 1 rises from 0% to 100% as it records odd parity.
+
 For the four repetition-code templates, open **Error correction** in this tutorial.

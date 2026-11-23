@@ -1,4 +1,7 @@
-use quantsim_core::{circuit::CircuitSection, core::gates::Gate};
+use quantsim_core::{
+    circuit::{CircuitSection, QubitLayout},
+    core::gates::Gate,
+};
 
 #[derive(Debug)]
 pub struct SectionDraft {
@@ -32,6 +35,28 @@ pub enum LeftPanelTab {
 pub enum CentralPanelTab {
     Circuit,
     JsonEditor,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LayoutView {
+    Plane,
+    Stack,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StackCamera {
+    /// Horizontal rotation and elevation in degrees.
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+impl Default for StackCamera {
+    fn default() -> Self {
+        Self {
+            yaw: -32.0,
+            pitch: 18.0,
+        }
+    }
 }
 
 /// Represents the selected tab in the info panel.
@@ -118,6 +143,10 @@ pub struct UIState {
     pub show_tutorial_window: bool,
     pub show_welcome_screen: bool,
     pub current_timestep: usize,
+    pub selected_layout_wire: Option<usize>,
+    pub layout_view: LayoutView,
+    pub stack_camera: StackCamera,
+    pub layout_draft: Option<QubitLayout>,
     pub section_editor: Option<SectionDraft>,
     pub gate_editor_matrix: DMatrix<Complex<f32>>,
     pub is_unitary: bool,
@@ -149,6 +178,10 @@ impl Default for UIState {
             show_tutorial_window: false,
             show_welcome_screen: true,
             current_timestep: 0,
+            selected_layout_wire: None,
+            layout_view: LayoutView::Plane,
+            stack_camera: StackCamera::default(),
+            layout_draft: None,
             section_editor: None,
             gate_editor_matrix: DMatrix::from_element(0, 0, Complex::new(0.0, 0.0)),
             is_unitary: true,

@@ -45,6 +45,12 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
 
     let ui = &mut state.ui_state;
     ui.current_timestep = 0;
+    ui.layout_draft = None;
+    ui.selected_layout_wire = circuit_state
+        .circuit
+        .qubit_roles
+        .iter()
+        .position(|role| *role == Some(quantsim_core::circuit::QubitRole::Ancilla));
     ui.section_editor = None;
     ui.selected_gate = None;
     ui.placement_mode = PlacementMode::Idle;

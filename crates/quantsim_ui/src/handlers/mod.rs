@@ -29,6 +29,7 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
         }
         Message::RunSimulation
         | Message::SelectTimestep(_)
+        | Message::InspectLayoutSite { .. }
         | Message::SimulationResultsPageChanged(_) => {
             simulation_handler::handle_simulation_message(state, message, messages)
         }
@@ -36,6 +37,7 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
         | Message::SetQubitRole { .. }
         | Message::ChangeTimesteps(_)
         | Message::SaveSection
+        | Message::SaveLayout
         | Message::DeleteSection
         | Message::CircuitDimensionsChanged { .. } => {
             circuit_controls_handler::handle_circuit_controls_message(state, message, messages)

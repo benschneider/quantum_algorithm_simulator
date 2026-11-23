@@ -119,6 +119,14 @@ fn menu_templates_extract_parity_recover_the_block_and_decode() {
                     Some(Ancilla)
                 ]
             );
+            let layout = circuit.layout.as_ref().expect("parity-check layout");
+            assert_eq!(layout.positions, [[0, 0], [2, 0], [4, 0], [1, 0], [3, 0]]);
+            let mut links = layout.links.clone();
+            for link in &mut links {
+                link.sort_unstable();
+            }
+            links.sort_unstable();
+            assert_eq!(links, [[0, 3], [1, 3], [1, 4], [2, 4]]);
             assert_eq!(circuit.steps.len(), lesson.decoded);
             let coupling = circuit.section_at(lesson.syndrome).unwrap();
             assert_eq!(
@@ -153,6 +161,9 @@ fn menu_templates_extract_parity_recover_the_block_and_decode() {
             assert_decoded(&app, 0b11, logical_flipped);
         }
     }
+    app.handle_message(Message::LoadTemplate("bell.json".into()));
+    assert_eq!(app.state.circuit_state.circuit.num_qubits, 2);
+    assert!(app.state.circuit_state.circuit.layout.is_none());
 }
 
 #[test]

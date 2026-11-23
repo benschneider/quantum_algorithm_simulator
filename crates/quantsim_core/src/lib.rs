@@ -17,40 +17,18 @@
 //!
 //! ## Quick Start
 //!
-//! Here is a simple example of how to create and simulate a Bell state:
+//! Apply a Hadamard gate to q0, then use q0 to control a flip on q1.
+//! The resulting Bell pair gives equal probabilities for `|00⟩` and `|11⟩`.
 //!
 //! ```rust
-//! use quantsim_core::{Circuit, RunOptions};
+//! use quantsim_core::{circuit::RunOptions, CircuitBuilder};
 //!
-//! // Create a circuit for 2 qubits
-//! let mut circuit = Circuit::new(2);
-//!
-//! // Add a Hadamard gate to qubit 0
-//! circuit.steps.push(vec![
-//!     quantsim_core::core::types::Operation::new(
-//!         quantsim_core::core::types::Gate::H,
-//!         vec![0],
-//!         vec![]
-//!     )
-//! ]);
-//!
-//! // Add a CNOT gate with control qubit 0 and target qubit 1
-//! circuit.steps.push(vec![
-//!     quantsim_core::core::types::Operation::new(
-//!         quantsim_core::core::types::Gate::CX,
-//!         vec![0, 1],
-//!         vec![]
-//!     )
-//! ]);
-//!
-//! // Run the simulation
-//! let options = RunOptions::default();
-//! let result = circuit.run(&options);
-//!
-//! // Print the measurement probabilities
-//! for (i, &prob) in result.final_probabilities.iter().enumerate() {
-//!     println!("State |{:b}> has probability: {:.3}", i, prob);
-//! }
+//! let mut builder = CircuitBuilder::new(2);
+//! builder.h(0).next_step().cx(0, 1);
+//! let result = builder.build().run(&RunOptions::default());
+//! assert!(result.diagnostics.is_empty());
+//! assert!((result.final_probabilities[0b00] - 0.5).abs() < 1e-6);
+//! assert!((result.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 //! ```
 //!
 //! ## Circuit Construction
@@ -59,7 +37,7 @@
 //! operations that can be executed in parallel (on disjoint sets of qubits).
 //!
 //! ```rust
-//! use quantsim_core::{Circuit, core::types::{Operation, Gate}};
+//! use quantsim_core::{circuit::Circuit, types::{Gate, Operation}};
 //!
 //! let mut circuit = Circuit::new(3);
 //!
@@ -74,17 +52,22 @@
 //! circuit.steps.push(vec![
 //!     Operation::new(Gate::CX, vec![0, 1], vec![]), // CNOT: control=0, target=1
 //! ]);
+//! assert_eq!(circuit.steps.len(), 2);
+//! assert_eq!(circuit.steps[0].len(), 3);
 //! ```
 //!
 //! ## JSON Serialization
 //!
-//! Circuits can be serialized to/from JSON for persistence and sharing:
+//! Circuit JSON can include an optional qubit layout. The simulator uses its
+//! sites and links for the 2D layout and repeats those positions at each
+//! timestep in the 3D stack. Gate operands still determine which wires interact.
 //!
 //! ```rust
-//! use quantsim_core::circuit::{Circuit, CircuitData};
+//! use quantsim_core::circuit::{Circuit, CircuitData, QubitLayout};
 //!
-//! let circuit = Circuit::new(2);
-//! let data: CircuitData = circuit.clone().into();
+//! let mut circuit = Circuit::new(2);
+//! circuit.layout = Some(QubitLayout::line(2));
+//! let data = CircuitData::from(circuit);
 //!
 //! // Serialize to JSON
 //! let json = serde_json::to_string(&data).unwrap();
@@ -93,52 +76,50 @@
 //! let loaded_data: CircuitData = serde_json::from_str(&json).unwrap();
 //! let mut loaded_circuit = Circuit::new(loaded_data.num_qubits);
 //! loaded_circuit.update_from_data(loaded_data).unwrap();
+//! assert_eq!(loaded_circuit.layout.unwrap().links, [[0, 1]]);
 //! ```
 //!
 //! ## Advanced Features
 //!
 //! ### Custom Gates
 //!
-//! Define your own quantum gates using unitary matrices:
+//! Supply a unitary matrix to the builder. Here a custom Pauli-Z gate between
+//! two Hadamards flips q0 from `|0⟩` to `|1⟩`.
 //!
 //! ```rust
-//! use quantsim_core::core::types::{Operation, GateMatrix};
-//! use nalgebra::Complex;
+//! use nalgebra::{Complex, DMatrix};
+//! use quantsim_core::{circuit::RunOptions, CircuitBuilder};
 //!
-//! // Define a custom 2x2 unitary matrix (Pauli-Z gate)
-//! let z_matrix = vec![
-//!     vec![Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)],
-//!     vec![Complex::new(0.0, 0.0), Complex::new(-1.0, 0.0)],
-//! ];
+//! let one = Complex::new(1.0, 0.0);
+//! let zero = Complex::new(0.0, 0.0);
+//! let z_matrix = DMatrix::from_row_slice(2, 2, &[one, zero, zero, -one]);
 //!
-//! let mut circuit = Circuit::new(1);
-//! circuit.steps.push(vec![
-//!     Operation {
-//!         id: "Z".to_string(),
-//!         qubits: vec![0],
-//!         params: vec![],
-//!         matrix: Some(GateMatrix::BigEndian(z_matrix)),
-//!     }
-//! ]);
+//! let mut builder = CircuitBuilder::new(1);
+//! builder.h(0).next_step();
+//! builder.add_custom_gate("My Z", z_matrix, &[0]).next_step();
+//! builder.h(0);
+//! let result = builder.build().run(&RunOptions::default());
+//! assert!((result.final_probabilities[1] - 1.0).abs() < 1e-6);
 //! ```
 //!
 //! ### Measurement Sampling
 //!
-//! Perform multiple measurement shots to get statistical results:
+//! Sample a Bell pair. Each shot records one bit per wire in q0, q1 order.
 //!
 //! ```rust
-//! use quantsim_core::RunOptions;
+//! use quantsim_core::{circuit::RunOptions, circuits::load_template};
 //!
+//! let circuit = load_template("bell").unwrap();
 //! let options = RunOptions {
-//!     shots: Some(1000),  // Perform 1000 measurements
+//!     shots: Some(1000),
+//!     rng_seed: Some(42),
 //!     ..Default::default()
 //! };
 //!
 //! let result = circuit.run(&options);
-//! if let Some(measurements) = result.measurements {
-//!     println!("Got {} measurement outcomes", measurements.len());
-//!     // Each measurement is a vector of bits (one per qubit)
-//! }
+//! let shots = result.measurements.unwrap();
+//! assert_eq!(shots.len(), 1000);
+//! assert!(shots.iter().all(|shot| matches!(shot.as_slice(), [0, 0] | [1, 1])));
 //! ```
 //!
 //! ### Loading Built-in Templates
@@ -156,18 +137,24 @@
 //!
 //! ### State Snapshots
 //!
-//! Capture the quantum state at each timestep:
+//! Capture the state after every executed step. In the five-step plaquette
+//! template, q3 is already flipped when the last CNOT copies its bit to q4.
+//! Snapshot index 4 holds the readout shown in the simulator at step 5.
 //!
 //! ```rust
+//! use quantsim_core::{circuit::RunOptions, circuits::load_template};
+//!
+//! let circuit = load_template("plaquette_z_check").unwrap();
 //! let options = RunOptions {
 //!     snapshot_state_per_step: true,
 //!     ..Default::default()
 //! };
 //!
 //! let result = circuit.run(&options);
-//! for snapshot in &result.snapshots {
-//!     println!("After step {}: probabilities = {:?}", snapshot.step_index, snapshot.probabilities);
-//! }
+//! assert_eq!(result.snapshots.len(), 5);
+//! // Basis indices are written in q4 q3 q2 q1 q0 order.
+//! assert_eq!(result.snapshots[3].probabilities[0b01000], 1.0);
+//! assert_eq!(result.snapshots[4].probabilities[0b11000], 1.0);
 //! ```
 pub mod core;
 pub mod circuits;

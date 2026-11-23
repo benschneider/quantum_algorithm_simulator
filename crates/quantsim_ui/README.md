@@ -4,7 +4,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)]
 [![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)]
 
-A WebAssembly-based graphical user interface for quantum circuit simulation, built with `egui`. This application provides an interactive environment for building, simulating, and visualizing quantum circuits.
+A quantum circuit editor built with `egui` for the desktop and WebAssembly. Build gates on the timeline, inspect their physical positions in **2D layout**, or follow a wire through successive timesteps in **3D stack**.
 
 ## Features
 
@@ -58,7 +58,8 @@ The application consists of several key panels:
 
 - **Gate Palette** (Left): Available quantum gates organized by category
 - **Circuit Grid** (Center): Main canvas for building circuits
-- **Results Panel** (Right): Simulation results and state visualization
+- **Qubit layout** sits below the grid. Choose **Edit layout** to arrange wires in a line, grid, ring or custom set of sites and links.
+- **Results** shows each wire’s probability of reading 1 and the joint state after the selected step.
 - **Top Panel**: Application controls and menu
 
 ### Basic Workflow
@@ -67,7 +68,7 @@ The application consists of several key panels:
 2. **Build Circuit**: Click on the circuit grid to place gates
 3. **Configure**: Set initial states and circuit parameters
 4. **Simulate**: Click "Run ▶" to execute the simulation
-5. **Analyze**: View results in the results panel and use the time scrubber
+5. Choose **3D stack** and click a site to select its wire and step in **Results**. Drag to rotate the stack. For a five-wire example, load **File → Load Template → plaquette z check** and compare q4 at steps 4 and 5.
 
 ### Key Features
 

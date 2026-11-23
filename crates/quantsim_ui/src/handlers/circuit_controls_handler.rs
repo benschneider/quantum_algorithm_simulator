@@ -22,6 +22,13 @@ pub fn handle_circuit_controls_message(
         Message::ChangeTimesteps(new_timesteps) => {
             resize_steps(state, new_timesteps);
         }
+        Message::SaveLayout => {
+            if let Some(draft) = &state.ui_state.layout_draft {
+                if draft.validate(state.circuit_state.num_qubits).is_ok() {
+                    state.circuit_state.circuit.layout = state.ui_state.layout_draft.take();
+                }
+            }
+        }
         Message::SaveSection => {
             if let Some(draft) = &mut state.ui_state.section_editor {
                 match state
@@ -80,6 +87,14 @@ fn resize_wires(state: &mut AppState, count: usize) {
     if count != state.circuit_state.num_qubits {
         state.simulation_state = Default::default();
         state.ui_state.current_timestep = 0;
+        state.ui_state.layout_draft = None;
+        state.ui_state.selected_layout_wire = state
+            .ui_state
+            .selected_layout_wire
+            .filter(|&wire| wire < count);
+        if let Some(layout) = &mut state.circuit_state.circuit.layout {
+            layout.resize(count);
+        }
     }
     state.circuit_state.num_qubits = count;
     state.circuit_state.circuit.num_qubits = count;

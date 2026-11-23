@@ -4,7 +4,9 @@
 //! circuit, and the associated components for running simulations and handling
 //! results.
 
+mod layout;
 mod sections;
+pub use layout::QubitLayout;
 pub use sections::CircuitSection;
 
 use super::engine::QuantumState;
@@ -43,6 +45,8 @@ pub struct CircuitData {
     /// Optional circuit annotations in wire order, beginning with q0.
     #[serde(default, skip_serializing_if = "roles_are_unset")]
     pub qubit_roles: Vec<Option<QubitRole>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<QubitLayout>,
     pub steps: Vec<Vec<Operation>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sections: Vec<CircuitSection>,
@@ -57,6 +61,7 @@ impl From<Circuit> for CircuitData {
         Self {
             num_qubits: circuit.num_qubits,
             qubit_roles: circuit.qubit_roles,
+            layout: circuit.layout,
             steps: circuit.steps,
             sections: circuit.sections,
             initial_preps: circuit.initial_preps,
@@ -73,9 +78,10 @@ impl From<Circuit> for CircuitData {
 ///
 /// # Examples
 ///
-/// Create a simple Bell state circuit:
+/// Inspect a Bell circuit before and after its CNOT. Passing 1 to
+/// [`Circuit::run_prefix`] executes just the first column.
 /// ```rust
-/// use quantsim_core::{Circuit, core::types::{Operation, Gate}};
+/// use quantsim_core::{circuit::{Circuit, RunOptions}, types::{Gate, Operation}};
 ///
 /// let mut circuit = Circuit::new(2);
 ///
@@ -88,6 +94,12 @@ impl From<Circuit> for CircuitData {
 /// circuit.steps.push(vec![
 ///     Operation::new(Gate::CX, vec![0, 1], vec![])
 /// ]);
+///
+/// let options = RunOptions::default();
+/// let first = circuit.run_prefix(1, &options);
+/// let last = circuit.run(&options);
+/// assert!((first.final_probabilities[0b01] - 0.5).abs() < 1e-6);
+/// assert!((last.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 /// ```
 #[derive(Clone, Debug)]
 pub struct Circuit {
@@ -95,6 +107,8 @@ pub struct Circuit {
     pub num_qubits: usize,
     /// Optional usage annotations indexed by physical wire, beginning with q0.
     pub qubit_roles: Vec<Option<QubitRole>>,
+    /// Authored site positions and connections for displaying this circuit.
+    pub layout: Option<QubitLayout>,
     /// The operations in the circuit, organized into timesteps.
     pub steps: Vec<Vec<Operation>>,
     /// Named ranges of circuit columns, in ascending timestep order.
@@ -167,6 +181,7 @@ impl Circuit {
         Self {
             num_qubits,
             qubit_roles: vec![None; num_qubits],
+            layout: None,
             steps: Vec::new(),
             sections: Vec::new(),
             initial_preps: vec![None; num_qubits],
@@ -187,13 +202,17 @@ impl Circuit {
     ///
     /// # Errors
     ///
-    /// Invalid section labels or ranges leave the current circuit intact.
+    /// Invalid sections or qubit layouts leave the current circuit intact.
     pub fn update_from_data(&mut self, mut data: CircuitData) -> Result<(), String> {
         data.sections.sort_unstable_by_key(|section| section.start);
         sections::validate_sorted_sections(data.sections.iter(), data.steps.len())?;
+        if let Some(layout) = &data.layout {
+            layout.validate(data.num_qubits)?;
+        }
         self.num_qubits = data.num_qubits;
         self.qubit_roles = data.qubit_roles;
         self.qubit_roles.resize(self.num_qubits, None);
+        self.layout = data.layout;
         self.steps = data.steps;
         self.sections = data.sections;
         self.initial_state = data.initial_state;

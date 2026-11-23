@@ -13,6 +13,7 @@ pub enum Message {
     SetQubitRole { row: usize, role: Option<QubitRole> },
     ChangeTimesteps(usize),
     SaveSection,
+    SaveLayout,
     DeleteSection,
     CircuitDimensionsChanged {
         num_qubits: usize,
@@ -55,6 +56,7 @@ pub enum Message {
     ToggleAboutWindow,
     ToggleTutorialWindow,
     SelectTimestep(usize),
+    InspectLayoutSite { wire: usize, step: usize },
 
     // Initial State Editor Messages
     ToggleInitialStateEditor,

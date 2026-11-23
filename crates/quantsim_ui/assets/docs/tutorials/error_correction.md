@@ -15,6 +15,12 @@ Click a numbered column to inspect the joint state of all five wires after that 
 
 ## Follow the parity checks
 
+In **Qubit layout** below the circuit, read the sites from left to right as **q0 · A0 · q1 · A1 · q2**. Select A0 (wire q3) to highlight its two neighbors, q0 and q1. A1 (wire q4) neighbors q1 and q2.
+
+In the two-fault bit-flip template, choose **3D stack** and look at step 5. The X gates act on the two outer data sites. Follow A0's vertical trail to see its CNOT with q0 at step 6 and with q1 at step 7. Select A0 on layer 7 and read q3 and q4 in **Results**. Both now hold 1.
+
+The links in these examples show the four parity-check couplings. Other steps can use gates between distant sites. For example, the encoding CNOT from q1 to q0 acts directly in the simulator.
+
 In **error correction bit flip**, the encoded data occupy `000` and `111`. During **Z coupling**, CNOTs from q0 and q1 write their parity into q3. CNOTs from q1 and q2 do the same for q4. A 1 flags a disagreement in that pair.
 
 In **error correction phase flip**, the data are encoded in the X basis. Compare steps 5 and 6. All eight populated basis rows still have probability 12.5%, but the Z fault changes amplitude signs. In **X coupling**, each ancilla gets a Hadamard, controls one CNOT into each of its two data wires, then gets a final Hadamard. That last H makes the X parity readable as a 0 or 1 on the ancilla. At step 10 both checks are ready. For the default middle-wire fault, every populated row starts with `11`.

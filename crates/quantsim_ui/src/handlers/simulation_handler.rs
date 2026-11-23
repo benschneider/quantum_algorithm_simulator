@@ -16,6 +16,20 @@ pub fn handle_simulation_message(
     let timestep = match message {
         Message::RunSimulation => None,
         Message::SelectTimestep(timestep) => Some(timestep),
+        Message::InspectLayoutSite { wire, step } => {
+            let circuit = &state.circuit_state.circuit;
+            if wire >= circuit.num_qubits || step > circuit.steps.len() {
+                return;
+            }
+            state.ui_state.selected_layout_wire = Some(wire);
+            if step == state.ui_state.current_timestep
+                && state.simulation_state.quantum_state.is_some()
+            {
+                state.ui_state.show_results_window = true;
+                return;
+            }
+            Some(step)
+        }
         Message::SimulationResultsPageChanged(page_number) => {
             state.simulation_state.pagination.set_page(page_number);
             state.simulation_state.page_input_text =

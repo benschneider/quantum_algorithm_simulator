@@ -15,8 +15,7 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     match state.ui_state.active_welcome_step {
                         WelcomeStep::Welcome => {
-                            ui.heading("Welcome to quantsim");
-                            ui.label("A visual quantum circuit simulator for learning, experimenting, and inspecting how algorithms evolve state.");
+                            ui.label("Build a quantum circuit and follow how its gates change amplitudes and measurement probabilities.");
 
                             // Animated hero: two orbs connected by a shimmering tether
                             ui.add_space(6.0);
@@ -52,12 +51,10 @@ pub fn render(state: &mut AppState, ctx: &Context) {
                             ui.ctx().request_repaint();
                             ui.add_space(4.0);
 
-                            ui.label("Use quantsim to:");
-                            ui.add_space(2.0);
                             egui::Grid::new("welcome_bullets").num_columns(2).spacing([6.0, 2.0]).show(ui, |ui| {
-                                ui.label("•"); ui.label("Build small circuits interactively"); ui.end_row();
-                                ui.label("•"); ui.label("See how gates reshape state vectors"); ui.end_row();
-                                ui.label("•"); ui.label("Inspect probabilities, phases, and interference"); ui.end_row();
+                                ui.label("•"); ui.label("Place gates on the circuit grid."); ui.end_row();
+                                ui.label("•"); ui.label("Explore qubit positions and links in 2D layout."); ui.end_row();
+                                ui.label("•"); ui.label("Pick a site in the 3D stack to read that wire at that step."); ui.end_row();
                             });
                             ui.add_space(6.0);
                             ui.collapsing("Quick peek: probabilities of a simple Bell state", |ui| {

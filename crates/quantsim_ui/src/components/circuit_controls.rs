@@ -32,7 +32,11 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         let mut num_timesteps = state.circuit_state.num_timesteps;
         ui.label("Timesteps:");
         if ui
-            .add(DragValue::new(&mut num_timesteps).range(1..=100))
+            .add(
+                DragValue::new(&mut num_timesteps)
+                    .range(1..=100)
+                    .clamp_existing_to_range(false),
+            )
             .changed()
         {
             messages.push(Message::ChangeTimesteps(num_timesteps));

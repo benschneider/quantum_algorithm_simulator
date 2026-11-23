@@ -37,7 +37,13 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
                     Some(QubitRole::Ancilla) => "Ancilla",
                     None => "Unlabeled",
                 };
-                ui.monospace(format!("q{wire}"));
+                let label = egui::RichText::new(format!("q{wire}")).monospace();
+                if state.ui_state.selected_layout_wire == Some(wire) {
+                    ui.label(label.strong().background_color(ui.visuals().selection.bg_fill))
+                        .on_hover_text("Selected in Qubit layout");
+                } else {
+                    ui.label(label);
+                }
                 ui.label(role);
                 ui.monospace(format!("{:.2}%", probability * 100.0));
                 ui.end_row();

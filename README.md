@@ -7,7 +7,7 @@
 ![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-> `quantsim` is developed in this repository, including the Rust crates, the web demo, and the documentation.
+Build a circuit gate by gate, place its qubits on a 2D map, and follow each wire through time in a rotatable 3D stack.
 
 <!-- CI badge (enable after adding .github/workflows/ci.yml):
 [![CI](https://img.shields.io/github/actions/workflow/status/benschneider/quantum_algorithm_simulator/ci.yml?branch=main)](https://github.com/benschneider/quantum_algorithm_simulator/actions)
@@ -18,8 +18,6 @@
 - 📄 **License**: [MIT OR Apache-2.0](COPYRIGHT.md)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
-![Quick demo of quantsim UI](docs/demo.gif)
-
 ### Publishing the web demo
 
 With **Settings → Pages → Build and deployment → Source** set to **GitHub Actions**, each push to `main` builds the simulator from that commit and deploys it. You can also run **Build and publish web simulator** manually on `main`. [GitHub Pages publishing settings](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
@@ -28,7 +26,11 @@ If Pages is set to publish from **main /docs**, run `./deploy-web.sh` and commit
 
 # Introduction to `quantsim`
 
-`quantsim` is a quantum circuit simulator designed for both learning and research. It provides a robust backend for simulating quantum circuits and a user-friendly graphical interface for building, simulating, and visualizing quantum computations. This document serves as a comprehensive introduction to `quantsim`, covering its architecture, core concepts, and how to effectively use the application.
+Try **File → Load Template → plaquette z check**. Four data qubits surround one ancilla, A0 (wire q4). In **2D layout**, select A0 to highlight its four neighbors. Step 1 flips q3. When will the ancilla first read 1?
+
+Switch to **3D stack** below the grid and follow A0 upward. Select its site on layer 4, then on layer 5. **Results** shows q4’s probability of reading 1 change from 0% to 100% when the last CNOT couples q3 to q4. The dashed links show physical neighbors. The gold marks show which gates ran.
+
+![At step 5 the gold CNOT connects q3 to the central ancilla A0, and Results shows q4 at 100%.](docs/plaquette-stack.jpg)
 
 ## Table of Contents
 
@@ -181,8 +183,8 @@ The layout uses `egui`'s panel system to create a clear, organized workspace.
 
 *   **Top Panel**: Contains the main menu bar and circuit controls.
 *   **Left Panel**: Contains the `Gate Palette`.
-*   **Central Panel**: The largest area, dedicated to the `Circuit Grid`.
-*   **Right Panel**: Contains the `Results Panel`.
+*   **Central panel** holds the circuit grid, the synchronized qubit layout below it, and the **JSON** tab for importing and exporting circuits.
+*   **Results** shows probabilities and amplitudes after the selected step. On smaller screens it opens below the circuit.
 
 ### User Interaction Flow
 
@@ -260,6 +262,8 @@ Quantum circuits in `quantsim` are defined visually by selecting gates from a pa
 
 #### Method 1: Using the Gate Palette and Circuit Grid
 
+![Placing gates in the circuit editor](docs/demo.gif)
+
 1.  Open **Gates** beside the circuit. On narrow screens, use the **Gates** menu next to **Circuit**.
 2.  **Select a Gate**: Click on a gate in the palette to select it. The selected gate will be highlighted.
 3.  **Place the Gate**: Click on an empty cell in the central circuit grid to place the selected gate.
@@ -270,6 +274,24 @@ Quantum circuits in `quantsim` are defined visually by selecting gates from a pa
 
 Click a wire label at the left of the grid to annotate it as **Data** or **Ancilla**. Select **Unlabeled** to clear the role. Circuit JSON saves these annotations in `qubit_roles`, starting at q0.
 
+**Qubit layout** below the circuit shows where the wires sit and which gates act at the selected timestep. Select a site to highlight its neighbors. Open **Edit layout** to choose **Line**, **Grid** or **Ring**, or enter your own site coordinates and choose which pairs to link. The four repetition-code templates place each parity ancilla between the two data qubits it checks.
+
+Switch from **2D layout** to **3D stack** to follow a wire through time. Each layer is a timestep. Vertical trails join the same wire across layers, the selected layer shows the layout's physical links, and the gate markers show which wires interact at each step. Drag to orbit or use the view sliders. Select a site to inspect its wire at that step in **Results**. In **plaquette z check**, follow the central q4 through steps 2–5 to see its four CNOTs, one with each surrounding data wire.
+
+A custom arrangement can be shared in the circuit's `layout` field. Put one integer `[x, y]` position per wire in q0, q1, … order. Each link is a pair of wire indices and connects them in both directions. Paste this three-site example into the **JSON** tab and select **Apply Changes** to see an L with q0 at the corner.
+
+```json
+{
+  "num_qubits": 3,
+  "layout": {
+    "positions": [[0, 1], [1, 1], [0, 0]],
+    "links": [[0, 1], [0, 2]]
+  },
+  "steps": [[]]
+}
+```
+
+Circuits that omit `layout` display the wires in index order with no links. The simulator executes every gate on its specified wires, including gates between unlinked sites.
 
 #### Method 2: Using the JSON Editor
 
@@ -277,7 +299,7 @@ For users familiar with the circuit JSON format, or for loading pre-defined circ
 
 1.  **Switch to JSON View**: In the central panel, select the "JSON" tab.
 2.  **Edit JSON**: You can directly type or paste your circuit definition in JSON format here.
-3.  **Update Circuit**: After editing, the visual circuit grid will update to reflect your JSON changes. Conversely, changes in the visual editor will update the JSON.
+3.  Choose **Apply Changes** to load the edited circuit and layout. Open **JSON** again after a visual edit to see the updated definition.
 
 #### Example: Bell State Circuit (from Template)
 
@@ -344,6 +366,7 @@ For a step-by-step reading of the examples, open **Help → Tutorial → Templat
 *   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.
 *   **QFT** and **QFT4** apply the forward Fourier transform to `01` and `1011`. The output probabilities are uniform. The complex amplitudes show how the phases advance.
 *   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
+*   **Plaquette z check** uses one central ancilla to read the joint Z parity of four neighboring data qubits over four CNOT steps.
 *   **Error correction bit flip** and **Error correction bit flip two faults** encode one logical qubit across q0–q2. The **Z coupling** section writes adjacent-pair parities into ancillas q3 and q4. Compare the syndrome at step 7 and the decoded output on q1 at step 13.
 *   **Error correction phase flip** and **Error correction phase flip two faults** use the same five-wire layout. The **X coupling** section surrounds ancilla-controlled CNOTs with Hadamards on the ancillas. Compare the syndrome at step 10 and the decoded output on q1 at step 17.
 
