@@ -1,32 +1,43 @@
 {
   "num_qubits": 2,
   "initial_preps": [null, null],
+  "qubit_roles": ["data", "ancilla"],
+  "sections": [
+    {"start": 1, "end": 2, "label": "Prepare query"},
+    {"start": 3, "end": 3, "label": "Oracle"},
+    {"start": 4, "end": 4, "label": "Decode"}
+  ],
   "steps": [
     [
       {
         "id": "X",
+        "name": "Set the answer ancilla to |1>",
         "qubits": [1]
       }
     ],
     [
       {
         "id": "H",
+        "name": "Prepare the answer ancilla in |->",
         "qubits": [1]
       },
       {
         "id": "H",
+        "name": "Prepare the query in |+>",
         "qubits": [0]
       }
     ],
     [
       {
         "id": "CX",
+        "name": "Evaluate f(x) = x and give the x = 1 branch a minus sign",
         "qubits": [0, 1]
       }
     ],
     [
       {
         "id": "H",
+        "name": "Turn the phase difference into the balanced answer q0 = 1",
         "qubits": [0]
       }
     ]

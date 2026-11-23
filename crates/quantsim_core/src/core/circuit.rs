@@ -4,6 +4,9 @@
 //! circuit, and the associated components for running simulations and handling
 //! results.
 
+mod sections;
+pub use sections::CircuitSection;
+
 use super::engine::QuantumState;
 use super::gates::registry::GateRegistry;
 use super::types::{Gate, GateMatrix, Operation, QubitPrep};
@@ -16,6 +19,18 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// A wire's annotated purpose in a circuit. Every role uses the same qubit simulation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QubitRole {
+    Data,
+    Ancilla,
+}
+
+fn roles_are_unset(roles: &[Option<QubitRole>]) -> bool {
+    roles.iter().all(Option::is_none)
+}
+
 /// A data-transfer object (DTO) for serializing and deserializing a `Circuit`.
 ///
 /// This struct is used to represent the circuit in a format that can be easily
@@ -25,7 +40,12 @@ use std::collections::HashSet;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CircuitData {
     pub num_qubits: usize,
+    /// Optional circuit annotations in wire order, beginning with q0.
+    #[serde(default, skip_serializing_if = "roles_are_unset")]
+    pub qubit_roles: Vec<Option<QubitRole>>,
     pub steps: Vec<Vec<Operation>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sections: Vec<CircuitSection>,
     #[serde(default)]
     pub initial_preps: Vec<Option<QubitPrep>>,
     #[serde(default)]
@@ -36,7 +56,9 @@ impl From<Circuit> for CircuitData {
     fn from(circuit: Circuit) -> Self {
         Self {
             num_qubits: circuit.num_qubits,
+            qubit_roles: circuit.qubit_roles,
             steps: circuit.steps,
+            sections: circuit.sections,
             initial_preps: circuit.initial_preps,
             initial_state: circuit.initial_state,
         }
@@ -71,8 +93,12 @@ impl From<Circuit> for CircuitData {
 pub struct Circuit {
     /// The number of qubits in the circuit.
     pub num_qubits: usize,
+    /// Optional usage annotations indexed by physical wire, beginning with q0.
+    pub qubit_roles: Vec<Option<QubitRole>>,
     /// The operations in the circuit, organized into timesteps.
     pub steps: Vec<Vec<Operation>>,
+    /// Named ranges of circuit columns, in ascending timestep order.
+    pub sections: Vec<CircuitSection>,
     /// The initial preparation for each qubit.
     pub initial_preps: Vec<Option<QubitPrep>>,
     /// The gate registry for the circuit.
@@ -140,7 +166,9 @@ impl Circuit {
     pub fn new(num_qubits: usize) -> Self {
         Self {
             num_qubits,
+            qubit_roles: vec![None; num_qubits],
             steps: Vec::new(),
+            sections: Vec::new(),
             initial_preps: vec![None; num_qubits],
             registry: GateRegistry::default(),
             initial_state: None,
@@ -156,9 +184,18 @@ impl Circuit {
     /// # Arguments
     ///
     /// * `data` - The `CircuitData` object to update the circuit from.
-    pub fn update_from_data(&mut self, data: CircuitData) {
+    ///
+    /// # Errors
+    ///
+    /// Invalid section labels or ranges leave the current circuit intact.
+    pub fn update_from_data(&mut self, mut data: CircuitData) -> Result<(), String> {
+        data.sections.sort_unstable_by_key(|section| section.start);
+        sections::validate_sorted_sections(data.sections.iter(), data.steps.len())?;
         self.num_qubits = data.num_qubits;
+        self.qubit_roles = data.qubit_roles;
+        self.qubit_roles.resize(self.num_qubits, None);
         self.steps = data.steps;
+        self.sections = data.sections;
         self.initial_state = data.initial_state;
 
         // Ensure initial_preps is the correct size, as the data from JSON
@@ -170,6 +207,7 @@ impl Circuit {
             }
         }
         self.initial_preps = new_preps;
+        Ok(())
     }
 
     pub fn prepare_for_execution(&mut self) -> Vec<ValidationError> {
@@ -508,5 +546,58 @@ fn prepare_operation(
         };
         log::debug!("Validation Error: {}", err.message);
         errors.push(err);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Circuit, CircuitData, QubitRole, RunOptions};
+    use crate::CircuitBuilder;
+    use serde_json::{json, to_value};
+
+    #[test]
+    fn wire_roles_round_trip_without_affecting_the_state_vector() {
+        let mut builder = CircuitBuilder::new(3);
+        builder.h(0).next_step().cx(0, 1);
+        let mut circuit = builder.build();
+        let options = RunOptions::default();
+        let expected = circuit.run(&options).final_state_vector.unwrap();
+        assert_eq!(circuit.qubit_roles, [None; 3]);
+
+        circuit.qubit_roles = vec![Some(QubitRole::Ancilla), Some(QubitRole::Data), None];
+        let json = to_value(CircuitData::from(circuit)).unwrap();
+        assert_eq!(json["qubit_roles"], json!(["ancilla", "data", null]));
+        let mut loaded = Circuit::new(0);
+        loaded
+            .update_from_data(serde_json::from_value(json).unwrap())
+            .unwrap();
+        assert_eq!(
+            loaded.qubit_roles,
+            [Some(QubitRole::Ancilla), Some(QubitRole::Data), None]
+        );
+        assert_eq!(loaded.run(&options).final_state_vector.unwrap(), expected);
+    }
+
+    #[test]
+    fn loading_replaces_wire_roles_and_fits_them_to_the_register() {
+        let mut circuit = Circuit::new(2);
+        for (input, expected) in [
+            (
+                json!({"num_qubits": 2, "steps": [], "qubit_roles": [null, "ancilla", "data"]}),
+                [None, Some(QubitRole::Ancilla)],
+            ),
+            (
+                json!({"num_qubits": 2, "steps": [], "qubit_roles": ["data"]}),
+                [Some(QubitRole::Data), None],
+            ),
+            (json!({"num_qubits": 2, "steps": []}), [None; 2]),
+        ] {
+            circuit
+                .update_from_data(serde_json::from_value(input).unwrap())
+                .unwrap();
+            assert_eq!(circuit.qubit_roles, expected);
+        }
+        let saved = to_value(CircuitData::from(circuit)).unwrap();
+        assert!(saved.get("qubit_roles").is_none());
     }
 }

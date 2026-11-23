@@ -46,10 +46,16 @@ impl Simulation {
             rng_seed: None,
         };
         if let Some(initial_state) = &circuit.initial_state {
-            let initial_state_vec = nalgebra::DVector::from_iterator(initial_state.len(), initial_state.iter().cloned());
+            let initial_state_vec = nalgebra::DVector::from_iterator(
+                initial_state.len(),
+                initial_state.iter().cloned(),
+            );
             log::debug!(
                 "Simulation::run_simulation - Circuit initial_state: {}",
-                quantsim_core::core::formatters::get_pretty_print_state_vector(&initial_state_vec, circuit.num_qubits)
+                quantsim_core::core::formatters::get_pretty_print_state_vector(
+                    &initial_state_vec,
+                    circuit.num_qubits
+                )
             );
         } else {
             log::debug!("Simulation::run_simulation - Circuit initial_state: default |00...0⟩");
@@ -77,19 +83,21 @@ impl Simulation {
     /// # Returns
     ///
     /// An `Option` containing the probability as an `f32`, or `None` if the
-    /// state vector is not available.
+    /// state vector or wire is unavailable. Wire q0 is the rightmost basis bit.
     pub fn get_qubit_probabilities(&self, qubit_index: usize) -> Option<f32> {
-        // Changed to f32
-        self.state_vector.as_ref().map(|state_vector| {
-            let num_qubits = (state_vector.len() as f32).log2() as usize; // Changed to f32
-            let mut prob_one = 0.0;
-            for (i, state) in state_vector.iter().enumerate() {
-                if (i >> (num_qubits - 1 - qubit_index)) & 1 == 1 {
-                    prob_one += state.norm_sqr();
-                }
-            }
-            prob_one
-        })
+        let state_vector = self.state_vector.as_ref()?;
+        if qubit_index >= state_vector.len().checked_ilog2()? as usize {
+            return None;
+        }
+        let mask = 1 << qubit_index;
+        Some(
+            state_vector
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| index & mask != 0)
+                .map(|(_, amplitude)| amplitude.norm_sqr())
+                .sum(),
+        )
     }
 }
 

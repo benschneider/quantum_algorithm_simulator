@@ -1,18 +1,13 @@
 {
   "num_qubits": 2,
   "initial_preps": [null, null],
+  "qubit_roles": ["data", "data"],
+  "sections": [
+    {"start": 1, "end": 1, "label": "Split"},
+    {"start": 2, "end": 2, "label": "Bell pair"}
+  ],
   "steps": [
-      [
-      {
-        "id": "H",
-        "qubits": [0]
-      }
-    ],
-    [
-      {
-        "id": "CX",
-        "qubits": [0, 1]
-      }
-    ]
+    [{"id": "H", "qubits": [0], "name": "Prepare q0 in an equal superposition"}],
+    [{"id": "CX", "qubits": [0, 1], "name": "Flip q1 when q0 is 1 so the two outcomes agree"}]
   ]
 }

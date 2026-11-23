@@ -1,4 +1,25 @@
-use quantsim_core::core::gates::Gate;
+use quantsim_core::{circuit::CircuitSection, core::gates::Gate};
+
+#[derive(Debug)]
+pub struct SectionDraft {
+    pub original_start: Option<usize>,
+    pub section: CircuitSection,
+    pub error: Option<String>,
+}
+
+impl SectionDraft {
+    pub fn new(step: usize, existing: Option<&CircuitSection>) -> Self {
+        Self {
+            original_start: existing.map(|section| section.start),
+            section: existing.cloned().unwrap_or_else(|| CircuitSection {
+                start: step,
+                end: step,
+                label: String::new(),
+            }),
+            error: None,
+        }
+    }
+}
 
 /// Represents the selected tab in the left panel.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -23,6 +44,7 @@ pub enum InfoPanelTab {
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum TutorialStep {
     TutorialIntro,
+    TemplateGuide,
     SingleQubitGatesEntangledStates,
     SingleQubitGatesIntroduction,
     MultiQubitGates,
@@ -80,6 +102,7 @@ pub struct UIState {
     pub active_central_tab: CentralPanelTab,
     pub active_info_tab: InfoPanelTab,
     pub active_tutorial_step: TutorialStep,
+    pub tutorial_cache: egui_commonmark::CommonMarkCache,
     pub active_welcome_step: WelcomeStep,
     pub selected_gate: Option<Gate>,
     pub selected_gate_for_editing: Option<(usize, usize)>,
@@ -95,6 +118,7 @@ pub struct UIState {
     pub show_tutorial_window: bool,
     pub show_welcome_screen: bool,
     pub current_timestep: usize,
+    pub section_editor: Option<SectionDraft>,
     pub gate_editor_matrix: DMatrix<Complex<f32>>,
     pub is_unitary: bool,
     pub unitarity_error: f32,
@@ -109,6 +133,7 @@ impl Default for UIState {
             active_central_tab: CentralPanelTab::Circuit,
             active_info_tab: InfoPanelTab::GateReference,
             active_tutorial_step: TutorialStep::TutorialIntro,
+            tutorial_cache: Default::default(),
             active_welcome_step: WelcomeStep::Welcome,
             selected_gate: None,
             selected_gate_for_editing: None,
@@ -124,6 +149,7 @@ impl Default for UIState {
             show_tutorial_window: false,
             show_welcome_screen: true,
             current_timestep: 0,
+            section_editor: None,
             gate_editor_matrix: DMatrix::from_element(0, 0, Complex::new(0.0, 0.0)),
             is_unitary: true,
             unitarity_error: 0.0,

@@ -1,43 +1,20 @@
 {
   "num_qubits": 3,
+  "qubit_roles": ["data", "ancilla", "data"],
+  "sections": [
+    {"start": 1, "end": 2, "label": "Share Bell pair"},
+    {"start": 3, "end": 4, "label": "Prepare message"},
+    {"start": 5, "end": 6, "label": "Bell basis"},
+    {"start": 7, "end": 8, "label": "Correct receiver"}
+  ],
   "steps": [
-    [
-      {
-        "id": "H",
-        "qubits": [1]
-      }
-    ],
-    [
-      {
-        "id": "CX",
-        "qubits": [1, 2]
-      }
-    ],
-    [
-      {
-        "id": "XPow",
-        "qubits": [0],
-        "params": [0.5]
-      }
-    ],
-    [
-      {
-        "id": "YPow",
-        "qubits": [0],
-        "params": [0.5]
-      }
-    ],
-    [
-      {
-        "id": "CX",
-        "qubits": [0, 1]
-      }
-    ],
-    [
-      {
-        "id": "H",
-        "qubits": [0]
-      }
-    ]
+    [{"id": "H", "qubits": [1], "name": "Prepare the sender's half of the Bell pair"}],
+    [{"id": "CX", "qubits": [1, 2], "name": "Entangle the sender's q1 with the receiver's q2"}],
+    [{"id": "Ry", "qubits": [0], "params": [1.0471975511965976], "name": "Prepare a message with a 25% chance of reading 1"}],
+    [{"id": "SqrtZ", "qubits": [0], "name": "Give the message's |1> amplitude a relative phase of +i"}],
+    [{"id": "CX", "qubits": [0, 1], "name": "Write the bit parity of the sender's pair onto q1"}],
+    [{"id": "H", "qubits": [0], "name": "Complete the sender's Bell-basis change"}],
+    [{"id": "CX", "qubits": [1, 2], "name": "Use q1 to control the X correction on the receiver"}],
+    [{"id": "CZ", "qubits": [0, 2], "name": "Use q0 to control the Z correction and restore the message phase"}]
   ]
 }

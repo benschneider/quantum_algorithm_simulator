@@ -1,278 +1,256 @@
 use crate::messages::Message;
 use crate::state::AppState;
-use egui_plot::Corner;
-use egui_plot::{Bar, BarChart, HLine, Plot, Points};
-use nalgebra::Complex;
+use egui_plot::{Bar, BarChart, Corner, HLine, Plot, Points};
+use quantsim_core::{circuit::QubitRole, core::engine::QuantumState};
 
-/// The `results_panel` module is responsible for rendering the simulation
-/// results. This includes the raw state vector and a probability bar chart.
-///
-/// This module is a read-only view of the simulation state. It does not
-/// modify the application state directly, but it can dispatch messages
-/// to the message handlers to trigger changes in the application state
-/// (e.g., changing the pagination).
 pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message> {
-    // Change to mutable state and return Option<Message>
-    let mut message = None;
+    let circuit = &state.circuit_state.circuit;
+    let simulation = &mut state.simulation_state;
+    let step = state.ui_state.current_timestep;
+    let Some(quantum_state) = &simulation.quantum_state else {
+        ui.label(format!("No readout for step {step}."));
+        return ui
+            .button(format!("Read step {step}"))
+            .clicked()
+            .then_some(Message::SelectTimestep(step));
+    };
+    if step == 0 {
+        ui.heading("Step 0 · Initial state");
+    } else if let Some(section) = circuit.section_at(step) {
+        ui.heading(format!("After step {step} · {}", section.label));
+    } else {
+        ui.heading(format!("After step {step}"));
+    }
 
-    ui.heading("Results");
-    ui.separator();
-
-    if let Some(quantum_state) = &state.simulation_state.quantum_state {
-        ui.heading("Raw State Vector");
-
-        // ui mention of sparse representation
-
-        ui.label(
-            "The state vector is represented in a sparse format, showing only non-zero amplitudes.",
-        );
-
-        let non_zero_states: Vec<_> = quantum_state
-            .state_vector
-            .iter()
-            .enumerate()
-            .filter(|(_, state)| state.re.abs() > 1e-6 || state.im.abs() > 1e-6)
-            .collect();
-
-        let pagination = &mut state.simulation_state.pagination;
-        pagination.total_entries = non_zero_states.len();
-        pagination.total_pages = pagination
-            .total_entries
-            .div_ceil(pagination.entries_per_page);
-        let previous_page = pagination.current_page;
-        pagination.set_page(previous_page);
-        if pagination.current_page != previous_page {
-            state.simulation_state.page_input_text = pagination.current_page.to_string();
-        }
-
-        ui.horizontal(|ui| {
-            if let Some(msg) =
-                pagination.render_controls(ui, &mut state.simulation_state.page_input_text)
-            {
-                // Adjust message type for simulation results
-                if let Message::InitialStateEditorPageChanged(page_num) = msg {
-                    message = Some(Message::SimulationResultsPageChanged(page_num));
-                } else {
-                    message = Some(msg);
-                }
+    ui.strong("Wire readout");
+    ui.small("P(1) is the probability of measuring 1 in the computational basis.");
+    egui::Grid::new("wire_readout")
+        .striped(true)
+        .show(ui, |ui| {
+            for title in ["Wire", "Role", "P(1)"] {
+                ui.strong(title);
+            }
+            ui.end_row();
+            for (wire, probability) in simulation.wire_one_probabilities.iter().enumerate() {
+                let role = match circuit.qubit_roles.get(wire).copied().flatten() {
+                    Some(QubitRole::Data) => "Data",
+                    Some(QubitRole::Ancilla) => "Ancilla",
+                    None => "Unlabeled",
+                };
+                ui.monospace(format!("q{wire}"));
+                ui.label(role);
+                ui.monospace(format!("{:.2}%", probability * 100.0));
+                ui.end_row();
             }
         });
 
-        // Precompute magnitude and phase (arg) for coloring
-        let (mag_phase, phases_present): (Vec<(usize, f32, f32)>, bool) = {
-            let mut any_phase = false;
-            let v = non_zero_states
-                .iter()
-                .map(|(i, c)| {
-                    let mag = (c.re * c.re + c.im * c.im).sqrt();
-                    let phase = c.im.atan2(c.re); // [-pi, pi]
-                    if phase.abs() > 1e-6 {
-                        any_phase = true;
-                    }
-                    (*i, mag, phase)
-                })
-                .collect();
-            (v, any_phase)
-        };
-
-        let start_index = pagination.get_start_index();
-        let end_index = pagination.get_end_index();
-
-        for (i, state) in non_zero_states
-            .iter()
-            .skip(start_index)
-            .take(end_index - start_index)
-        {
-            let label = bitstring(*i, quantum_state.num_qubits);
-            let prob = state.re * state.re + state.im * state.im;
-            ui.label(format!(
-                "{}  {:+.4}{:+.4} i, p={:.4}",
-                label, state.re, state.im, prob
-            ));
-        }
-
-        ui.separator();
-
-        let probabilities = quantum_state.probabilities();
-        ui.heading("Probabilities");
-
-        ui.small("Plot is paginated; hover for labels. Legend toggles the phase/Re/Im overlays.");
-
-        // ==== Build paginated probabilities over ALL basis states (include zeros) ====
-        let page_start = start_index;
-        let page_end = (page_start + pagination.entries_per_page).min(probabilities.len());
-
-        // Build bars for the current page (including zero-prob states)
-        let mut bars: Vec<Bar> = Vec::with_capacity(page_end.saturating_sub(page_start));
-        for i in page_start..page_end {
-            let p = probabilities.get(i).copied().unwrap_or(0.0);
-            // Phase for coloring (default 0.0 for exact zeros)
-            let phase = mag_phase
-                .iter()
-                .find(|(idx, _, _)| *idx == i)
-                .map(|(_, _, ph)| *ph)
-                .unwrap_or(0.0);
-            let color = phase_color(phase, phases_present, p);
-            let name = bitstring(i, quantum_state.num_qubits);
-            bars.push(
-                Bar::new(i as f64, p as f64)
-                    .name(name)
-                    .width(0.9)
-                    .fill(color)
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::WHITE)),
-            );
-        }
-
-        let bit_width = quantum_state.num_qubits;
-
-        let state_vector_clone = quantum_state.state_vector.clone();
-        let chart = BarChart::new("Probabilities", bars)
-            .color(egui::Color32::TRANSPARENT)
-            .element_formatter(Box::new(
-                move |bar: &Bar, _chart: &BarChart| {
-                    let idx = bar.argument as usize;
-                    let p = bar.value as f32;
-                    let name = bitstring(idx, bit_width);
-                    if let Some(c) = state_vector_clone.get(idx) {
-                        format!(
-                            "{}\n{:+.4}{:+.4} i\np={:.4}",
-                            name, c.re, c.im, p
-                        )
-                    } else {
-                        format!("{}\np={:.4}", name, p)
-                    }
-                },
-            ));
-
-        // Auto-scale Y to the current page max (with a small headroom)
-        let mut page_max = 0.0f64;
-        for i in page_start..page_end {
-            let p = *probabilities.get(i).unwrap_or(&0.0) as f64;
-            if p > page_max {
-                page_max = p;
+    ui.separator();
+    ui.strong("Joint state");
+    ui.small("Each ket shows q0 at the right. Amplitudes below the display threshold are hidden.");
+    let pagination = &mut simulation.pagination;
+    let message = ui
+        .horizontal(|ui| pagination.render_controls(ui, &mut simulation.page_input_text))
+        .inner
+        .map(|msg| match msg {
+            Message::InitialStateEditorPageChanged(page) => {
+                Message::SimulationResultsPageChanged(page)
             }
-        }
-        let y_top = if page_max > 0.0 {
-            (page_max * 1.1).min(1.0)
-        } else {
-            0.1
-        };
+            other => other,
+        });
 
-        // Faint y-gridlines (no text labels)
-        let mut y_grid: Vec<HLine> = Vec::new();
-        let tick_count = 5;
-        for k in 0..=tick_count {
-            let yv = y_top * (k as f64) / (tick_count as f64);
-            y_grid.push(
-                HLine::new(String::new(), yv)
-                    .color(egui::Color32::from_gray(64))
-                    .width(1.0),
-            );
-        }
-
-        // ---- Optional overlays: phase and complex parts (legend-togglable) ----
-        // We scale these into the same Y range for visualization only; hover shows true values.
-        let mut phase_points: Vec<[f64; 2]> = Vec::new();
-        let mut re_points: Vec<[f64; 2]> = Vec::new();
-        let mut im_points: Vec<[f64; 2]> = Vec::new();
-
-        // Find max absolute amplitude (for scaling re/im to page)
-        let mut max_abs_amp: f32 = 0.0;
-        for i in page_start..page_end {
-            let c = *quantum_state
-                .state_vector
-                .get(i)
-                .unwrap_or(&Complex::<f32>::new(0.0, 0.0));
-            let abs = (c.re * c.re + c.im * c.im).sqrt();
-            if abs > max_abs_amp {
-                max_abs_amp = abs;
-            }
-        }
-        if max_abs_amp <= 1e-9 {
-            max_abs_amp = 1.0;
-        }
-
-        // Build points (with scaling)
-        for i in page_start..page_end {
-            let c = *quantum_state
-                .state_vector
-                .get(i)
-                .unwrap_or(&Complex::<f32>::new(0.0, 0.0));
-            let phase = c.im.atan2(c.re); // [-pi, pi]
-            // Scale phase from [-pi,pi] -> [0,y_top]
-            let phase_y =
-                (((phase + std::f32::consts::PI) / (2.0 * std::f32::consts::PI)) as f64) * y_top;
-            phase_points.push([i as f64, phase_y]);
-
-            // Scale real/imag from [-max_abs_amp, max_abs_amp] -> [0,y_top] (center at y_top/2)
-            let scale = (y_top as f32) / (2.0 * max_abs_amp);
-            let re_y = (0.5f32 * y_top as f32 + c.re * scale) as f64;
-            let im_y = (0.5f32 * y_top as f32 + c.im * scale) as f64;
-            re_points.push([i as f64, re_y]);
-            im_points.push([i as f64, im_y]);
-        }
-
-        // Midline for re/im (center at y_top/2)
-        let midline = HLine::new(String::new(), y_top * 0.5)
-            .color(egui::Color32::from_gray(96))
-            .width(1.0);
-
-        // Build the overlay series with names so they appear in legend (users can toggle visibility)
-        let phase_overlay = Points::new("phase (scaled)", phase_points)
-            .radius(2.5)
-            .color(egui::Color32::from_rgb(240, 180, 80));
-        let re_overlay = Points::new("Re(amp) (scaled)", re_points)
-            .radius(2.5)
-            .color(egui::Color32::from_rgb(160, 220, 255));
-        let im_overlay = Points::new("Im(amp) (scaled)", im_points)
-            .radius(2.5)
-            .color(egui::Color32::from_rgb(140, 200, 180));
-
-        let x0 = page_start as f64;
-        let x1 = (page_end.saturating_sub(1)) as f64;
-
-        Plot::new("probabilities_plot")
-            .legend(egui_plot::Legend::default().position(Corner::LeftTop))
-            .x_axis_label("Basis state index")
-            .y_axis_label("Probability")
-            .include_x(x0)
-            .include_x(x1)
-            .include_y(0.0)
-            .include_y(y_top)
-            .allow_scroll(true)
-            .allow_zoom(true)
-            .allow_boxed_zoom(false)
-            .show(ui, |plot_ui| {
-                // grid
-                for h in &y_grid {
-                    plot_ui.hline(h.clone());
-                }
-                // midline for re/im overlays
-                plot_ui.hline(midline.clone());
-                // overlays first (so bars are on top but users can hover points)
-                plot_ui.points(phase_overlay);
-                plot_ui.points(re_overlay);
-                plot_ui.points(im_overlay);
-                // main chart
-                plot_ui.bar_chart(chart);
-            });
-    } else {
-        ui.label("No simulation run yet.");
+    let page =
+        &simulation.populated_indices[pagination.get_start_index()..pagination.get_end_index()];
+    for &index in page {
+        let amp = quantum_state.state_vector[index];
+        let ket = bitstring(index, quantum_state.num_qubits);
+        ui.monospace(format!(
+            "{ket}  {:+.4}{:+.4}i  p={:.4}",
+            amp.re,
+            amp.im,
+            amp.norm_sqr()
+        ));
     }
+
+    ui.separator();
+    ui.strong("Joint probabilities");
+    ui.small("Bars show the states on this page. Hover for amplitude and phase.");
+    probability_plot(ui, quantum_state, page);
     message
 }
 
-fn bitstring(idx: usize, width: usize) -> String {
-    format!("|{:0width$b}>", idx, width = width)
+fn probability_plot(ui: &mut egui::Ui, state: &QuantumState, page: &[usize]) {
+    let max_probability = page
+        .iter()
+        .map(|&i| state.state_vector[i].norm_sqr())
+        .fold(0.0, f32::max);
+    let y_top = (1.1 * f64::from(max_probability)).clamp(f64::EPSILON, 1.0);
+    let max_amp = f64::from(max_probability.sqrt()).max(f64::EPSILON);
+    let has_phase = page
+        .iter()
+        .any(|&i| state.state_vector[i].arg().abs() > 1e-6);
+    let mut bars = Vec::with_capacity(page.len());
+    let mut phase_points = Vec::with_capacity(page.len());
+    let mut re_points = Vec::with_capacity(page.len());
+    let mut im_points = Vec::with_capacity(page.len());
+
+    // Each populated state gets one column so widely separated basis indices are legible.
+    for (column, &index) in page.iter().enumerate() {
+        let amp = state.state_vector[index];
+        let probability = amp.norm_sqr();
+        let phase = amp.arg();
+        let x = column as f64;
+        let ket = bitstring(index, state.num_qubits);
+        bars.push(
+            Bar::new(x, f64::from(probability))
+                .name(format!("{ket} (index {index})\n{:+.4}{:+.4}i\np={probability:.4}\nphase={phase:.4} rad", amp.re, amp.im))
+                .width(0.85)
+                .fill(phase_color(phase, has_phase))
+                .stroke(egui::Stroke::new(1.0_f32, egui::Color32::WHITE)),
+        );
+        let phase_y = 0.5 * (1.0 + f64::from(phase) / std::f64::consts::PI) * y_top;
+        phase_points.push([x, phase_y]);
+        re_points.push([x, 0.5 * (1.0 + f64::from(amp.re) / max_amp) * y_top]);
+        im_points.push([x, 0.5 * (1.0 + f64::from(amp.im) / max_amp) * y_top]);
+    }
+
+    let chart = BarChart::new("Probabilities", bars)
+        .color(egui::Color32::TRANSPARENT)
+        .element_formatter(Box::new(|bar, _| bar.name.clone()));
+
+    Plot::new("probabilities_plot")
+        .view_aspect(1.6)
+        .legend(egui_plot::Legend::default().position(Corner::LeftTop))
+        .x_axis_label("Basis state index")
+        .show_x(false)
+        .x_axis_formatter(|mark, _| {
+            if mark.value >= 0.0 && mark.value.fract() == 0.0 {
+                if let Some(index) = page.get(mark.value as usize) {
+                    return index.to_string();
+                }
+            }
+            String::new()
+        })
+        .y_axis_label("Probability")
+        .include_y(0.0)
+        .include_y(y_top)
+        .allow_boxed_zoom(false)
+        .show(ui, |plot_ui| {
+            let midline = HLine::new("", y_top * 0.5)
+                .color(egui::Color32::from_gray(96))
+                .allow_hover(false);
+            plot_ui.hline(midline);
+            for (name, points, color) in [
+                (
+                    "phase (scaled)",
+                    phase_points,
+                    egui::Color32::from_rgb(240, 180, 80),
+                ),
+                (
+                    "Re(amp) (scaled)",
+                    re_points,
+                    egui::Color32::from_rgb(160, 220, 255),
+                ),
+                (
+                    "Im(amp) (scaled)",
+                    im_points,
+                    egui::Color32::from_rgb(140, 200, 180),
+                ),
+            ] {
+                plot_ui.points(
+                    Points::new(name, points)
+                        .radius(2.5_f32)
+                        .color(color)
+                        .allow_hover(false),
+                );
+            }
+            plot_ui.bar_chart(chart);
+        });
 }
 
-fn phase_color(phase: f32, has_phase: bool, prob: f32) -> egui::Color32 {
-    if has_phase && prob > 0.0 {
-        // Map phase in [-pi, pi] to hue in [0,1], then use as RGB placeholder
-        // (keeps the user's request to avoid HSV helpers while still varying color)
-        let hue = (phase + std::f32::consts::PI) / (2.0 * std::f32::consts::PI);
+fn bitstring(idx: usize, width: usize) -> String {
+    format!("|{idx:0width$b}⟩")
+}
+
+fn phase_color(phase: f32, has_phase: bool) -> egui::Color32 {
+    if has_phase {
+        let hue = (phase + std::f32::consts::PI) / std::f32::consts::TAU;
         egui::Rgba::from_rgba_unmultiplied(hue, 0.85, 0.95, 1.0).into()
     } else {
         egui::Color32::from_rgb(80, 180, 255)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::QCSimApp;
+    use quantsim_core::core::types::Gate;
+
+    #[test]
+    fn results_label_the_selected_section_and_sparse_plot_with_real_basis_indices() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::ChangeQubits(5));
+        for wire in [3, 4] {
+            app.handle_message(Message::PlaceGate(Gate::X, wire, 0));
+            app.handle_message(Message::SetQubitRole {
+                row: wire,
+                role: Some(QubitRole::Ancilla),
+            });
+        }
+        app.handle_message(Message::PlaceGate(Gate::H, 1, 0));
+        app.state
+            .circuit_state
+            .circuit
+            .set_section(
+                None,
+                quantsim_core::circuit::CircuitSection {
+                    start: 1,
+                    end: 1,
+                    label: "Parity readout".into(),
+                },
+            )
+            .unwrap();
+        app.handle_message(Message::SelectTimestep(1));
+
+        let ctx = egui::Context::default();
+        let render = |app: &mut QCSimApp| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(600.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        results_panel(ui, &mut app.state);
+                    });
+                },
+            )
+        };
+        render(&mut app);
+        let output = render(&mut app);
+        let labels: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+                _ => None,
+            })
+            .collect();
+        for expected in [
+            "After step 1 · Parity readout",
+            "q4",
+            "Ancilla",
+            "50.00%",
+            "24",
+            "26",
+        ] {
+            assert!(
+                labels.contains(&expected),
+                "Missing {expected} in {labels:?}"
+            );
+        }
     }
 }

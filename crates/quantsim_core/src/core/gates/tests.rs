@@ -256,6 +256,35 @@ fn registry_pow_gates_use_full_gate_exponent_semantics() {
 }
 
 #[test]
+fn controlled_powers_apply_to_the_requested_target_in_both_wire_orders() {
+    for (gate, single) in [
+        (Gate::CXPow, Gate::XPow),
+        (Gate::CYPow, Gate::YPow),
+        (Gate::CZPow, Gate::ZPow),
+    ] {
+        for (width, wires) in [(2, [0, 1]), (2, [1, 0]), (3, [0, 2]), (3, [2, 0])] {
+            let mut circuit = Circuit::new(width);
+            let [control, target] = wires;
+            let target_gate = registry_matrix(&circuit.registry, single.clone(), &[0.5], &[target]);
+            circuit.steps.push(vec![Operation::new(gate.clone(), wires.to_vec(), vec![0.5])]);
+            let dimension = 1 << width;
+            for input in 0..dimension {
+                let initial = basis(input, dimension);
+                circuit.initial_state = Some(initial.as_slice().to_vec());
+                let mut expected = initial;
+                if input & (1 << control) != 0 {
+                    let target_bit = (input >> target) & 1;
+                    expected[input] = target_gate[(target_bit, target_bit)];
+                    expected[input ^ (1 << target)] = target_gate[(target_bit ^ 1, target_bit)];
+                }
+                let actual = circuit.run(&Default::default()).final_state_vector.unwrap();
+                assert_vectors_close(&DVector::from_vec(actual), &expected);
+            }
+        }
+    }
+}
+
+#[test]
 fn registry_pow_gates_match_cirq_style_single_qubit_relations_up_to_global_phase() {
     let registry = GateRegistry::new_with_standard_gates();
 

@@ -1,56 +1,72 @@
 {
   "num_qubits": 2,
   "initial_preps": [null, null],
+  "qubit_roles": ["data", "data"],
+  "sections": [
+    {"start": 1, "end": 1, "label": "Spread"},
+    {"start": 2, "end": 2, "label": "Oracle"},
+    {"start": 3, "end": 6, "label": "Amplify 11"}
+  ],
   "steps": [
     [
       {
         "id": "H",
+        "name": "Give all four search states equal amplitude",
         "qubits": [0]
       },
       {
         "id": "H",
+        "name": "Give all four search states equal amplitude",
         "qubits": [1]
       }
     ],
     [
       {
         "id": "CZ",
+        "name": "Flip the sign of |11>",
         "qubits": [0, 1]
       }
     ],
     [
       {
         "id": "H",
+        "name": "Change basis for the reflection about |00>",
         "qubits": [0]
       },
       {
         "id": "H",
+        "name": "Change basis for the reflection about |00>",
         "qubits": [1]
       }
     ],
     [
       {
         "id": "Z",
+        "name": "Change the sign for each 1 bit",
         "qubits": [0]
       },
       {
         "id": "Z",
+        "name": "Change the sign for each 1 bit",
         "qubits": [1]
       }
     ],
     [
       {
         "id": "CZ",
+        "name": "Complete the reflection about |00>",
         "qubits": [0, 1]
       }
     ],
     [
       {
         "id": "H",
+        "name": "Rotate back to amplify |11>",
         "qubits": [0]
       },
       {
         "id": "H",
+        "name": "Rotate back to amplify |11>",
         "qubits": [1]
       }
     ]

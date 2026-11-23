@@ -1,4 +1,5 @@
 use crate::messages::Message;
+use crate::state::ui_state::{CentralPanelTab, SectionDraft};
 use crate::state::{AppState, CircuitState};
 use egui::widgets::DragValue;
 
@@ -11,7 +12,8 @@ use egui::widgets::DragValue;
 /// * `state` - The application state.
 /// * `messages` - A vector of messages to be sent to the application.
 pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<Message>) {
-    ui.horizontal(|ui| {
+    let circuit_view = state.ui_state.active_central_tab == CentralPanelTab::Circuit;
+    ui.horizontal_wrapped(|ui| {
         if ui.button("Run ▶").clicked() {
             messages.push(Message::RunSimulation);
         }
@@ -46,7 +48,19 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         {
             messages.push(Message::SelectTimestep(current_timestep));
         }
+        let last_step = state.circuit_state.circuit.steps.len();
+        if circuit_view
+            && ui
+                .add_enabled(last_step > 0, egui::Button::new("Sections"))
+                .clicked()
+        {
+            let step = current_timestep.clamp(1, last_step);
+            let existing = state.circuit_state.circuit.section_at(step);
+            state.ui_state.section_editor = Some(SectionDraft::new(step, existing));
+        }
     });
 
-    //ui.add_space(10.0);
+    if circuit_view {
+        super::section_editor::show(ui.ctx(), state, messages);
+    }
 }

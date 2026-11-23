@@ -1,26 +1,57 @@
 {
-  "num_qubits": 3,
+  "num_qubits": 5,
+  "qubit_roles": ["data", "data", "data", "ancilla", "ancilla"],
+  "sections": [
+    {"start": 1, "end": 2, "label": "Prepare input"},
+    {"start": 3, "end": 5, "label": "Encode data"},
+    {"start": 6, "end": 6, "label": "2 faults"},
+    {"start": 7, "end": 10, "label": "X coupling"},
+    {"start": 11, "end": 14, "label": "Correct Z errors"},
+    {"start": 15, "end": 17, "label": "Decode output"}
+  ],
   "steps": [
-    [{ "id": "Ry", "name": "Prepare the logical amplitudes", "params": [1.0471975511965976], "qubits": [1] }],
-    [{ "id": "SqrtZ", "name": "Add a relative phase", "qubits": [1] }],
-    [{ "id": "CX", "name": "Encode across q1 and q0", "qubits": [1, 0] }],
-    [{ "id": "CX", "name": "Complete the repetition encoding", "qubits": [1, 2] }],
+    [{"id": "Ry", "name": "Prepare the logical amplitudes", "params": [1.0471975511965976], "qubits": [1]}],
+    [{"id": "SqrtZ", "name": "Add a relative phase", "qubits": [1]}],
+    [{"id": "CX", "name": "Encode across q1 and q0", "qubits": [1, 0]}],
+    [{"id": "CX", "name": "Encode across q1 and q2", "qubits": [1, 2]}],
     [
-      { "id": "H", "name": "Encode in the X basis", "qubits": [0] },
-      { "id": "H", "name": "Encode in the X basis", "qubits": [1] },
-      { "id": "H", "name": "Encode in the X basis", "qubits": [2] }
+      {"id": "H", "name": "Encode in the X basis", "qubits": [0]},
+      {"id": "H", "name": "Encode in the X basis", "qubits": [1]},
+      {"id": "H", "name": "Encode in the X basis", "qubits": [2]}
     ],
     [
-      { "id": "Z", "name": "Inject a phase flip on q0", "qubits": [0] },
-      { "id": "Z", "name": "Inject a phase flip on q2", "qubits": [2] }
+      {"id": "Z", "name": "Inject a phase flip on q0", "qubits": [0]},
+      {"id": "Z", "name": "Inject a phase flip on q2", "qubits": [2]}
     ],
     [
-      { "id": "H", "name": "Return to the computational basis", "qubits": [0] },
-      { "id": "H", "name": "Return to the computational basis", "qubits": [1] },
-      { "id": "H", "name": "Return to the computational basis", "qubits": [2] }
+      {"id": "H", "name": "Prepare the parity ancilla in |+>", "qubits": [3]},
+      {"id": "H", "name": "Prepare the parity ancilla in |+>", "qubits": [4]}
     ],
-    [{ "id": "CX", "name": "Decode the q1–q2 parity into q2", "qubits": [1, 2] }],
-    [{ "id": "CX", "name": "Decode the q1–q0 parity into q0", "qubits": [1, 0] }],
-    [{ "id": "CCNOT", "name": "Both parity bits are one, so the decoder flips the intact q1", "qubits": [0, 2, 1] }]
+    [
+      {"id": "CX", "name": "Couple q3 to the first data wire of the X0 X1 check", "qubits": [3, 0]},
+      {"id": "CX", "name": "Couple q4 to the first data wire of the X1 X2 check", "qubits": [4, 1]}
+    ],
+    [
+      {"id": "CX", "name": "Complete the X0 X1 coupling", "qubits": [3, 1]},
+      {"id": "CX", "name": "Complete the X1 X2 coupling", "qubits": [4, 2]}
+    ],
+    [
+      {"id": "H", "name": "Return X0 X1 parity to the Z readout basis", "qubits": [3]},
+      {"id": "H", "name": "Return X1 X2 parity to the Z readout basis", "qubits": [4]}
+    ],
+    [
+      {"id": "CZ", "name": "Apply Z to q0 if the left check flags", "qubits": [3, 0]},
+      {"id": "CZ", "name": "Apply Z to q2 if the right check flags", "qubits": [4, 2]}
+    ],
+    [{"id": "CCZ", "name": "Undo the q0 correction when both checks flag", "qubits": [3, 4, 0]}],
+    [{"id": "CCZ", "name": "Correct q1 when both checks flag", "qubits": [3, 4, 1]}],
+    [{"id": "CCZ", "name": "Undo the q2 correction when both checks flag", "qubits": [3, 4, 2]}],
+    [
+      {"id": "H", "name": "Return the data to the computational basis", "qubits": [0]},
+      {"id": "H", "name": "Return the data to the computational basis", "qubits": [1]},
+      {"id": "H", "name": "Return the data to the computational basis", "qubits": [2]}
+    ],
+    [{"id": "CX", "name": "Undo encoding on q2", "qubits": [1, 2]}],
+    [{"id": "CX", "name": "Undo encoding on q0 and leave the logical output on q1", "qubits": [1, 0]}]
   ]
 }

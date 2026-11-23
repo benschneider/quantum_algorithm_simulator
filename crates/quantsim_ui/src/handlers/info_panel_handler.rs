@@ -16,7 +16,11 @@ pub fn handle_info_panel_message(
                     .and_then(|step| step.iter_mut().find(|op| op.qubits.contains(&(row as u32))))
                 {
                     if let Some(param) = op.params.get_mut(0) {
-                        *param = quantsim_core::core::types::Param::Scalar(new_angle as f32);
+                        let new_param = quantsim_core::core::types::Param::Scalar(new_angle as f32);
+                        if *param != new_param {
+                            *param = new_param;
+                            super::simulation_handler::invalidate_edited_gate(state, col);
+                        }
                     }
                 }
             }
@@ -30,12 +34,13 @@ pub fn handle_info_panel_message(
                     .get_mut(col)
                     .and_then(|step| step.iter_mut().find(|op| op.qubits.contains(&(row as u32))))
                 {
-                    if is_control {
-                        if !op.qubits.contains(&(gate_pos as u32)) {
+                    if is_control != op.qubits.contains(&(gate_pos as u32)) {
+                        if is_control {
                             op.qubits.push(gate_pos as u32);
+                        } else {
+                            op.qubits.retain(|q| *q != gate_pos as u32);
                         }
-                    } else {
-                        op.qubits.retain(|q| *q != gate_pos as u32);
+                        super::simulation_handler::invalidate_edited_gate(state, col);
                     }
                 }
             }

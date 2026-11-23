@@ -1,31 +1,13 @@
 {
-    "num_qubits": 3,
-    "steps": [
-        [
-            {
-                "id": "H",
-                "qubits": [
-                    0
-                ]
-            }
-        ],
-        [
-            {
-                "id": "CX",
-                "qubits": [
-                    0,
-                    1
-                ]
-            }
-        ],
-        [
-            {
-                "id": "CX",
-                "qubits": [
-                    0,
-                    2
-                ]
-            }
-        ]
-    ]
+  "num_qubits": 3,
+  "qubit_roles": ["data", "data", "data"],
+  "sections": [
+    {"start": 1, "end": 2, "label": "Bell pair"},
+    {"start": 3, "end": 3, "label": "Add q2"}
+  ],
+  "steps": [
+    [{"id": "H", "qubits": [0], "name": "Prepare q0 in an equal superposition"}],
+    [{"id": "CX", "qubits": [0, 1], "name": "Entangle q1 with q0 to create a Bell pair"}],
+    [{"id": "CX", "qubits": [0, 2], "name": "Entangle q2 with the pair so all three outcomes agree"}]
+  ]
 }

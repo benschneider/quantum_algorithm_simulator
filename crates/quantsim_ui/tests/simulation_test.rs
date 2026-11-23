@@ -75,63 +75,12 @@ fn test_deutsch_algorithm_simulation() {
     app.handle_message(Message::UpdateCircuitFromJson(deutsch_json.to_string()));
 
     let mut circuit = app.state.circuit_state.circuit.clone();
-    circuit.initial_preps = vec![
-        Some(quantsim_core::core::types::QubitPrep::Plus),
-        Some(quantsim_core::core::types::QubitPrep::Minus),
-    ];
-    // Simulate the circuit and assert the final state
     let mut sim = simulation::Simulation::new();
     sim.run_simulation(&mut circuit);
 
-    // For a balanced function, the probability of measuring the first qubit as 1 should be 1.0
-    let prob_q0_one = sim.get_qubit_probabilities(0).unwrap();
-    let epsilon = 1e-5_f32; // Changed to f32
-    assert!(
-        (prob_q0_one - 1.0).abs() < epsilon,
-        "Probability of measuring q0 as 1 is not close to 1.0 we got {}",
-        prob_q0_one
-    );
-}
-
-#[test]
-fn test_quantum_teleportation_simulation() {
-    env_logger::builder().is_test(true).try_init().ok();
-    let mut app = QCSimApp::default();
-
-    let teleportation_json = circuits::get_circuit("quantum_teleportation.json").unwrap();
-    app.state.ui_state.circuit_json_string = teleportation_json.to_string();
-
-    app.handle_message(Message::UpdateCircuitFromJson(
-        teleportation_json.to_string(),
-    ));
-
-    let mut circuit = app.state.circuit_state.circuit.clone();
-
-    // First, let's get the state of the message qubit (q0) before teleportation.
-    // The message is created in the second step of the circuit.
-    let mut message_circuit = circuit.clone();
-    message_circuit.steps = circuit.steps[0..2].to_vec();
-    let mut message_sim = simulation::Simulation::new();
-    message_sim.run_simulation(&mut message_circuit);
-    let message_state = message_sim.get_qubit_probabilities(0).unwrap();
-
-    // Now, run the full teleportation circuit.
-    let mut full_sim = simulation::Simulation::new();
-    full_sim.run_simulation(&mut circuit);
-
-    // The state of the third qubit (q2) should now match the original message state.
-    // Note: This is a simplified check. A full check would involve comparing the
-    // density matrices of the qubits. For this test, we'll compare the probability
-    // of being in the |1> state.
-    let teleported_state = full_sim.get_qubit_probabilities(2).unwrap();
-
-    let epsilon = 1e-5_f32; // Changed to f32
-    assert!(
-        (message_state - teleported_state).abs() < epsilon,
-        "Teleported state does not match original message state, expected {}, got {}",
-        message_state,
-        teleported_state
-    );
+    assert!((sim.get_qubit_probabilities(0).unwrap() - 1.0).abs() < 1e-5);
+    assert!((sim.get_qubit_probabilities(1).unwrap() - 0.5).abs() < 1e-5);
+    assert_eq!(sim.get_qubit_probabilities(2), None);
 }
 
 #[test]

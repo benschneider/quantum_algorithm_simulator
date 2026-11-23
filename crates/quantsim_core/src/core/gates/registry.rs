@@ -671,7 +671,13 @@ impl GateRegistry {
                         Param::Scalar(val) => Some(*val),
                     })
                     .unwrap_or(0.0);
-                let big_matrix = gate.matrix_at_big(exponent);
+                let mut big_matrix = gate.matrix_at_big(exponent);
+                // The engine gathers local amplitudes in ascending wire order.
+                // Exchange |01> and |10> when the first operand is the higher wire.
+                if big_matrix.nrows() == 4 && matches!(qubits, [a, b] if a > b) {
+                    big_matrix.swap_rows(1, 2);
+                    big_matrix.swap_columns(1, 2);
+                }
                 GateMatrix::BigEndian(big_matrix)
             }
             GateKind::Custom { matrix } => {

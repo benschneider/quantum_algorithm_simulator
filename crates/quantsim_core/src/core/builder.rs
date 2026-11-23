@@ -137,7 +137,9 @@ impl CircuitBuilder {
         self.next_step(); // Finalize any pending operations
         Circuit {
             num_qubits: self.num_qubits,
+            qubit_roles: vec![None; self.num_qubits],
             steps: self.steps,
+            sections: Vec::new(),
             initial_preps: self.initial_preps,
             registry: self.registry,
             initial_state: None,

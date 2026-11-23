@@ -119,7 +119,11 @@ fn invalid_circuit_reports_diagnostics_on_run_and_scrub() {
         assert!(app.state.simulation_state.quantum_state.is_some());
 
         let data = serde_json::from_str(json).unwrap();
-        app.state.circuit_state.circuit.update_from_data(data);
+        app.state
+            .circuit_state
+            .circuit
+            .update_from_data(data)
+            .unwrap();
         app.handle_message(message);
 
         assert!(app.state.simulation_state.quantum_state.is_none());

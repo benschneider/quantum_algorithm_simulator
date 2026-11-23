@@ -24,6 +24,7 @@ pub fn handle_initial_state_editor_message(
                         .map(|c| nalgebra::Complex::new(c.re as f32, c.im as f32))
                         .collect(),
                 );
+                state.simulation_state = Default::default();
             } else {
                 log::error!(
                     "Invalid state vector length. Expected {}, got {}.",
@@ -34,7 +35,9 @@ pub fn handle_initial_state_editor_message(
             state.ui_state.show_initial_state_editor = false;
         }
         Message::ResetInitialState => {
-            state.circuit_state.circuit.initial_state = None;
+            if state.circuit_state.circuit.initial_state.take().is_some() {
+                state.simulation_state = Default::default();
+            }
             state.initial_state_editor_state =
                 crate::state::InitialStateEditorState::new(state.circuit_state.circuit.num_qubits);
             state.ui_state.show_initial_state_editor = false;

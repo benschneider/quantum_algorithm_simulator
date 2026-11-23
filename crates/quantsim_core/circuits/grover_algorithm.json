@@ -1,15 +1,23 @@
 {
   "num_qubits": 3,
+  "qubit_roles": ["data", "data", "data"],
+  "sections": [
+    {"start": 1, "end": 1, "label": "Spread"},
+    {"start": 2, "end": 2, "label": "Oracle"},
+    {"start": 3, "end": 7, "label": "First amplification"},
+    {"start": 8, "end": 8, "label": "Oracle"},
+    {"start": 9, "end": 13, "label": "Second amplification"}
+  ],
   "steps": [
     [
-      { "id": "H", "qubits": [0] },
-      { "id": "H", "qubits": [1] },
-      { "id": "H", "qubits": [2] }
+      { "id": "H", "name": "Give all eight search states equal amplitude", "qubits": [0] },
+      { "id": "H", "name": "Give all eight search states equal amplitude", "qubits": [1] },
+      { "id": "H", "name": "Give all eight search states equal amplitude", "qubits": [2] }
     ],
     [
       {
         "id": "Custom",
-        "name": "ORACLE",
+        "name": "Flip the sign of |100>",
         "qubits": [0, 1, 2],
         "matrix": {
           "BigEndian": [
@@ -26,32 +34,32 @@
       }
     ],
     [
-      { "id": "H", "qubits": [0] },
-      { "id": "H", "qubits": [1] },
-      { "id": "H", "qubits": [2] }
+      { "id": "H", "name": "Change basis for the phase flip on |000>", "qubits": [0] },
+      { "id": "H", "name": "Change basis for the phase flip on |000>", "qubits": [1] },
+      { "id": "H", "name": "Change basis for the phase flip on |000>", "qubits": [2] }
     ],
     [
-      { "id": "X", "qubits": [0] },
-      { "id": "X", "qubits": [1] },
-      { "id": "X", "qubits": [2] }
+      { "id": "X", "name": "Map |000> to |111> for the phase flip", "qubits": [0] },
+      { "id": "X", "name": "Map |000> to |111> for the phase flip", "qubits": [1] },
+      { "id": "X", "name": "Map |000> to |111> for the phase flip", "qubits": [2] }
     ],
     [
-      { "id": "CCZ", "qubits": [0, 1, 2] }
+      { "id": "CCZ", "name": "Flip the phase of |111>", "qubits": [0, 1, 2] }
     ],
     [
-      { "id": "X", "qubits": [0] },
-      { "id": "X", "qubits": [1] },
-      { "id": "X", "qubits": [2] }
+      { "id": "X", "name": "Undo the bit flips", "qubits": [0] },
+      { "id": "X", "name": "Undo the bit flips", "qubits": [1] },
+      { "id": "X", "name": "Undo the bit flips", "qubits": [2] }
     ],
     [
-      { "id": "H", "qubits": [0] },
-      { "id": "H", "qubits": [1] },
-      { "id": "H", "qubits": [2] }
+      { "id": "H", "name": "Rotate back to amplify |100>", "qubits": [0] },
+      { "id": "H", "name": "Rotate back to amplify |100>", "qubits": [1] },
+      { "id": "H", "name": "Rotate back to amplify |100>", "qubits": [2] }
     ],
     [
       {
         "id": "Custom",
-        "name": "ORACLE",
+        "name": "Flip the sign of |100> again",
         "qubits": [0, 1, 2],
         "matrix": {
           "BigEndian": [
@@ -68,27 +76,27 @@
       }
     ],
     [
-      { "id": "H", "qubits": [0] },
-      { "id": "H", "qubits": [1] },
-      { "id": "H", "qubits": [2] }
+      { "id": "H", "name": "Change basis for the phase flip on |000>", "qubits": [0] },
+      { "id": "H", "name": "Change basis for the phase flip on |000>", "qubits": [1] },
+      { "id": "H", "name": "Change basis for the phase flip on |000>", "qubits": [2] }
     ],
     [
-      { "id": "X", "qubits": [0] },
-      { "id": "X", "qubits": [1] },
-      { "id": "X", "qubits": [2] }
+      { "id": "X", "name": "Map |000> to |111> for the phase flip", "qubits": [0] },
+      { "id": "X", "name": "Map |000> to |111> for the phase flip", "qubits": [1] },
+      { "id": "X", "name": "Map |000> to |111> for the phase flip", "qubits": [2] }
     ],
     [
-      { "id": "CCZ", "qubits": [0, 1, 2] }
+      { "id": "CCZ", "name": "Flip the phase of |111>", "qubits": [0, 1, 2] }
     ],
     [
-      { "id": "X", "qubits": [0] },
-      { "id": "X", "qubits": [1] },
-      { "id": "X", "qubits": [2] }
+      { "id": "X", "name": "Undo the bit flips", "qubits": [0] },
+      { "id": "X", "name": "Undo the bit flips", "qubits": [1] },
+      { "id": "X", "name": "Undo the bit flips", "qubits": [2] }
     ],
     [
-      { "id": "H", "qubits": [0] },
-      { "id": "H", "qubits": [1] },
-      { "id": "H", "qubits": [2] }
+      { "id": "H", "name": "Rotate back to amplify |100>", "qubits": [0] },
+      { "id": "H", "name": "Rotate back to amplify |100>", "qubits": [1] },
+      { "id": "H", "name": "Rotate back to amplify |100>", "qubits": [2] }
     ]
   ]
 }

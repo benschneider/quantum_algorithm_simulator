@@ -23,8 +23,6 @@ pub fn handle_menu_bar_message(state: &mut AppState, message: Message, _messages
         }
         Message::ToggleTutorialWindow => {
             state.ui_state.show_tutorial_window = true;
-            state.ui_state.active_tutorial_step =
-                crate::state::ui_state::TutorialStep::SingleQubitGatesEntangledStates;
         }
         _ => {
             // Handle other menu bar messages if needed

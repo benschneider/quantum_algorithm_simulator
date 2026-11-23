@@ -1,50 +1,17 @@
 {
-    "num_qubits": 2,
-    "steps": [
-        [
-            {
-                "id": "X",
-                "qubits": [
-                    0
-                ]
-            }
-        ],
-        [
-            {
-                "id": "H",
-                "qubits": [
-                    1
-                ]
-            }
-        ],
-        [
-            {
-                "id": "CRz",
-                "params": [
-                    1.57079632679
-                ],
-                "qubits": [
-                    0,
-                    1
-                ]
-            }
-        ],
-        [
-            {
-                "id": "H",
-                "qubits": [
-                    0
-                ]
-            }
-        ],
-        [
-            {
-                "id": "SWAP",
-                "qubits": [
-                    0,
-                    1
-                ]
-            }
-        ]
-    ]
+  "num_qubits": 2,
+  "qubit_roles": ["data", "data"],
+  "sections": [
+    {"start": 1, "end": 1, "label": "Input"},
+    {"start": 2, "end": 3, "label": "Phase on q1"},
+    {"start": 4, "end": 4, "label": "H on q0"},
+    {"start": 5, "end": 5, "label": "Swap"}
+  ],
+  "steps": [
+    [{"id": "X", "name": "Set q0 to 1 for input |01⟩", "qubits": [0]}],
+    [{"id": "H", "name": "Put q1 in superposition before adding phases", "qubits": [1]}],
+    [{"id": "CZPow", "name": "Add π/2 phase when q0 and q1 are both 1", "params": [0.5], "qubits": [0, 1]}],
+    [{"id": "H", "name": "Put q0 in superposition with a sign set by its input bit", "qubits": [0]}],
+    [{"id": "SWAP", "name": "Exchange q0 and q1 for Fourier output order", "qubits": [0, 1]}]
+  ]
 }

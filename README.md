@@ -268,6 +268,8 @@ Quantum circuits in `quantsim` are defined visually by selecting gates from a pa
     *   To deselect a gate, click on it again in the palette, or click on an empty area of the circuit grid.
     *   The circuit grid allows you to visually construct your quantum circuit step-by-step.
 
+Click a wire label at the left of the grid to annotate it as **Data** or **Ancilla**. Select **Unlabeled** to clear the role. Circuit JSON saves these annotations in `qubit_roles`, starting at q0.
+
 
 #### Method 2: Using the JSON Editor
 
@@ -279,7 +281,7 @@ For users familiar with the circuit JSON format, or for loading pre-defined circ
 
 #### Example: Bell State Circuit (from Template)
 
-The Bell state is a fundamental entangled state. You can load this circuit from the templates. Here's the JSON representation:
+Open **File → Load Template → bell** for the annotated circuit. This minimal JSON uses the same gates.
 
 ```json
 {
@@ -316,13 +318,15 @@ Once your circuit is defined, you can simulate it within the `quantsim` EGUI:
 
 The "Results" window displays the outcome of your simulation:
 
-*   **Raw State Vector**: Shows the amplitudes of non-zero basis states. For large numbers of qubits, this is presented in a sparse, paginated format.
-*   **Probabilities**: A bar chart visualizing the measurement probabilities for each basis state.
+*   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
+*   **Joint state** shows the populated basis states, their amplitudes and the distribution for a readout of all wires together. The rightmost bit is q0.
 
 
 #### Time Scrubber
 
-The "Timestep" slider, located near the "Run" button, allows you to scrub through the simulation steps, observing the state of the qubits at each point in the circuit. This is useful for understanding the evolution of the quantum state.
+Use the **Timestep** slider or click a numbered column to inspect all wires after that step. Step 0 shows the initial state. Clicking a section label jumps to its last step. You can inspect any step repeatedly without collapsing the simulated state.
+
+To annotate a circuit, open **Sections** beside the slider, choose **New section**, enter a label and its first and last steps, then save. The label spans those columns. Open **Sections** again to rename, resize or delete it. Wire roles and section labels travel with the circuit JSON.
 
 
 ### Loading and Saving Circuits
@@ -331,21 +335,18 @@ Open **File → Load Template** to choose a bundled circuit. To import your own 
 
 #### Available Templates
 
-The `quantsim` application comes with several pre-built circuit templates:
+For a step-by-step reading of the examples, open **Help → Tutorial → Template guide**. [Read the template guide](crates/quantsim_ui/assets/docs/tutorials/template_guide.md).
 
-*   **Bell**: Creates an entangled Bell state.
-*   **Bell Test Complex**: A more elaborate Bell state test.
-*   **Deutsch Algorithm**: Implements the Deutsch algorithm.
-*   **GHZ**: Creates a Greenberger–Horne–Zeilinger (GHZ) state.
-*   **Grover**: Implements Grover's search algorithm (basic).
-*   **Grover Algorithm**: A more complete implementation of Grover's search.
-*   **QFT**: Implements the Quantum Fourier Transform.
-*   **QFT4**: A 4-qubit Quantum Fourier Transform.
-*   **Quantum Teleportation**: Demonstrates the quantum teleportation protocol.
-*   **Error correction bit flip** encodes one logical qubit across three wires and recovers it after a single X fault.
-*   **Error correction bit flip two faults** flips both outer wires at the same step. Compare it with the single-fault run to see the same syndrome lead the decoder to flip a healthy logical qubit.
-*   **Error correction phase flip** uses a change of basis to recover the same logical state after a single Z fault.
-*   **Error correction phase flip two faults** applies Z to both outer wires together. Compare it with the single phase flip to see different amplitude signs at step 6, the same syndrome at step 9, and opposite logical outcomes at step 10.
+*   **Bell** and **GHZ** show how a controlled gate turns one wire's superposition into correlations between two or three data wires.
+*   **Bell test complex** uses two extra wires to select rotations of a Bell pair. Group the final rows by those setting bits to see how often the two data wires agree.
+*   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
+*   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.
+*   **QFT** and **QFT4** apply the forward Fourier transform to `01` and `1011`. The output probabilities are uniform. The complex amplitudes show how the phases advance.
+*   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
+*   **Error correction bit flip** and **Error correction bit flip two faults** encode one logical qubit across q0–q2. The **Z coupling** section writes adjacent-pair parities into ancillas q3 and q4. Compare the syndrome at step 7 and the decoded output on q1 at step 13.
+*   **Error correction phase flip** and **Error correction phase flip two faults** use the same five-wire layout. The **X coupling** section surrounds ancilla-controlled CNOTs with Hadamards on the ancillas. Compare the syndrome at step 10 and the decoded output on q1 at step 17.
+
+In each pair, a fault on q1 and faults on both q0 and q2 give the same syndrome, `11`. The correction recovers the original logical state in the single-fault example. The two-fault example shows the limit of the three-qubit repetition code.
 
 Open the examples from **File → Load Template** and follow along under **Help → Tutorial → Error correction**. [Read the walkthrough](crates/quantsim_ui/assets/docs/tutorials/error_correction.md).
 
@@ -375,9 +376,9 @@ You can view and edit custom gate definitions, and visualize the effect of singl
 
 ### In-App Tutorials
 
-`quantsim` includes a series of interactive tutorials embedded directly within the application to guide you through various quantum computing concepts and `quantsim` features.
+Choose **Start tutorial** on the welcome screen or open **Help → Tutorial**. In **First circuit**, click **Load Bell example** and compare steps 1 and 2 in the live grid. The example button replaces the circuit just like **File → Load Template**.
 
-1.  **Access Tutorials**: From the "Help" menu, select "Tutorial".
+Use **Next** and **Back** to follow the exercises, or choose a chapter from the dropdown. Closing the tutorial and reopening it from Help returns you to the same chapter for the rest of the session.
 
 ---
 

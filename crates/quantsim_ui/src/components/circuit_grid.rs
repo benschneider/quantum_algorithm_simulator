@@ -1,8 +1,17 @@
 use crate::messages::Message;
-use crate::state::AppState;
 use crate::state::ui_state::{DraggedItem, PlacementMode};
+use crate::state::AppState;
 use crate::ui::circuit_grid::{self, GridCell};
 use egui::{Color32, RichText};
+use quantsim_core::circuit::QubitRole;
+
+fn role_name(role: Option<QubitRole>) -> &'static str {
+    match role {
+        Some(QubitRole::Data) => "Data",
+        Some(QubitRole::Ancilla) => "Ancilla",
+        None => "Unlabeled",
+    }
+}
 
 fn placement_preview_colors(ui: &egui::Ui) -> (Color32, Color32) {
     if ui.visuals().dark_mode {
@@ -31,7 +40,7 @@ pub fn circuit_grid(
     messages: &mut Vec<Message>,
     current_timestep: usize,
 ) {
-    let circuit = &mut state.circuit_state.circuit;
+    let circuit = &state.circuit_state.circuit;
     let grid = circuit_grid::generate_circuit_grid(
         circuit,
         ui,
@@ -45,19 +54,79 @@ pub fn circuit_grid(
         state.ui_state.selected_gate = None;
     }
 
+    if !circuit.sections.is_empty() {
+        ui.painter().text(
+            egui::pos2(
+                grid.rect.left() + 4.0,
+                (grid.rect.top() + grid.grid_rect.top()) / 2.0,
+            ),
+            egui::Align2::LEFT_CENTER,
+            "Section",
+            egui::TextStyle::Small.resolve(ui.style()),
+            ui.visuals().weak_text_color(),
+        );
+    }
+    ui.painter().text(
+        egui::pos2(grid.rect.left() + 4.0, grid.grid_rect.top() + 15.0),
+        egui::Align2::LEFT_CENTER,
+        "Wire role",
+        egui::TextStyle::Small.resolve(ui.style()),
+        ui.visuals().weak_text_color(),
+    );
+
     for cell in &grid.cells {
         match cell {
-            GridCell::QubitLabel { rect, label } => {
-                ui.painter().text(
-                    rect.center(),
-                    egui::Align2::LEFT_CENTER,
-                    label,
-                    egui::FontId::proportional(14.0),
-                    ui.style().visuals.text_color(),
-                );
+            GridCell::QubitLabel { rect, row } => {
+                let current = circuit.qubit_roles[*row];
+                let label = match current {
+                    Some(_) => format!("q{row}  {}", role_name(current)),
+                    None => format!("q{row}"),
+                };
+                ui.place(*rect, |ui: &mut egui::Ui| {
+                    egui::ComboBox::from_id_salt(("wire_role", row))
+                        .width(rect.width())
+                        .selected_text(label)
+                        .show_ui(ui, |ui| {
+                            for role in [None, Some(QubitRole::Data), Some(QubitRole::Ancilla)] {
+                                if ui
+                                    .selectable_label(role == current, role_name(role))
+                                    .clicked()
+                                {
+                                    messages.push(Message::SetQubitRole { row: *row, role });
+                                    ui.close();
+                                }
+                            }
+                        })
+                        .response
+                })
+                .on_hover_text("Choose the role of this wire");
             }
-            GridCell::TimeIndicator { .. } => {
-                // This is now handled by the gray-out overlay in generate_circuit_grid
+            GridCell::Section { rect, index } => {
+                let section = &circuit.sections[*index];
+                let active = (section.start..=section.end).contains(&current_timestep);
+                let button = egui::Button::new(&section.label)
+                    .selected(active)
+                    .truncate();
+                if ui
+                    .place(*rect, button)
+                    .on_hover_text(format!(
+                        "{} · steps {}–{}\nInspect all wires after step {}",
+                        section.label, section.start, section.end, section.end
+                    ))
+                    .clicked()
+                {
+                    messages.push(Message::SelectTimestep(section.end));
+                }
+            }
+            GridCell::Timestep { rect, step } => {
+                let button = egui::Button::selectable(*step == current_timestep, step.to_string());
+                if ui
+                    .place(*rect, button)
+                    .on_hover_text(format!("Inspect all wires after step {step}"))
+                    .clicked()
+                {
+                    messages.push(Message::SelectTimestep(*step));
+                }
             }
             GridCell::Gate(gate) => {
                 let text = if let Some(id) = gate.instance_id {
@@ -65,8 +134,8 @@ pub fn circuit_grid(
                 } else {
                     gate.id.to_string()
                 };
-                let button = egui::Button::new(RichText::new(text).color(gate.text_color))
-                    .fill(gate.color);
+                let button =
+                    egui::Button::new(RichText::new(text).color(gate.text_color)).fill(gate.color);
                 let response = ui.put(gate.rect, button).on_hover_text(format!(
                     "{}\n{}\nQubits: {:?}\nParams: {:?}",
                     gate.full_name, gate.description, gate.qubits, gate.params

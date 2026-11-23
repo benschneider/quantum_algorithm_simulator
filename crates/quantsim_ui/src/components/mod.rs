@@ -8,3 +8,4 @@ pub mod initial_state_editor;
 pub mod json_editor_panel;
 pub mod menu_bar;
 pub mod results_panel;
+mod section_editor;

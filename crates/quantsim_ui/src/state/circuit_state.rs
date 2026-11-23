@@ -26,10 +26,10 @@ impl CircuitState {
     /// * `gate_id` - The ID of the gate to place.
     /// * `row` - The row (qubit) to place the gate on.
     /// * `col` - The column (timestep) to place the gate on.
-    pub fn place_gate(&mut self, gate_id: Gate, row: usize, col: usize) {
+    pub fn place_gate(&mut self, gate_id: Gate, row: usize, col: usize) -> bool {
         log::debug!("Placing gate '{:?}' at ({}, {})", gate_id, row, col);
         if col >= self.circuit.steps.len() {
-            return;
+            return false;
         }
 
         if let Some(meta) = self.circuit.registry.get_meta(&gate_id) {
@@ -42,7 +42,7 @@ impl CircuitState {
                         qubits.push((row + 1) as u32);
                     } else {
                         log::warn!("Not enough qubits to place a two-qubit gate at row {}", row);
-                        return;
+                        return false;
                     }
                 }
                 quantsim_core::core::types::Arity::ThreeQ => {
@@ -54,7 +54,7 @@ impl CircuitState {
                             "Not enough qubits to place a three-qubit gate at row {}",
                             row
                         );
-                        return;
+                        return false;
                     }
                 }
             }
@@ -64,7 +64,7 @@ impl CircuitState {
                 for op in &self.circuit.steps[col] {
                     if op.qubits.contains(&(*q as u32)) {
                         log::warn!("Collision detected at timestep {}, qubit {}", col, q);
-                        return;
+                        return false;
                     }
                 }
             }
@@ -83,7 +83,9 @@ impl CircuitState {
                 matrix: None,
             };
             self.circuit.steps[col].push(op);
+            return true;
         }
+        false
     }
 
     /// Places a multi-qubit gate on the circuit grid.
@@ -93,7 +95,7 @@ impl CircuitState {
     /// * `gate_id` - The ID of the gate to place.
     /// * `qubits` - The qubits to place the gate on.
     /// * `col` - The column (timestep) to place the gate on.
-    pub fn place_multi_qubit_gate(&mut self, gate_id: Gate, qubits: Vec<usize>, col: usize) {
+    pub fn place_multi_qubit_gate(&mut self, gate_id: Gate, qubits: Vec<usize>, col: usize) -> bool {
         log::debug!(
             "Placing multi-qubit gate '{:?}' at col {} on qubits {:?}",
             gate_id,
@@ -101,7 +103,7 @@ impl CircuitState {
             qubits
         );
         if col >= self.circuit.steps.len() {
-            return;
+            return false;
         }
 
         if let Some(meta) = self.circuit.registry.get_meta(&gate_id) {
@@ -113,7 +115,7 @@ impl CircuitState {
             //         meta.arity as usize,
             //         qubits.len()
             //     );
-            //     return;
+            //     return false;
             // }
 
             // Check for collisions
@@ -121,7 +123,7 @@ impl CircuitState {
                 for op in &self.circuit.steps[col] {
                     if op.qubits.contains(&(*q as u32)) {
                         log::warn!("Collision detected at timestep {}, qubit {}", col, q);
-                        return;
+                        return false;
                     }
                 }
             }
@@ -140,7 +142,9 @@ impl CircuitState {
                 matrix: None,
             };
             self.circuit.steps[col].push(op);
+            return true;
         }
+        false
     }
 
     /// Moves a gate from one position to another on the circuit grid.
@@ -151,14 +155,16 @@ impl CircuitState {
     /// * `from_col` - The column (timestep) to move the gate from.
     /// * `_to_row` - The row (qubit) to move the gate to (currently unused).
     /// * `to_col` - The column (timestep) to move the gate to.
-    pub fn move_gate(&mut self, from_row: usize, from_col: usize, _to_row: usize, to_col: usize) {
+    pub fn move_gate(&mut self, from_row: usize, from_col: usize, _to_row: usize, to_col: usize) -> bool {
         if from_col < self.circuit.steps.len() && to_col < self.circuit.steps.len() {
             if let Some(op) = self.delete_gate(from_row, from_col) {
                 self.circuit.steps[to_col].push(op);
                 // Note: This doesn't handle multi-qubit gates correctly yet.
                 // It also doesn't update the row.
+                return true;
             }
         }
+        false
     }
 
     /// Deletes a gate from the circuit grid.

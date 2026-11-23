@@ -1,4 +1,4 @@
-use quantsim_core::core::gates::Gate;
+use quantsim_core::{circuit::QubitRole, core::gates::Gate};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -10,7 +10,10 @@ pub enum Message {
 
     // Circuit Control Messages
     ChangeQubits(usize),
+    SetQubitRole { row: usize, role: Option<QubitRole> },
     ChangeTimesteps(usize),
+    SaveSection,
+    DeleteSection,
     CircuitDimensionsChanged {
         num_qubits: usize,
         num_timesteps: usize,

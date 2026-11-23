@@ -1,46 +1,22 @@
 {
   "num_qubits": 4,
+  "qubit_roles": ["data", "data", "ancilla", "ancilla"],
+  "sections": [
+    {"start": 1, "end": 2, "label": "Bell pair"},
+    {"start": 3, "end": 3, "label": "Settings"},
+    {"start": 4, "end": 5, "label": "Rotate the pair"}
+  ],
   "steps": [
+    [{"id": "H", "qubits": [0], "name": "Prepare the first data wire in an equal superposition"}],
+    [{"id": "CX", "qubits": [0, 1], "name": "Create a Bell pair on the two data wires"}],
     [
-      {
-        "id": "H",
-        "qubits": [0]
-      }
+      {"id": "H", "qubits": [2], "name": "Superpose the two settings for q0"},
+      {"id": "H", "qubits": [3], "name": "Superpose the two settings for q1"}
     ],
+    [{"id": "XPow", "qubits": [0], "params": [-0.25], "name": "Set the starting X rotation on q0 to minus pi/4"}],
     [
-      {
-        "id": "CX",
-        "qubits": [0, 1]
-      }
-    ],
-    [
-      {
-        "id": "H",
-        "qubits": [2]
-      },
-      {
-        "id": "H",
-        "qubits": [3]
-      }
-    ],
-    [
-      {
-        "id": "XPow",
-        "qubits": [0],
-        "params": [-0.25]
-      }
-    ],
-    [
-      {
-        "id": "CXPow",
-        "qubits": [2, 0],
-        "params": [0.5]
-      },
-      {
-        "id": "CXPow",
-        "qubits": [3, 1],
-        "params": [0.5]
-      }
+      {"id": "CXPow", "qubits": [2, 0], "params": [0.5], "name": "Add a half power of X on q0 when q2 is 1"},
+      {"id": "CXPow", "qubits": [3, 1], "params": [0.5], "name": "Add a half power of X on q1 when q3 is 1"}
     ]
   ]
 }

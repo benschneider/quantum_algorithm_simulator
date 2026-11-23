@@ -81,7 +81,7 @@
 //! Circuits can be serialized to/from JSON for persistence and sharing:
 //!
 //! ```rust
-//! use quantsim_core::{Circuit, circuit::CircuitData};
+//! use quantsim_core::circuit::{Circuit, CircuitData};
 //!
 //! let circuit = Circuit::new(2);
 //! let data: CircuitData = circuit.clone().into();
@@ -92,7 +92,7 @@
 //! // Deserialize from JSON
 //! let loaded_data: CircuitData = serde_json::from_str(&json).unwrap();
 //! let mut loaded_circuit = Circuit::new(loaded_data.num_qubits);
-//! loaded_circuit.update_from_data(loaded_data);
+//! loaded_circuit.update_from_data(loaded_data).unwrap();
 //! ```
 //!
 //! ## Advanced Features

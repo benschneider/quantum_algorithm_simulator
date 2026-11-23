@@ -1,13 +1,36 @@
 {
-  "num_qubits": 3,
+  "num_qubits": 5,
+  "qubit_roles": ["data", "data", "data", "ancilla", "ancilla"],
+  "sections": [
+    {"start": 1, "end": 2, "label": "Prepare input"},
+    {"start": 3, "end": 4, "label": "Encode data"},
+    {"start": 5, "end": 5, "label": "1 fault"},
+    {"start": 6, "end": 7, "label": "Z coupling"},
+    {"start": 8, "end": 11, "label": "Correct X errors"},
+    {"start": 12, "end": 13, "label": "Decode output"}
+  ],
   "steps": [
-    [{ "id": "Ry", "name": "Prepare the logical amplitudes", "params": [1.0471975511965976], "qubits": [1] }],
-    [{ "id": "SqrtZ", "name": "Add a relative phase", "qubits": [1] }],
-    [{ "id": "CX", "name": "Encode across q1 and q0", "qubits": [1, 0] }],
-    [{ "id": "CX", "name": "Complete the repetition encoding", "qubits": [1, 2] }],
-    [{ "id": "X", "name": "Inject a bit flip", "qubits": [1] }],
-    [{ "id": "CX", "name": "Decode the q1–q2 parity into q2", "qubits": [1, 2] }],
-    [{ "id": "CX", "name": "Decode the q1–q0 parity into q0", "qubits": [1, 0] }],
-    [{ "id": "CCNOT", "name": "Recover q1 when both parity bits are one", "qubits": [0, 2, 1] }]
+    [{"id": "Ry", "name": "Prepare the logical amplitudes", "params": [1.0471975511965976], "qubits": [1]}],
+    [{"id": "SqrtZ", "name": "Add a relative phase", "qubits": [1]}],
+    [{"id": "CX", "name": "Encode across q1 and q0", "qubits": [1, 0]}],
+    [{"id": "CX", "name": "Encode across q1 and q2", "qubits": [1, 2]}],
+    [{"id": "X", "name": "Inject a bit flip on q1", "qubits": [1]}],
+    [
+      {"id": "CX", "name": "Couple q0 to the left parity ancilla", "qubits": [0, 3]},
+      {"id": "CX", "name": "Couple q1 to the right parity ancilla", "qubits": [1, 4]}
+    ],
+    [
+      {"id": "CX", "name": "Complete the Z0 Z1 parity in q3", "qubits": [1, 3]},
+      {"id": "CX", "name": "Complete the Z1 Z2 parity in q4", "qubits": [2, 4]}
+    ],
+    [
+      {"id": "CX", "name": "Apply X to q0 if the left check flags", "qubits": [3, 0]},
+      {"id": "CX", "name": "Apply X to q2 if the right check flags", "qubits": [4, 2]}
+    ],
+    [{"id": "CCNOT", "name": "Undo the q0 correction when both checks flag", "qubits": [3, 4, 0]}],
+    [{"id": "CCNOT", "name": "Correct q1 when both checks flag", "qubits": [3, 4, 1]}],
+    [{"id": "CCNOT", "name": "Undo the q2 correction when both checks flag", "qubits": [3, 4, 2]}],
+    [{"id": "CX", "name": "Undo encoding on q2", "qubits": [1, 2]}],
+    [{"id": "CX", "name": "Undo encoding on q0 and leave the logical output on q1", "qubits": [1, 0]}]
   ]
 }

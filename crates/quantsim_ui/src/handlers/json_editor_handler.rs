@@ -33,7 +33,10 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
 
     // The next render reads both dimensions and steps in this same frame.
     let circuit_state = &mut state.circuit_state;
-    circuit_state.circuit.update_from_data(data);
+    if let Err(error) = circuit_state.circuit.update_from_data(data) {
+        state.ui_state.error_message = Some(error);
+        return;
+    }
     circuit_state.num_qubits = circuit_state.circuit.num_qubits;
     circuit_state.num_timesteps = circuit_state.circuit.steps.len();
     state.initial_state_editor_state =
@@ -42,6 +45,7 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
 
     let ui = &mut state.ui_state;
     ui.current_timestep = 0;
+    ui.section_editor = None;
     ui.selected_gate = None;
     ui.placement_mode = PlacementMode::Idle;
     if ui.selected_gate_for_editing.take().is_some() {

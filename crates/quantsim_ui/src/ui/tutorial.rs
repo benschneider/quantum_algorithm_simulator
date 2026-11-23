@@ -1,238 +1,164 @@
-use crate::state::{AppState, ui_state::TutorialStep};
-use egui::{Context, Vec2};
+use crate::messages::Message;
+use crate::state::ui_state::{CentralPanelTab, TutorialStep};
+use crate::state::AppState;
 use egui_commonmark::CommonMarkViewer;
 
-pub fn render(state: &mut AppState, ctx: &Context) {
-    if state.ui_state.show_tutorial_window {
-        let mut open = state.ui_state.show_tutorial_window;
-        egui::Window::new("Tutorial")
-            .default_size([660.0, 440.0])
-            .vscroll(false)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.heading("Quantsim Tutorial");
+use TutorialStep::*;
 
-                ui.horizontal_wrapped(|ui| {
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::TutorialIntro,
-                        "Introduction",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::SingleQubitGatesEntangledStates,
-                        "Single Qubit Gates (Entangled)",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::SingleQubitGatesIntroduction,
-                        "Single Qubit Gates (Intro)",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::MultiQubitGates,
-                        "Multi Qubit Gates",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::Measurements,
-                        "Measurements",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::CustomGates,
-                        "Custom Gates",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::InitialStates,
-                        "Initial States",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::Simulations,
-                        "Simulations",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::Analytics,
-                        "Analytics",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::ErrorCorrection,
-                        "Error correction",
-                    );
-                    ui.selectable_value(
-                        &mut state.ui_state.active_tutorial_step,
-                        TutorialStep::Conclusion,
-                        "Conclusion",
-                    );
-                });
+const CHAPTERS: &[(TutorialStep, &str, &str)] = &[
+    (
+        TutorialIntro,
+        "First circuit",
+        include_str!("../../assets/docs/tutorials/tutorial_intro.md"),
+    ),
+    (
+        SingleQubitGatesIntroduction,
+        "Single-qubit gates",
+        include_str!("../../assets/docs/tutorials/single_qubit_gates_introduction.md"),
+    ),
+    (
+        MultiQubitGates,
+        "Controlled gates",
+        include_str!("../../assets/docs/tutorials/multi_qubit_gates.md"),
+    ),
+    (
+        SingleQubitGatesEntangledStates,
+        "Entanglement",
+        include_str!("../../assets/docs/tutorials/single_qubit_gates_entangled_states.md"),
+    ),
+    (
+        Measurements,
+        "Readout",
+        include_str!("../../assets/docs/tutorials/measurements.md"),
+    ),
+    (
+        Simulations,
+        "Scrub a circuit",
+        include_str!("../../assets/docs/tutorials/simulations.md"),
+    ),
+    (
+        Analytics,
+        "Compare probabilities",
+        include_str!("../../assets/docs/tutorials/analytics.md"),
+    ),
+    (
+        InitialStates,
+        "Initial states",
+        include_str!("../../assets/docs/tutorials/initial_states.md"),
+    ),
+    (
+        CustomGates,
+        "Custom gates",
+        include_str!("../../assets/docs/tutorials/custom_gates.md"),
+    ),
+    (
+        TemplateGuide,
+        "Template guide",
+        include_str!("../../assets/docs/tutorials/template_guide.md"),
+    ),
+    (
+        ErrorCorrection,
+        "Error correction",
+        include_str!("../../assets/docs/tutorials/error_correction.md"),
+    ),
+    (
+        Conclusion,
+        "Try it yourself",
+        include_str!("../../assets/docs/tutorials/conclusion.md"),
+    ),
+];
 
-                ui.separator();
+pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Message>) {
+    let ui_state = &mut state.ui_state;
+    if !ui_state.show_tutorial_window {
+        return;
+    }
 
-                let content = match state.ui_state.active_tutorial_step {
-                    TutorialStep::TutorialIntro => {
-                        include_str!("../../assets/docs/tutorials/tutorial_intro.md")
-                    }
-                    TutorialStep::SingleQubitGatesEntangledStates => include_str!(
-                        "../../assets/docs/tutorials/single_qubit_gates_entangled_states.md"
-                    ),
-                    TutorialStep::SingleQubitGatesIntroduction => include_str!(
-                        "../../assets/docs/tutorials/single_qubit_gates_introduction.md"
-                    ),
-                    TutorialStep::MultiQubitGates => {
-                        include_str!("../../assets/docs/tutorials/multi_qubit_gates.md")
-                    }
-                    TutorialStep::Measurements => {
-                        include_str!("../../assets/docs/tutorials/measurements.md")
-                    }
-                    TutorialStep::CustomGates => {
-                        include_str!("../../assets/docs/tutorials/custom_gates.md")
-                    }
-                    TutorialStep::InitialStates => {
-                        include_str!("../../assets/docs/tutorials/initial_states.md")
-                    }
-                    TutorialStep::Simulations => {
-                        include_str!("../../assets/docs/tutorials/simulations.md")
-                    }
-                    TutorialStep::Analytics => {
-                        include_str!("../../assets/docs/tutorials/analytics.md")
-                    }
-                    TutorialStep::ErrorCorrection => {
-                        include_str!("../../assets/docs/tutorials/error_correction.md")
-                    }
-                    TutorialStep::Conclusion => {
-                        include_str!("../../assets/docs/tutorials/conclusion.md")
-                    }
-                };
-
-                if has_figures_for_step(state.ui_state.active_tutorial_step) {
-                    egui::SidePanel::right("tutorial_figures_panel")
-                        .resizable(true)
-                        .default_width(400.0)
-                        .show_inside(ui, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                show_tutorial_figures(ui, state.ui_state.active_tutorial_step);
-                            });
-                        });
+    // Leave the gate columns above the lesson within reach on a desktop.
+    let bounds = ctx.screen_rect().shrink(8.0);
+    let size = bounds.size().min(egui::vec2(540.0, 345.0));
+    let top = (bounds.height() - size.y - 44.0).clamp(0.0, 282.0);
+    egui::Window::new("Tutorial")
+        .default_pos(bounds.min + egui::vec2(0.0, top))
+        .default_size(size)
+        .min_width(200.0)
+        .open(&mut ui_state.show_tutorial_window)
+        .show(ctx, |ui| {
+            let mut index = CHAPTERS
+                .iter()
+                .position(|chapter| chapter.0 == ui_state.active_tutorial_step)
+                .expect("every tutorial step has a chapter");
+            ui.horizontal_wrapped(|ui| {
+                egui::ComboBox::from_id_salt("tutorial_chapter")
+                    .width(175.0)
+                    .height(280.0)
+                    .show_index(ui, &mut index, CHAPTERS.len(), |i| {
+                        format!("{}. {}", i + 1, CHAPTERS[i].1)
+                    })
+                    .on_hover_text("Choose a chapter");
+                if ui
+                    .add_enabled(index > 0, egui::Button::new("Back"))
+                    .clicked()
+                {
+                    index -= 1;
                 }
-
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        use egui_commonmark::CommonMarkCache;
-                        let mut cache = CommonMarkCache::default();
-                        CommonMarkViewer::new().show(ui, &mut cache, content);
-                    });
+                if ui
+                    .add_enabled(index + 1 < CHAPTERS.len(), egui::Button::new("Next"))
+                    .clicked()
+                {
+                    index += 1;
+                }
+                if CHAPTERS[index].0 == TutorialIntro
+                    && ui
+                        .button("Load Bell example")
+                        .on_hover_text("Replace the current circuit with the two-wire Bell example")
+                        .clicked()
+                {
+                    ui_state.active_central_tab = CentralPanelTab::Circuit;
+                    messages.push(Message::LoadTemplate("bell.json".into()));
+                }
             });
-        state.ui_state.show_tutorial_window = open;
-    }
-}
+            ui.separator();
 
-fn has_figures_for_step(step: TutorialStep) -> bool {
-    matches!(
-        step,
-        TutorialStep::SingleQubitGatesEntangledStates | TutorialStep::TutorialIntro
-    )
-}
-
-fn show_tutorial_figures(ui: &mut egui::Ui, step: TutorialStep) {
-    ui.heading("Figures");
-
-    match step {
-        TutorialStep::SingleQubitGatesEntangledStates => {
-            //ui.label("Pairing for B");
-            //ui.add(egui::Image::new(egui::include_image!("../../../assets/docs/tutorials/t1/pairing_B_diagram.png")).fit_to_exact_size(Vec2::new(400.0, 200.0)));
-            ui.label("Probabilities BEFORE H on B");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/t1/prob_before_H_B.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 200.0)),
-            );
-            ui.label("Probabilities AFTER H on B");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/t1/prob_after_H_B.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 200.0)),
-            );
-            ui.label("Bell correlations");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/t1/bell_correlation.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 200.0)),
-            );
-            ui.label("Bell collapse tree");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/t1/bell_collapse_tree.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 300.0)),
-            );
-        }
-        TutorialStep::TutorialIntro => {
-            ui.label("Top Panel Overview");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/tutorial_intro_figures/top_panel2.png"
-                ))
-                .fit_to_exact_size(Vec2::new(200.0, 200.0)),
-            );
-            ui.separator();
-            ui.label("Gate Palette");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/tutorial_intro_figures/gate_palette2.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 200.0)),
-            );
-            ui.separator();
-            ui.label("Circuit Grid and Gate Placement");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/tutorial_intro_figures/circuit_grid2.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 400.0)),
-            );
-            ui.separator();
-            ui.label("Simulation Results Panel");
-            ui.add(egui::Image::new(egui::include_image!("../../assets/docs/tutorials/tutorial_intro_figures/simulation_results_panel2.png")).fit_to_exact_size(Vec2::new(400.0, 400.0)));
-            ui.separator();
-            ui.label("Step-by-step Gate Placement");
-            ui.add(egui::Image::new(egui::include_image!("../../assets/docs/tutorials/tutorial_intro_figures/step_by_step_gate_placement2.png")).fit_to_exact_size(Vec2::new(400.0, 400.0)));
-            ui.separator();
-            ui.label("JSON Editor Interface and Copy/Paste Buttons");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/tutorial_intro_figures/json_editor2.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 400.0)),
-            );
-            ui.separator();
-            ui.label("Time Scrubber in Action");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/tutorial_intro_figures/time_scrubber2.png"
-                ))
-                .fit_to_exact_size(Vec2::new(200.0, 200.0)),
-            );
-            ui.separator();
-            ui.label("Initial State Editor");
-            ui.add(
-                egui::Image::new(egui::include_image!(
-                    "../../assets/docs/tutorials/tutorial_intro_figures/initial_state_editor2.png"
-                ))
-                .fit_to_exact_size(Vec2::new(400.0, 400.0)),
-            );
-            ui.separator();
-            ui.label("Gate Editor with Bloch Sphere");
-            ui.add(egui::Image::new(egui::include_image!("../../assets/docs/tutorials/tutorial_intro_figures/gate_editor_bloch_sphere2.png")).fit_to_exact_size(Vec2::new(400.0, 400.0)));
-        }
-        // Other
-        _ => {}
-    }
+            let (step, _, content) = CHAPTERS[index];
+            ui_state.active_tutorial_step = step;
+            egui::ScrollArea::vertical()
+                .id_salt(("tutorial_text", index))
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    CommonMarkViewer::new().show(ui, &mut ui_state.tutorial_cache, content);
+                    if step == SingleQubitGatesEntangledStates {
+                        ui.collapsing("Worked example on the middle wire", |ui| {
+                            CommonMarkViewer::new().show(
+                                ui,
+                                &mut ui_state.tutorial_cache,
+                                include_str!("../../assets/docs/tutorials/middle_wire_example.md"),
+                            );
+                            let width = ui.available_width();
+                            // Both source charts are 1120 by 480 pixels.
+                            let chart_size = egui::vec2(width, width * 480.0 / 1120.0);
+                            for (image, description) in [
+                                (
+                                    egui::include_image!(
+                                        "../../assets/docs/tutorials/t1/prob_before_H_B.png"
+                                    ),
+                                    "Joint probabilities before H on q1",
+                                ),
+                                (
+                                    egui::include_image!(
+                                        "../../assets/docs/tutorials/t1/prob_after_H_B.png"
+                                    ),
+                                    "Joint probabilities after H on q1",
+                                ),
+                            ] {
+                                ui.add(
+                                    egui::Image::new(image)
+                                        .fit_to_exact_size(chart_size)
+                                        .alt_text(description),
+                                );
+                            }
+                        });
+                    }
+                });
+        });
 }

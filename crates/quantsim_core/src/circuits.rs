@@ -77,6 +77,6 @@ pub fn load_template(name: &str) -> Result<crate::core::circuit::Circuit, Box<dy
 
     let data: crate::core::circuit::CircuitData = serde_json::from_str(&json_content)?;
     let mut circuit = crate::core::circuit::Circuit::new(data.num_qubits);
-    circuit.update_from_data(data);
+    circuit.update_from_data(data)?;
     Ok(circuit)
 }

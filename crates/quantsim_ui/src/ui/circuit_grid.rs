@@ -25,10 +25,12 @@ pub struct CircuitGrid {
 /// making the rendering loop simpler.
 #[derive(Clone, Debug)]
 pub enum GridCell {
-    /// A label for a qubit, e.g., "q0:".
-    QubitLabel { rect: Rect, label: String },
-    /// A visual indicator for the current time step in the simulation.
-    TimeIndicator { rect: Rect, color: Color32 },
+    /// The area for a wire's index and role selector.
+    QubitLabel { rect: Rect, row: usize },
+    /// A named range above its gate columns.
+    Section { rect: Rect, index: usize },
+    /// Numbered column for inspecting the state after this step.
+    Timestep { rect: Rect, step: usize },
     /// A quantum gate.
     Gate(GateCell),
     /// An empty cell, representing a point where a gate could be placed.
@@ -125,9 +127,18 @@ pub fn generate_circuit_grid(
     let num_qubits = circuit.num_qubits;
     let num_steps = num_timesteps;
 
-    let (cell_width, cell_height) = (60.0, 30.0);
-    let required_width = cell_width * num_steps as f32;
-    let required_height = cell_height * (num_qubits + 1) as f32;
+    let label_width = 108.0;
+    let cell_width = ((ui.available_width() - label_width) / num_steps.max(1) as f32)
+        .floor()
+        .clamp(48.0, 60.0);
+    let cell_height = 30.0;
+    let section_height = if circuit.sections.is_empty() {
+        0.0
+    } else {
+        26.0
+    };
+    let required_width = label_width + cell_width * num_steps as f32;
+    let required_height = section_height + cell_height * (num_qubits + 1) as f32;
 
     let (response, _painter) = ui.allocate_painter(
         egui::Vec2::new(required_width, required_height),
@@ -135,35 +146,50 @@ pub fn generate_circuit_grid(
     );
     let canvas_rect = response.rect;
 
-    let mut max_label_width = 0.0;
-    for row in 0..num_qubits {
-        let label = format!("q{}:", row);
-        let label_width = ui.fonts(|f| f.glyph_width(&egui::FontId::proportional(14.0), 'm'))
-            * label.len() as f32;
-        if label_width > max_label_width {
-            max_label_width = label_width;
-        }
-    }
-    max_label_width += 10.0;
-
-    let grid_rect = egui::Rect::from_min_size(
-        canvas_rect.min + egui::vec2(max_label_width, 0.0),
-        canvas_rect.size() - egui::vec2(max_label_width, 0.0),
+    let grid_rect = egui::Rect::from_min_max(
+        canvas_rect.min + egui::vec2(label_width, section_height),
+        canvas_rect.max,
     );
 
     let mut cells = Vec::new();
+    for (index, section) in circuit.sections.iter().enumerate() {
+        let rect = Rect::from_min_max(
+            egui::pos2(
+                grid_rect.left() + (section.start - 1) as f32 * cell_width,
+                canvas_rect.top(),
+            ),
+            egui::pos2(
+                grid_rect.left() + section.end as f32 * cell_width,
+                grid_rect.top(),
+            ),
+        );
+        cells.push(GridCell::Section {
+            rect: rect.shrink(2.0),
+            index,
+        });
+    }
 
     for row in 0..num_qubits {
-        let label_pos =
-            canvas_rect.min + egui::vec2(5.0, (row + 1) as f32 * cell_height + cell_height / 2.0);
+        let label_pos = egui::pos2(
+            canvas_rect.left(),
+            grid_rect.top() + (row + 1) as f32 * cell_height,
+        );
         cells.push(GridCell::QubitLabel {
-            rect: Rect::from_center_size(label_pos, egui::vec2(max_label_width, cell_height)),
-            label: format!("q{}:", row),
+            rect: Rect::from_min_size(label_pos, egui::vec2(label_width, cell_height)).shrink(2.0),
+            row,
         });
     }
 
     let mut column_maps = Vec::new();
     for col in 0..num_steps {
+        let rect = Rect::from_min_size(
+            grid_rect.min + egui::vec2(col as f32 * cell_width, 0.0),
+            egui::vec2(cell_width, cell_height),
+        );
+        cells.push(GridCell::Timestep {
+            rect: rect.shrink(2.0),
+            step: col + 1,
+        });
         let mut multi_gate_map = HashMap::new();
         let mut multi_gate_counter = 0;
         for op in &circuit.steps[col] {
@@ -175,19 +201,6 @@ pub fn generate_circuit_grid(
             }
         }
         column_maps.push(multi_gate_map);
-    }
-
-    if current_timestep > 0 {
-        let col = current_timestep - 1;
-        let indicator_rect = egui::Rect::from_min_size(
-            grid_rect.min + egui::vec2(col as f32 * cell_width, 0.0),
-            egui::vec2(cell_width, cell_height),
-        )
-        .shrink(2.0);
-        cells.push(GridCell::TimeIndicator {
-            rect: indicator_rect,
-            color: Color32::DARK_BLUE,
-        });
     }
 
     for row in 0..num_qubits {

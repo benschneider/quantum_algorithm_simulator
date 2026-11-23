@@ -7,20 +7,30 @@ pub fn handle_circuit_grid_message(
 ) {
     match message {
         Message::PlaceGate(gate, row, col) => {
-            state.circuit_state.place_gate(gate, row, col);
+            if state.circuit_state.place_gate(gate, row, col) {
+                super::simulation_handler::invalidate_edited_gate(state, col);
+            }
         }
         Message::PlaceMultiQubitGate(gate, qubits, col) => {
-            state
+            if state
                 .circuit_state
-                .place_multi_qubit_gate(gate, qubits, col);
+                .place_multi_qubit_gate(gate, qubits, col)
+            {
+                super::simulation_handler::invalidate_edited_gate(state, col);
+            }
         }
         Message::MoveGate(from_row, from_col, to_row, to_col) => {
-            state
+            if state
                 .circuit_state
-                .move_gate(from_row, from_col, to_row, to_col);
+                .move_gate(from_row, from_col, to_row, to_col)
+            {
+                super::simulation_handler::invalidate_edited_gate(state, from_col.min(to_col));
+            }
         }
         Message::DeleteGate(row, col) => {
-            state.circuit_state.delete_gate(row, col);
+            if state.circuit_state.delete_gate(row, col).is_some() {
+                super::simulation_handler::invalidate_edited_gate(state, col);
+            }
         }
         Message::SelectGateForEditing(row, col) => {
             state.ui_state.selected_gate_for_editing = Some((row, col));

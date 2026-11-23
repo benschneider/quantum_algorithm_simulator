@@ -175,14 +175,16 @@ fn test_load_quantum_teleportation_circuit() {
     let circuit = &app.state.circuit_state.circuit;
 
     assert_eq!(circuit.num_qubits, 3);
-    assert_eq!(circuit.steps.len(), 6);
+    assert_eq!(circuit.steps.len(), 8);
 
     assert_eq!(circuit.steps[0][0].id, Gate::H);
     assert_eq!(circuit.steps[1][0].id, Gate::CX);
-    assert_eq!(circuit.steps[2][0].id, Gate::XPow);
-    assert_eq!(circuit.steps[3][0].id, Gate::YPow);
+    assert_eq!(circuit.steps[2][0].id, Gate::Ry);
+    assert_eq!(circuit.steps[3][0].id, Gate::SqrtZ);
     assert_eq!(circuit.steps[4][0].id, Gate::CX);
     assert_eq!(circuit.steps[5][0].id, Gate::H);
+    assert_eq!(circuit.steps[6][0].id, Gate::CX);
+    assert_eq!(circuit.steps[7][0].id, Gate::CZ);
 }
 
 #[test]

@@ -33,7 +33,10 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
             simulation_handler::handle_simulation_message(state, message, messages)
         }
         Message::ChangeQubits(_)
+        | Message::SetQubitRole { .. }
         | Message::ChangeTimesteps(_)
+        | Message::SaveSection
+        | Message::DeleteSection
         | Message::CircuitDimensionsChanged { .. } => {
             circuit_controls_handler::handle_circuit_controls_message(state, message, messages)
         }

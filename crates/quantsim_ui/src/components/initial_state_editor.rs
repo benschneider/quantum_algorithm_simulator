@@ -35,7 +35,7 @@ pub fn initial_state_editor(state: &mut AppState, ctx: &egui::Context) -> Option
 
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        RichText::new("Enter the initial state vector amplitudes (unnormalized):")
+                        RichText::new("Enter amplitudes whose squared magnitudes sum to 1.")
                             .strong(),
                     );
                 });

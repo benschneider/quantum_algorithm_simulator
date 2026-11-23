@@ -1,52 +1,7 @@
-# Tutorial 2: Single-Qubit Gates
+# Turn a phase change into a bit flip
 
-**Goal:** Understand and experiment with 1-qubit gates and how they act inside larger registers.
+1. Choose **New Circuit** and set **Qubits** to **1**. In the **Gate Palette**, expand **Pauli Gates**. Select **H** and click q0 in columns **1** and **3**. Select **Z** and click q0 in column **2**.
+2. Click column **1**. The Hadamard gives `0` and `1` equal positive amplitudes of about `0.7071`. In column **2**, Z changes the sign of the `1` amplitude. Each outcome still has probability 50%. This sign change is a **relative phase** between the two amplitudes.
+3. Predict the outcome at column **3**, then click it. Only `1` remains. The second H takes the sum and difference of the incoming amplitudes. The opposite signs cancel in the sum for `0` and reinforce in the difference for `1`.
 
-**Key ideas**
-- Gates: X, Y, Z, H, sqrt(X), sqrt(Y), sqrt(Z), Rx(theta), Ry(theta), Rz(theta)
-- Local action: apply on target bit only; rest is untouched
-- Phases matter later (interference), even if probabilities do not change now
-- Conventions: qubits slice order == gate matrix order; first is MSB of local index
-
-## Quick reference (ASCII)
-```
-X = [[0,1],[1,0]]
-Z = [[1,0],[0,-1]]
-H = (1/sqrt(2))*[[1,1],[1,-1]]
-sqrt(Z) = diag(1, i)
-Rx(a) = cos(a/2) I - i sin(a/2) X (and similarly for Ry,Rz)
-```
-
-## Example: Apply H on qubit 0 in a 2-qubit register
-```
-Initial: |01>
-Apply H on q0 (LSB): H|1> = (|0>-|1>)/sqrt(2)
-Result: (|00>-|01>)/sqrt(2)
-```
-
-## Rust: calling a 1-qubit gate
-```rust
-// Applies a 2x2 dense gate to target_bit (LSB=0)
-pub fn apply_dense_1q(state: &mut [Complex<f32>], target_bit: usize, gate: [[Complex<f32>;2];2]) {
-    let n = state.len();
-    let stride = 1 << target_bit;
-    let step = stride << 1;
-    for base in (0..n).step_by(step) {
-        for i in 0..stride {
-            let i0 = base + i;
-            let i1 = i0 + stride;
-            let a0 = state[i0];
-            let a1 = state[i1];
-            state[i0] = gate[0][0]*a0 + gate[0][1]*a1;
-            state[i1] = gate[1][0]*a0 + gate[1][1]*a1;
-        }
-    }
-}
-```
-
-## Exercises
-- Compose sqrt(Z) then H on q0 of |01>. What are the final amplitudes?
-- Show that Rz(theta) followed by Z commute up to a phase.
-- On |00>, apply Rx(pi/2) on q1 and compute probabilities.
-
-*Next: Tutorial 3: Multi-Qubit Gates*
+Right-click **Z** to remove it, then click column **3** again. The two H gates now return q0 to `0` with certainty. Comparing the two runs reveals a phase change that was invisible in the probabilities at step 2.
