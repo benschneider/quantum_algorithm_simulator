@@ -1,3 +1,5 @@
+mod section_axis;
+
 use super::qubit_layout::site_name;
 use crate::state::ui_state::StackCamera;
 use egui::{
@@ -13,6 +15,7 @@ use quantsim_core::{
 struct Projection {
     base: Vec<(Pos2, f32)>,
     corners: [Pos2; 4],
+    time_origin: Pos2,
     rise: f32,
     depth_rise: f32,
 }
@@ -37,6 +40,15 @@ impl Projection {
             )
         };
         let plate = bounds.expand(unit * 0.075);
+        // Near a cardinal angle two corners trade places at the left edge.
+        // Slide along the edge between them so the time labels follow the orbit.
+        // At least one component is saturated, keeping the anchor on the perimeter.
+        let edge_fraction = |component: f32| (component / 0.2).clamp(-1.0, 1.0);
+        let axis_point = plate.center()
+            + vec2(
+                -plate.width() * edge_fraction(cy),
+                plate.height() * edge_fraction(sy),
+            ) * 0.5;
         let corners = [
             plate.left_top(),
             plate.right_top(),
@@ -68,6 +80,7 @@ impl Projection {
         Self {
             base,
             corners: corners.map(place),
+            time_origin: place(rotate(axis_point).0),
             rise: rise.y * scale / intervals,
             depth_rise: height * sp / intervals,
         }
@@ -86,6 +99,10 @@ impl Projection {
     }
 }
 
+fn time_divisions(end: usize, intervals: usize) -> impl Iterator<Item = usize> {
+    (0..=intervals).map(move |i| ((end as u128 * i as u128) / intervals as u128) as usize)
+}
+
 // The editor supports 100 columns. For larger imported circuits keep the full time
 // extent and include the current slice and its immediate neighbors at full resolution.
 fn visible_steps(end: usize, active: usize) -> Vec<usize> {
@@ -93,9 +110,7 @@ fn visible_steps(end: usize, active: usize) -> Vec<usize> {
     if end <= LIMIT {
         return (0..=end).collect();
     }
-    let mut steps: Vec<_> = (0..=LIMIT)
-        .map(|i| ((end as u128 * i as u128) / LIMIT as u128) as usize)
-        .collect();
+    let mut steps: Vec<_> = time_divisions(end, LIMIT).collect();
     steps.extend([
         active.saturating_sub(1),
         active,
@@ -173,7 +188,11 @@ pub(super) fn draw_stack(
         camera.yaw = (camera.yaw + delta.x * 0.55 + 180.0).rem_euclid(360.0) - 180.0;
         camera.pitch = (camera.pitch - delta.y * 0.35).clamp(0.0, 75.0);
     }
-    let view = Projection::new(layout, end, camera, rect);
+    let mut plot = rect;
+    if !circuit.sections.is_empty() {
+        plot.min.x += (rect.width() * 0.30).min(132.0);
+    }
+    let view = Projection::new(layout, end, camera, plot);
     let steps = visible_steps(end, active);
     let painter = ui.painter_at(rect);
     let visuals = ui.visuals();
@@ -199,9 +218,10 @@ pub(super) fn draw_stack(
 
     // A time axis and the selected wire's continuous trace provide an orientation
     // reference even for an arrangement with no links or no gates.
-    let tick_every = end.div_ceil(5).max(1);
+    // Every fifth of the time range is also present in the 100-interval overview.
+    let mut ticks = time_divisions(end, end.clamp(1, 5)).peekable();
     for &step in &steps {
-        if step != 0 && step != end && step != active && step % tick_every != 0 {
+        if ticks.next_if_eq(&step).is_none() && step != active {
             continue;
         }
         let corners = view.plate(step);
@@ -223,10 +243,7 @@ pub(super) fn draw_stack(
         // Adjacent end/active labels can coincide in long circuits.
         let label_clear = (step.abs_diff(active) as f32 * view.rise.abs()) > 16.0;
         if focus || ((step == 0 || step == end) && label_clear) {
-            let left = corners
-                .into_iter()
-                .min_by(|a, b| a.x.total_cmp(&b.x))
-                .unwrap();
+            let left = view.time_origin + vec2(0.0, step as f32 * view.rise);
             painter.text(
                 left - vec2(4.0, 0.0),
                 Align2::RIGHT_CENTER,
@@ -377,6 +394,15 @@ pub(super) fn draw_stack(
             painter.galley(label_rect.min + vec2(1.5, 1.5), text, ink);
         }
     }
+    let hovered_section = section_axis::paint(
+        ui,
+        rect,
+        &view,
+        circuit,
+        active,
+        physical,
+        response.hover_pos().filter(|_| !dragging),
+    );
     let picked = if response.clicked_by(PointerButton::Primary) {
         response
             .interact_pointer_pos()
@@ -392,9 +418,17 @@ pub(super) fn draw_stack(
     } else {
         egui::CursorIcon::Grab
     });
-    if let Some(site) = hovered {
+    if let Some(section) = hovered_section {
+        response.on_hover_ui_at_pointer(|ui| {
+            ui.strong(&section.label);
+            ui.label(section_axis::range_text(section));
+        });
+    } else if let Some(site) = hovered {
         response.on_hover_ui_at_pointer(|ui| {
             ui.strong(format!("q{} · Step {}", site.wire, site.step));
+            if let Some(section) = circuit.section_at(site.step) {
+                ui.label(&section.label);
+            }
             if let Some(op) = site.op {
                 let wires = op
                     .qubits
@@ -436,6 +470,29 @@ mod tests {
     use quantsim_core::core::types::Gate;
 
     #[test]
+    fn time_axis_stays_on_the_plate_as_the_camera_crosses_a_cardinal_angle() {
+        let layout = QubitLayout::grid(9);
+        let rect = Rect::from_min_size(Pos2::ZERO, vec2(660.0, 280.0));
+        let project = |yaw| Projection::new(&layout, 17, &StackCamera { yaw, pitch: 60.0 }, rect);
+        for yaw in [-180.0, -90.0, 0.0, 90.0, 180.0] {
+            let before = project(yaw - 0.01);
+            let after = project(yaw + 0.01);
+            assert!(before.time_origin.distance(after.time_origin) < 1.0);
+            for view in [before, after] {
+                let on_edge = (0..4).any(|i| {
+                    let a = view.corners[i];
+                    let b = view.corners[(i + 1) % 4];
+                    let edge = b - a;
+                    let along =
+                        ((view.time_origin - a).dot(edge) / edge.length_sq()).clamp(0.0, 1.0);
+                    view.time_origin.distance(a + along * edge) < 0.01
+                });
+                assert!(on_edge);
+            }
+        }
+    }
+
+    #[test]
     fn fitting_preserves_vertical_worldlines_and_camera_depth() {
         let camera = StackCamera::default();
         let viewport = Rect::from_min_size(Pos2::ZERO, vec2(320.0, 245.0));
@@ -455,6 +512,29 @@ mod tests {
         assert!(steps.len() <= 104);
         for step in [0, 543_218, 543_219, 543_220, 1_000_000] {
             assert!(steps.contains(&step));
+        }
+    }
+
+    #[test]
+    fn long_import_draws_intermediate_time_guides_on_sampled_slices() {
+        let ctx = egui::Context::default();
+        let mut circuit = Circuit::new(1);
+        circuit.steps.resize_with(1001, Vec::new);
+        let layout = QubitLayout::line(1);
+        let mut camera = StackCamera::default();
+        let mut rect = Rect::NOTHING;
+        let drawn = ctx.run(RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui));
+                draw_stack(ui, &circuit, &layout, 502, None, &mut camera);
+            });
+        });
+        let view = Projection::new(&layout, 1001, &camera, rect);
+        for step in [0, 200, 400, 600, 800, 1001] {
+            let plate = view.plate(step);
+            assert!(drawn.shapes.iter().any(|c| matches!(
+                &c.shape, Shape::Path(path) if path.closed && path.points.as_slice() == plate
+            )), "missing guide at t{step}");
         }
     }
 

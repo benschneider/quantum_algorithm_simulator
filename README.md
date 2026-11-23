@@ -280,6 +280,8 @@ Click a wire label at the left of the grid to annotate it as **Data** or **Ancil
 
 Switch from **2D layout** to **3D stack** to follow a wire through time. Each layer is a timestep. Vertical trails join the same wire across layers, the selected layer shows the layout's physical links, and the gate markers show which wires interact at each step. Drag to orbit or use the view sliders. Select a site to inspect its wire at that step in **Results**. In **plaquette z check**, follow the central q4 through steps 2–5 to see its four CNOTs, one with each surrounding data wire.
 
+Brackets on the time axis show the first and last step of each named section. Selecting a layer highlights its section. On a crowded timeline, the axis shows labels around the selected step. Hover over a label or bracket to read its full name and range.
+
 A custom arrangement can be shared in the circuit's `layout` field. Put one integer `[x, y]` position per wire in q0, q1, … order. Each link is a pair of wire indices and connects them in both directions. Paste this three-site example into the **JSON** tab and select **Apply Changes** to see an L with q0 at the corner.
 
 ```json
