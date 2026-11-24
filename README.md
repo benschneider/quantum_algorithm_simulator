@@ -16,6 +16,7 @@ Build a circuit gate by gate, place its qubits on a 2D map, and follow each wire
 ## Quick Links
 
 - ▶️ **Live demo**: https://benschneider.github.io/quantum_algorithm_simulator/
+- [How many qubits can I simulate, and with what accuracy?](docs/benchmarks/README.md#what-the-qubit-counts-mean)
 - [What's new in 0.3.0, with screenshots](RELEASES.md)
 - 📄 **License**: [MIT OR Apache-2.0](COPYRIGHT.md)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
@@ -381,6 +382,12 @@ Limiting the bond dimension saved tensor storage at the cost of accuracy. The ta
 | 64 | 648.5 KiB | 17.11% | 0.42 percentage points | 0.00681 |
 
 Local readouts could look close even at low fidelity because the dense wire probabilities approached 50% and neighboring correlations approached zero. Earlier rounds showed larger individual differences. At round 7, cap 64 gave 73.12% on wire 7, where dense gave 62.50%. The browser's RAM warning estimates its own dense, stabilizer, product, or grouped simulation.
+
+On the eight-round version of this patch, profiling each cut and giving the middle cut more capacity raised whole-state fidelity from 0.299 to 0.675. The native example can replay the selected caps without repeating calibration. The 256-qubit eight-round ladder also recovered its input to within 10⁻¹² of unit probability at bond cap 256. [MPS policy comparison](docs/benchmarks/README.md#paired-gates-and-a-tensor-budget) · [256-qubit echo and memory cost](docs/benchmarks/README.md#recovering-the-256-qubit-input)
+
+For your current circuit, open **Est. peak RAM → Estimate MPS cap**. On a compatible two-row ladder, it reads the gate schedule and reports a sufficient uniform bond cap and a bound on retained tensor storage.
+
+In **Settings → MPS ladder experiment**, **Auto** computes the cap from the built-in 256-qubit forward circuit. **Target return** chooses among measured caps for this seed and depth, and **Manual** lets you try one directly. The desktop **Run echo** button applies the selected cap locally. Use `cargo run --release --locked -p quantsim_ui` for a native release build. The web build offers cap inference and the recorded curve. [Curve, measurements and reproduction](docs/benchmarks/README.md#choosing-a-bond-cap)
 
 #### Results View
 

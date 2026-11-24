@@ -94,6 +94,37 @@ fn editable_ram_warning_persists_and_allows_run_above_threshold() {
 }
 
 #[test]
+fn open_mps_estimate_follows_edits_to_the_current_circuit() {
+    let ctx = Context::default();
+    ctx.style_mut(|style| style.animation_time = 0.0);
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::ChangeQubits(4));
+    let estimate = ram_button(&ctx, &mut app);
+    click(&ctx, &mut app, &estimate);
+    render(&ctx, &mut app, vec![]);
+    click(&ctx, &mut app, "Estimate MPS cap");
+    let visible = |app: &mut QCSimApp, label: &str| {
+        render(&ctx, app, vec![])
+            .shapes
+            .iter()
+            .any(|shape| matches!(&shape.shape, Shape::Text(text) if text.galley.text() == label))
+    };
+    assert!(visible(&mut app, "Sufficient bond cap  1"));
+    app.handle_message(Message::PlaceGate(Gate::H, 0, 0));
+    app.handle_message(Message::PlaceGate(Gate::CX, 0, 1));
+    let cap = quantsim_core::mps_ladder::circuit_bound(&app.state.circuit_state.circuit)
+        .unwrap()
+        .uniform_cap;
+    assert!(cap > 1u32.into());
+    assert!(visible(&mut app, &format!("Sufficient bond cap  {cap}")));
+
+    app.handle_message(Message::ChangeQubits(5));
+    let reason =
+        quantsim_core::mps_ladder::circuit_bound(&app.state.circuit_state.circuit).unwrap_err();
+    assert!(visible(&mut app, &reason));
+}
+
+#[test]
 fn edit_to_one_thousand_steps_and_scrub_the_final_gate() {
     let ctx = Context::default();
     let mut app = QCSimApp::default();

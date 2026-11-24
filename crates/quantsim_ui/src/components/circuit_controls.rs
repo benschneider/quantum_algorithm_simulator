@@ -154,10 +154,45 @@ fn show_memory_estimate(ui: &mut egui::Ui, state: &AppState) {
                 }
             });
             ui.label("You can run circuits above this level.");
+            ui.separator();
+            ui.collapsing("Estimate MPS cap", |ui| {
+                ui.set_width((ui.ctx().screen_rect().width() - 40.0).clamp(1.0, 300.0));
+                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                let circuit = &state.circuit_state.circuit;
+                match quantsim_core::mps_ladder::circuit_bound(circuit) {
+                    Ok(bound) => {
+                        let rank = &bound.uniform_cap;
+                        let cap = if rank.bits() > 64 && rank.count_ones() == 1 {
+                            format!("2^{}", rank.bits() - 1)
+                        } else {
+                            rank.to_string()
+                        };
+                        ui.strong(format!("Sufficient bond cap  {cap}")).on_hover_text(
+                            "This upper bound avoids bond truncation in exact arithmetic.",
+                        );
+                        let payload = match u64::try_from(&bound.tensor_bytes) {
+                            Ok(bytes) if bytes < 1024 => format!("{bytes} bytes"),
+                            Ok(bytes) if bytes < MIB => format!("{} KiB", bytes.div_ceil(1024)),
+                            Ok(bytes) => format!("{} MiB", bytes.div_ceil(MIB)),
+                            Err(_) => "at least 16 EiB".into(),
+                        };
+                        ui.label(format!("Retained tensor upper bound  {payload}"));
+                        ui.label(format!(
+                            "Each column pairs wire j with wire j + {}.",
+                            circuit.num_qubits / 2
+                        ));
+                        ui.label("A smaller cap may suffice for this input. Factorization needs extra workspace.");
+                    }
+                    Err(reason) => {
+                        ui.label(reason);
+                    }
+                }
+                ui.weak("Editor Run uses dense, stabilizer, product, or grouped simulation.");
+            });
         })
         .response
         .on_hover_text(
-            "Estimated upper bound for the full run’s simulation buffers. Total app memory can be higher. Click to set the RAM warning.",
+            "Estimated upper bound for the full run’s simulation buffers. Total app memory can be higher. Click for the RAM warning and MPS cap estimate.",
         );
 }
 

@@ -1,0 +1,201 @@
+{
+  "started_utc": "2026-11-24T20:02:50.158607+00:00",
+  "git_commit": "64b5c5a2a3ab54703013e5e999c51c3326d4a546",
+  "source_sha256": {
+    "crates/quantsim_core/Cargo.lock": "047e05ac509d3b4d012081e650fc307a7f94bc1e365aa09a7bce6b918cb3bde7",
+    "crates/quantsim_core/Cargo.toml": "43df24f31946bd2500f00822bf2a297a6cc6576e31c9402d88b3ffd4d4aaaab6",
+    "crates/quantsim_core/build.rs": "6db77c196395aa3f7437af6ae972c549fdc0a14a592c00759ff1f7418a962d32",
+    "crates/quantsim_core/circuits/bell.json": "96e352d2320635b84a0cba3a93c3f50de09cb841b206062868019ad52e69a07d",
+    "crates/quantsim_core/circuits/bell_256.json": "fac1c0fe4ea2ff6e71ce67b26fbe5047dd097208f0ddcc8dd72a2e43c6243cb8",
+    "crates/quantsim_core/circuits/bell_test_complex.json": "d3c2ac9db372f48a9d0bffeb5ad5c7220fa7c85c81eaa45724a8c576c747708a",
+    "crates/quantsim_core/circuits/deutsch_algorithm.json": "21b3318d1a60a719de78b0fc0abe2f637ffd37738f21ab8427fe1ef168449f62",
+    "crates/quantsim_core/circuits/error_correction_bit_flip.json": "347ed11a8b200aa218736b8c4f07daaecbab01829b82228de0b5f52fb59eb90e",
+    "crates/quantsim_core/circuits/error_correction_bit_flip_two_faults.json": "4eb1548833a4ece83d48341cdc857bb16212296ec5235f194df0ac8907f9e2b5",
+    "crates/quantsim_core/circuits/error_correction_phase_flip.json": "08eca6d96a5df0ef41c80c1f4082bd05009ebbc6f1fe5b1a043de940162d1648",
+    "crates/quantsim_core/circuits/error_correction_phase_flip_two_faults.json": "39bdecfac76c9ebbcc494e893d25975d646763e11e56d97914d18ffe9c261e6a",
+    "crates/quantsim_core/circuits/fourier_wave_50.json": "e86aedc16591e79de2f810fcc6aa3adac93578ae7eea99ffecf006e184bcea9e",
+    "crates/quantsim_core/circuits/ghz.json": "ef136b81b32bef6d5ee7febf192c5315f77b16dcb1969e377ae7413a1eb74148",
+    "crates/quantsim_core/circuits/ghz_50.json": "f36f7e7f73d27c8c2122f1821d97ceb01cd922ad81a3c6fda485eebbbacda3d1",
+    "crates/quantsim_core/circuits/grover.json": "1c7d8db2f1c623f0e76efc967da1f4defbe18323627cd49119218b20f0404e47",
+    "crates/quantsim_core/circuits/grover_algorithm.json": "44e32f16b1e265ca73755d4135f31486a6294ba02ca4a0e630d8d4ecc6f52082",
+    "crates/quantsim_core/circuits/plaquette_z_check.json": "44ee95feb1d12cacfa11e74d3a329be96879ea292a87c0bcd8cc55f81d76bd1f",
+    "crates/quantsim_core/circuits/qft.json": "29d152d48e1437d94c3f02d1fd87c493d79a493d6244e257c1c8979b991a9ef9",
+    "crates/quantsim_core/circuits/qft4.json": "36d9c846c3a8926dcb55b4b305e56e0c359405c21f6c4a31290d87323579173c",
+    "crates/quantsim_core/circuits/qft_50.json": "83f7214bb54a88c5663e392ecb17124ab9a18491bc50db04db3be1f91af2fd90",
+    "crates/quantsim_core/circuits/quantum_teleportation.json": "d574f98b8295f4978ca99378072774cf34421bcae3b147bb4ac5f8f6e90da0c4",
+    "crates/quantsim_core/circuits/sycamore_53.json": "57eba66af8c01e3ba95e8f03bb27f2e86623a953d2ff9efc75d4aaf8506e2d1a",
+    "crates/quantsim_core/circuits/sycamore_echo_53.json": "33fba8877bcf7d1f1dd60e2b3ea05f92faf8607d500edc345337214c2f019619",
+    "crates/quantsim_core/examples/audit_benchmark/heap.rs": "5243791f4d4ef140e62cd6176c4990b15643b344676e202e69c22c036e0c09dc",
+    "crates/quantsim_core/examples/audit_benchmark/mps.rs": "8e53d0ed93adc4b719b9fb039cef1e4a35e71fe01971cc01c93b92ca27e9dd72",
+    "crates/quantsim_core/examples/audit_benchmark/reference.rs": "fe62c7d3352e52ccd391e0cd726e9ff41086ec2bea062cbe0b37a5a502fb8ba4",
+    "crates/quantsim_core/examples/audit_benchmark/workloads.rs": "3458869ef455978e454f7ee3713a285f89f880fdab3b748b044b5e7a83f12d6f",
+    "crates/quantsim_core/examples/audit_benchmark.rs": "baf70dd46367e9b6cd85dc1ea0cf8cb80da5884a98d6053ee1eedbeed0c331b9",
+    "crates/quantsim_core/examples/sycamore_mps/budget.rs": "44c2ebaf69334dfd49e1fc80120e0c0ddd451bba3a7c0af27539bb88643f0a5d",
+    "crates/quantsim_core/examples/sycamore_mps/chain.rs": "e63865836e2e7b1475985c753f5539ee8c5d60ba0b4c14489a645847f09b2c61",
+    "crates/quantsim_core/examples/sycamore_mps/layers.rs": "7b68a6ddd9fd24ec055fee4aa840e9fe675e86e147cd1014343afd95f7419e69",
+    "crates/quantsim_core/examples/sycamore_mps/planning.rs": "44fd9e7e5b6814e557e75d23cd98b2a5b334a29bf483c04db8371b3639022db8",
+    "crates/quantsim_core/src/circuits.rs": "4a2a8807c09f5811a9fcef43b9c0db67242635043679fff98cab1f9340b59535",
+    "crates/quantsim_core/src/core/builder.rs": "5a2cee4365aa26e06ae238f6beca48e749bea4dc2faa302af21241fbdf8676c2",
+    "crates/quantsim_core/src/core/circuit/fourier.rs": "e5a7dfb4d61a1970a6585c9b0adaa3f7139460541e706c28ce17790841ac8fd1",
+    "crates/quantsim_core/src/core/circuit/layout.rs": "1ee63ea9c37fef850d67b3cb98c20f2f258f905e03c857646d54b2f93c037a43",
+    "crates/quantsim_core/src/core/circuit/sections.rs": "06e36fff19ce6e8479bc892294a9cefbe80a885df87778edb6eec938c2351ba9",
+    "crates/quantsim_core/src/core/circuit.rs": "a2ee5644fdb6a5992790226a488a70c76744a1e0963f529bea3e84d6734fbfcb",
+    "crates/quantsim_core/src/core/compact.rs": "18084df4356c03cacfedcf2d7046b4227853aded7a22176ca4d3f641a981fce8",
+    "crates/quantsim_core/src/core/endian_utils.rs": "bc8c29a2b7041a64a57d15761dddf37cf756942a18de7efcc0a15f67c8764802",
+    "crates/quantsim_core/src/core/engine.rs": "99ca106e0a385cbd4072861b826303bb9e62734a48bef03dd6e058d3e7f3d6d4",
+    "crates/quantsim_core/src/core/formatters.rs": "c6f7bd26f417a96558c611eca82c0325e9c9a3003f385f283237a006699200cb",
+    "crates/quantsim_core/src/core/gates/matrix_builders.rs": "761e229d8fb3318855a290fbff9b8e9759faa476fb0cabb97ab64deb2a586f55",
+    "crates/quantsim_core/src/core/gates/parametric.rs": "a64ed3eec2db8b2e4079b0e58cf7a39330252e4d6a268cc16eb60409697c9a8f",
+    "crates/quantsim_core/src/core/gates/registry.rs": "a7d8bbb16fcf0240dee1d207dc8a9df73b6fa53a9f83034391cf56a021a2783c",
+    "crates/quantsim_core/src/core/gates.rs": "91c4ed52222b5edda4213cf96c79b00a575e609d040cd10f68de65b55ad08507",
+    "crates/quantsim_core/src/core/grouped/readout.rs": "ded3e1352cae1d06ca6dba84357bed26886a38ba9facae30088ea861b99ff2d0",
+    "crates/quantsim_core/src/core/grouped/split.rs": "dca07aea2743ce28780da22df25e3c1785f8e50276c2b1dffee533f383fdbe49",
+    "crates/quantsim_core/src/core/grouped.rs": "54c70d6261b9c11139dbd942071c5922f2a2cdf8ff7f23682eceac8a3abe98ab",
+    "crates/quantsim_core/src/core/mod.rs": "c2cf45f3ed3e00c7a64cd02514248f18306d66b8bee7015e53dc159d95d2e31f",
+    "crates/quantsim_core/src/core/product_state.rs": "1ee1798ddad54f9f8a04d71d42315015e8b25a06c9ccc203bbc49aa551a9924c",
+    "crates/quantsim_core/src/core/stabilizer/tableau/amplitudes.rs": "54c7e5b9ce451a8020482f881a42ee394550446d064ec4482b05c89497ad452d",
+    "crates/quantsim_core/src/core/stabilizer/tableau.rs": "cc2ab3848f315307079e78da5866360f84bff043b4ceef383b0a99b6e9fa7a2f",
+    "crates/quantsim_core/src/core/stabilizer.rs": "df0a61d2b649cc03c966e147e7496dd1e34e888e222883446ffb7efde4f45c0e",
+    "crates/quantsim_core/src/core/types.rs": "0616e25cf5c8e25ab2a5914dfae5cb93e8461604cbb9289aab33533d20060ec6",
+    "crates/quantsim_core/src/lib.rs": "23ae3e48d8e7b629d1d0344756edb968db8690ea87da6e688496a0cc2dcd54c5",
+    "docs/benchmarks/mps-cap-curve.py": "14d603b89aa33e5e96becfdcb9b82069d44997fe74ac42d5548b36f2d4e10f69",
+    "docs/benchmarks/run.py": "fb6de139b9c33722806a4572de133f0903f2ec0ad9c4ef45adc87d4d523200a6"
+  },
+  "binary_sha256": "8cf22c2ef1f7395818e9a581f36e8f59fe1f9a2d6bf0de3ad21557518880af8f",
+  "hardware": {
+    "machine": "arm64",
+    "system": "Darwin",
+    "kernel": "27.2.0",
+    "Model Name": "MacBook Pro",
+    "Model Identifier": "MacBookPro18,2",
+    "Chip": "Apple M1 Max",
+    "Total Number of Cores": "10 (8 Performance and 2 Efficiency)",
+    "Memory": "32 GB",
+    "os_version": "27.2.1",
+    "os_build": "26B131"
+  },
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "cargo_build": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "--release",
+    "--manifest-path",
+    "crates/quantsim_core/Cargo.toml",
+    "--example",
+    "audit_benchmark"
+  ],
+  "environment": {
+    "RAYON_NUM_THREADS": "1",
+    "RUSTFLAGS": null,
+    "CARGO_ENCODED_RUSTFLAGS": null,
+    "RUSTUP_TOOLCHAIN": null
+  },
+  "workload": "mps_ladder",
+  "qubits": 256,
+  "seed": 53,
+  "rounds": 8,
+  "backend": "mps-paired",
+  "variant": "reverse",
+  "gates": 5624,
+  "depth": 32,
+  "norm_tolerance": 2e-10,
+  "timeout_seconds_per_child": 400,
+  "verification_workers": 8,
+  "isolated_timing_caps": [
+    1,
+    16,
+    32,
+    64,
+    256
+  ],
+  "parallel_verification_caps": [
+    255,
+    252,
+    240,
+    192,
+    128,
+    96,
+    224,
+    248
+  ],
+  "return_probability": "Raw squared all-zero amplitude after forward evolution and its adjoint.",
+  "sampling": "One fresh process per verification. Timed caps also get one isolated timing child. RSS is the timing child's peak when timed, otherwise the verification child's peak. Blank CSV timing, allocator and tensor cells indicate verification only. Timed-out checks are recorded here and omitted from the CSV.",
+  "verification_resources_by_cap": {
+    "1": {
+      "cpu_seconds": 0.004607,
+      "peak_rss_bytes": 3866624,
+      "status": "ok"
+    },
+    "16": {
+      "cpu_seconds": 0.5827769999999999,
+      "peak_rss_bytes": 9502720,
+      "status": "ok"
+    },
+    "32": {
+      "cpu_seconds": 3.706355,
+      "peak_rss_bytes": 21856256,
+      "status": "ok"
+    },
+    "64": {
+      "cpu_seconds": 28.032253,
+      "peak_rss_bytes": 46071808,
+      "status": "ok"
+    },
+    "96": {
+      "cpu_seconds": 72.62187200000001,
+      "peak_rss_bytes": 125042688,
+      "status": "ok"
+    },
+    "128": {
+      "cpu_seconds": 156.00585,
+      "peak_rss_bytes": 225050624,
+      "status": "ok"
+    },
+    "192": {
+      "cpu_seconds": 399.40558699999997,
+      "peak_rss_bytes": 517636096,
+      "status": "timeout",
+      "timeout_seconds": 400
+    },
+    "224": {
+      "cpu_seconds": 399.463961,
+      "peak_rss_bytes": 483328000,
+      "status": "timeout",
+      "timeout_seconds": 400
+    },
+    "240": {
+      "cpu_seconds": 399.380275,
+      "peak_rss_bytes": 596213760,
+      "status": "timeout",
+      "timeout_seconds": 400
+    },
+    "248": {
+      "cpu_seconds": 399.464489,
+      "peak_rss_bytes": 681197568,
+      "status": "timeout",
+      "timeout_seconds": 400
+    },
+    "252": {
+      "cpu_seconds": 399.451754,
+      "peak_rss_bytes": 530497536,
+      "status": "timeout",
+      "timeout_seconds": 400
+    },
+    "255": {
+      "cpu_seconds": 399.35821699999997,
+      "peak_rss_bytes": 573489152,
+      "status": "timeout",
+      "timeout_seconds": 400
+    },
+    "256": {
+      "cpu_seconds": 5.221416,
+      "peak_rss_bytes": 140181504,
+      "status": "ok"
+    }
+  },
+  "csv_sha256": "a57d18e5bbddac2b64ce967d36dd13870f2c9ded0ff54c317c0c10876262b7ec",
+  "finished_utc": "2026-11-24T20:10:45.734546+00:00"
+}

@@ -159,6 +159,14 @@
 pub mod core;
 pub mod circuits;
 
+pub mod mps_ladder;
+
+// The audited ladder sources also build as standalone Cargo examples, where
+// these names are bound at the crate root.
+extern crate self as quantsim_core;
+#[cfg(feature = "mps-ladder")]
+use mps_ladder::{mps::ColumnMps, workloads};
+
 // Re-export the core modules for easier access.
 /// Re-export of the `CircuitBuilder` for easy access.
 pub use crate::core::builder::CircuitBuilder;

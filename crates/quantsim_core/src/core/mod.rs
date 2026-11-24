@@ -21,6 +21,7 @@ pub mod circuit;
 /// Contains the `Simulator` for running quantum circuit simulations.
 pub mod engine;
 mod compact;
+pub(crate) mod mps_bound;
 /// Compact simulation of independent groups of entangled wires.
 pub mod grouped;
 /// Product-state simulation of separable circuit prefixes.

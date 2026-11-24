@@ -8,6 +8,7 @@ pub mod initial_state_editor;
 pub mod json_editor_panel;
 pub(crate) mod layout_panel;
 pub mod menu_bar;
+pub(crate) mod mps_ladder;
 mod qubit_layout;
 pub mod results_panel;
 mod section_editor;

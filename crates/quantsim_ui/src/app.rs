@@ -86,6 +86,7 @@ impl eframe::App for QCSimApp {
         crate::ui::central_panel::render(state, ctx, &mut ui_messages);
         crate::ui::welcome_screen::render(state, ctx);
         crate::ui::info_panel::render(state, ctx);
+        state.ui_state.mps_ladder.show(ctx);
 
         if let Some(message) =
             crate::components::initial_state_editor::initial_state_editor(state, ctx)

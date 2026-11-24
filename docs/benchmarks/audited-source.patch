@@ -1,0 +1,1114 @@
+diff --git a/crates/quantsim_core/src/core/engine.rs b/crates/quantsim_core/src/core/engine.rs
+index 40b4fe0..1291eb0 100644
+--- a/crates/quantsim_core/src/core/engine.rs
++++ b/crates/quantsim_core/src/core/engine.rs
+@@ -34,6 +34,8 @@ use rayon::prelude::*;
+ use smallvec::SmallVec;
+ 
+ const MIN_SUBSPACE_PROBABILITY: f32 = 1e-12;
++const INPUT_NORM_TOLERANCE: f64 = 1e-6;
++const EVOLVED_NORM_TOLERANCE: f64 = 1e-5;
+ 
+ /// Represents the state of a quantum system.
+ #[derive(Debug, Clone)]
+@@ -121,7 +123,7 @@ impl QuantumState {
+         num_qubits: usize,
+         state_vector: &[Complex<f32>],
+     ) -> Result<Self, &'static str> {
+-        Self::validate_vector(num_qubits, state_vector)?;
++        Self::validate_vector(num_qubits, state_vector, INPUT_NORM_TOLERANCE)?;
+         Ok(Self {
+             num_qubits,
+             state_vector: DVector::from_vec(state_vector.to_vec()),
+@@ -133,7 +135,24 @@ impl QuantumState {
+         num_qubits: usize,
+         state_vector: Vec<Complex<f32>>,
+     ) -> Result<Self, &'static str> {
+-        Self::validate_vector(num_qubits, &state_vector)?;
++        Self::take_vector(num_qubits, state_vector, INPUT_NORM_TOLERANCE)
++    }
++
++    /// Takes the engine's output for readout. Repeated f32 unitary operations
++    /// can accumulate a few parts per million of squared-norm drift.
++    pub fn from_evolved_vector(
++        num_qubits: usize,
++        state_vector: Vec<Complex<f32>>,
++    ) -> Result<Self, &'static str> {
++        Self::take_vector(num_qubits, state_vector, EVOLVED_NORM_TOLERANCE)
++    }
++
++    fn take_vector(
++        num_qubits: usize,
++        state_vector: Vec<Complex<f32>>,
++        norm_tolerance: f64,
++    ) -> Result<Self, &'static str> {
++        Self::validate_vector(num_qubits, &state_vector, norm_tolerance)?;
+         Ok(Self {
+             num_qubits,
+             state_vector: DVector::from_vec(state_vector),
+@@ -143,14 +162,18 @@ impl QuantumState {
+     fn validate_vector(
+         num_qubits: usize,
+         state_vector: &[Complex<f32>],
++        norm_tolerance: f64,
+     ) -> Result<(), &'static str> {
+         let expected_dim = Self::dimension(num_qubits)?;
+         if state_vector.len() != expected_dim {
+             return Err("Invalid state vector dimension.");
+         }
+ 
+-        let norm_sq: f32 = state_vector.par_iter().map(|c| c.norm_sqr()).sum();
+-        if (norm_sq - 1.0).abs() > 1e-6 {
++        let norm_sq: f64 = state_vector
++            .par_iter()
++            .map(|c| Complex::new(f64::from(c.re), f64::from(c.im)).norm_sqr())
++            .sum();
++        if !norm_sq.is_finite() || (norm_sq - 1.0).abs() > norm_tolerance {
+             return Err("State vector is not normalized.");
+         }
+ 
+@@ -465,6 +488,19 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn evolved_readout_accepts_small_norm_drift_and_preserves_amplitudes() {
++        let drift = vec![Complex::new(0.999998, 0.0), Complex::default()];
++        assert!(QuantumState::from_owned_vector(1, drift.clone()).is_err());
++        let output = QuantumState::from_evolved_vector(1, drift.clone()).unwrap();
++        assert_eq!(output.state_vector.as_slice(), drift.as_slice());
++        for amplitude in [0.9, f32::NAN, f32::INFINITY] {
++            let invalid = vec![Complex::new(amplitude, 0.0), Complex::default()];
++            assert!(QuantumState::from_evolved_vector(1, invalid.clone()).is_err());
++            assert!(QuantumState::from_vector(1, &invalid).is_err());
++        }
++    }
++
+     #[test]
+     fn subspace_iterator_visits_each_assignment_in_order() {
+         for width in 0..=5 {
+diff --git a/crates/quantsim_core/examples/sycamore_mps/chain.rs b/crates/quantsim_core/examples/sycamore_mps/chain.rs
+new file mode 100644
+index 0000000..901e7ff
+--- /dev/null
++++ b/crates/quantsim_core/examples/sycamore_mps/chain.rs
+@@ -0,0 +1,425 @@
++use nalgebra::{
++    linalg::SymmetricEigen, DMatrix, DMatrixView, DMatrixViewMut, Dyn, Matrix4, Vector4,
++};
++use num_complex::Complex64;
++use std::mem::size_of;
++
++// A column's physical index is top + 2 * bottom. A site's (left, physical,
++// right) tensor is stored as a column-major (4 * left) × right matrix, with
++// left the fastest varying index. Both unfoldings thus share the same data.
++const PHYSICAL: usize = 4;
++
++fn right_unfold(site: &DMatrix<Complex64>) -> DMatrixView<'_, Complex64> {
++    DMatrixView::from_slice(
++        site.as_slice(),
++        site.nrows() / PHYSICAL,
++        PHYSICAL * site.ncols(),
++    )
++}
++
++pub struct ColumnMps {
++    sites: Vec<DMatrix<Complex64>>,
++    center: usize,
++    discarded_weight: f64,
++    bond_cap: usize,
++}
++
++impl ColumnMps {
++    pub fn new(columns: usize) -> Self {
++        Self::with_bond_cap(columns, usize::MAX)
++    }
++
++    pub fn with_bond_cap(columns: usize, cap: usize) -> Self {
++        assert!(columns > 0 && cap > 0);
++        let mut zero = DMatrix::zeros(PHYSICAL, 1);
++        zero[(0, 0)] = Complex64::ONE;
++        Self {
++            sites: vec![zero; columns],
++            center: 0,
++            discarded_weight: 0.0,
++            bond_cap: cap,
++        }
++    }
++
++    pub fn bonds(&self) -> Vec<usize> {
++        self.sites[..self.sites.len() - 1]
++            .iter()
++            .map(DMatrix::ncols)
++            .collect()
++    }
++
++    /// Bytes in the retained complex tensor entries, excluding scratch.
++    pub fn state_bytes(&self) -> usize {
++        self.sites
++            .iter()
++            .map(|site| site.len() * size_of::<Complex64>())
++            .sum()
++    }
++
++    pub fn discarded_weight_sum(&self) -> f64 {
++        self.discarded_weight
++    }
++
++    /// Move the orthogonality center with thin QR. Outside the center, tensors
++    /// are isometric, so a local residual has the same norm as the state's residual.
++    fn move_center(&mut self, target: usize) {
++        while self.center < target {
++            let i = self.center;
++            let (q, r) = self.sites[i].clone().qr().unpack();
++            let next = &self.sites[i + 1];
++            let absorbed = r * right_unfold(next);
++            self.sites[i + 1] =
++                absorbed.reshape_generic(Dyn(PHYSICAL * q.ncols()), Dyn(next.ncols()));
++            self.sites[i] = q;
++            self.center += 1;
++        }
++        while self.center > target {
++            let i = self.center;
++            let (q, r) = right_unfold(&self.sites[i]).adjoint().qr().unpack();
++            self.sites[i - 1] = &self.sites[i - 1] * r.adjoint();
++            self.sites[i] = q
++                .adjoint()
++                .reshape_generic(Dyn(PHYSICAL * q.ncols()), Dyn(self.sites[i].ncols()));
++            self.center -= 1;
++        }
++    }
++
++    fn apply_local(&mut self, column: usize, gate: Matrix4<Complex64>) {
++        // A unitary on the physical index preserves either isometry.
++        let site = &mut self.sites[column];
++        let left = site.nrows() / PHYSICAL;
++        for r in 0..site.ncols() {
++            for l in 0..left {
++                let input = Vector4::from_fn(|p, _| site[(l + left * p, r)]);
++                let output = gate * input;
++                for p in 0..PHYSICAL {
++                    site[(l + left * p, r)] = output[p];
++                }
++            }
++        }
++    }
++
++    /// Apply a single-qubit unitary on the top (0) or bottom (1) wire.
++    pub fn apply_one(&mut self, column: usize, bit: usize, gate: &DMatrix<Complex64>) {
++        assert!(bit < 2 && gate.shape() == (2, 2));
++        let local = Matrix4::from_fn(|out, input| {
++            if (out ^ input) & (1 << (1 - bit)) == 0 {
++                gate[((out >> bit) & 1, (input >> bit) & 1)]
++            } else {
++                Complex64::ZERO
++            }
++        });
++        self.apply_local(column, local);
++    }
++
++    /// The gate on a vertical edge uses |top,bottom⟩ order.
++    pub fn apply_rung(&mut self, column: usize, gate: &DMatrix<Complex64>) {
++        assert_eq!(gate.shape(), (4, 4));
++        let gate_index = |physical| ((physical & 1) << 1) | (physical >> 1);
++        self.apply_local(
++            column,
++            Matrix4::from_fn(|out, input| gate[(gate_index(out), gate_index(input))]),
++        );
++    }
++
++    /// Apply the horizontal two-qubit gate in |left wire,right wire⟩ order.
++    pub fn apply_leg(
++        &mut self,
++        column: usize,
++        bit: usize,
++        gate: &DMatrix<Complex64>,
++    ) -> Result<(), &'static str> {
++        assert!(column + 1 < self.sites.len() && bit < 2 && gate.shape() == (4, 4));
++        self.move_center(self.center.clamp(column, column + 1));
++        let left = self.sites[column].nrows() / PHYSICAL;
++        let right = self.sites[column + 1].ncols();
++        let mut pair = &self.sites[column] * right_unfold(&self.sites[column + 1]);
++        let gate = Matrix4::from_fn(|i, j| gate[(i, j)]);
++        // Fix both spectator bits and the two virtual indices; the four
++        // remaining entries span precisely the physical gate's input space.
++        for spectator_left in 0..2 {
++            for spectator_right in 0..2 {
++                let physical = |k: usize| {
++                    let a = (spectator_left << (1 - bit)) | ((k >> 1) << bit);
++                    let b = (spectator_right << (1 - bit)) | ((k & 1) << bit);
++                    (a, b)
++                };
++                for r in 0..right {
++                    for l in 0..left {
++                        let index = |k| {
++                            let (a, b) = physical(k);
++                            (l + left * a, b + PHYSICAL * r)
++                        };
++                        let input = Vector4::from_fn(|k, _| pair[index(k)]);
++                        let output = gate * input;
++                        for k in 0..4 {
++                            pair[index(k)] = output[k];
++                        }
++                    }
++                }
++            }
++        }
++
++        let dim = pair.nrows().max(pair.ncols());
++        let (q, mut r, permutation) = pair.col_piv_qr().unpack();
++        // Column pivoting puts independent directions first. Drop trailing rows
++        // only when their combined norm is at the scale of roundoff.
++        let cutoff = dim as f64 * f64::EPSILON * r.norm();
++        let mut discarded = 0.0;
++        let mut rank = r.nrows();
++        while rank > 0 {
++            let residual = discarded + r.row(rank - 1).norm_squared();
++            if residual > cutoff * cutoff {
++                break;
++            }
++            discarded = residual;
++            rank -= 1;
++        }
++        if rank == 0 {
++            return Err("two-site state has zero numerical rank");
++        }
++        let mut center = if rank > self.bond_cap {
++            let (basis, projected, lost) = truncate_schmidt(r.rows_mut(0, rank), self.bond_cap)?;
++            self.sites[column] = q.columns(0, rank) * basis;
++            discarded += lost;
++            projected
++        } else {
++            self.sites[column] = q.columns(0, rank).into_owned();
++            r.rows(0, rank).into_owned()
++        };
++        self.discarded_weight += discarded;
++        permutation.inv_permute_columns(&mut center);
++        self.sites[column + 1] =
++            center.reshape_generic(Dyn(PHYSICAL * self.sites[column].ncols()), Dyn(right));
++        self.center = column + 1;
++        Ok(())
++    }
++
++    /// Contract the MPS for comparison only. The dense simulator uses
++    /// little-endian wire order, with all top wires followed by all bottom wires.
++    pub fn statevector(&self) -> Vec<Complex64> {
++        let mut contracted = self.sites[0].clone();
++        for site in &self.sites[1..] {
++            let rows = PHYSICAL * contracted.nrows();
++            contracted =
++                (contracted * right_unfold(site)).reshape_generic(Dyn(rows), Dyn(site.ncols()));
++        }
++        let columns = self.sites.len();
++        let mut dense = vec![Complex64::ZERO; contracted.nrows()];
++        for (packed, amplitude) in contracted.iter().enumerate() {
++            let mut wire_index = 0;
++            for col in 0..columns {
++                let physical = packed >> (2 * col);
++                wire_index |= (physical & 1) << col;
++                wire_index |= ((physical >> 1) & 1) << (col + columns);
++            }
++            dense[wire_index] = *amplitude;
++        }
++        dense
++    }
++}
++
++/// Return the leading left Schmidt subspace, its normalized coefficients, and
++/// the squared norm lost when projecting the pre-normalization state.
++fn truncate_schmidt(
++    mut center: DMatrixViewMut<'_, Complex64>,
++    cap: usize,
++) -> Result<(DMatrix<Complex64>, DMatrix<Complex64>, f64), &'static str> {
++    let basis = schmidt_basis(center.as_view(), cap)?;
++    let mut projected = basis.ad_mul(&center);
++    // Reuse the QR buffer for the actual residual. Subtracting two total
++    // weights would lose precision for a nearly exact cap.
++    center.gemm(-Complex64::ONE, &basis, &projected, Complex64::ONE);
++    let discarded = center.norm_squared();
++    let norm = projected.norm();
++    if !norm.is_finite() || norm == 0.0 {
++        return Err("Schmidt projection has invalid norm");
++    }
++    projected.unscale_mut(norm);
++    Ok((basis, projected, discarded))
++}
++
++fn schmidt_basis(
++    center: DMatrixView<'_, Complex64>,
++    cap: usize,
++) -> Result<DMatrix<Complex64>, &'static str> {
++    let rank = center.nrows();
++    // Accumulate only the lower triangle of R R† which the eigensolver reads.
++    let mut gram = DMatrix::zeros(rank, rank);
++    for column in center.column_iter() {
++        gram.hegerc(Complex64::ONE, &column, &column, Complex64::ONE);
++    }
++    let eig = SymmetricEigen::try_new(gram, f64::EPSILON, 200 * rank)
++        .ok_or("Schmidt Gram eigensolver did not converge")?;
++    let mut order: Vec<_> = (0..rank).collect();
++    order.sort_unstable_by(|&a, &b| eig.eigenvalues[b].total_cmp(&eig.eigenvalues[a]));
++    // Squaring singular values can hide the separation between small modes.
++    // Use the smaller Gram problem only when the retained subspace is well resolved.
++    let gap = eig.eigenvalues[order[cap - 1]] - eig.eigenvalues[order[cap]];
++    if gap > f64::EPSILON.sqrt() * eig.eigenvalues[order[0]] {
++        return Ok(DMatrix::from_fn(rank, cap, |i, j| {
++            eig.eigenvectors[(i, order[j])]
++        }));
++    }
++    drop(eig);
++    augmented_schmidt_basis(center, cap)
++}
++
++fn augmented_schmidt_basis(
++    center: DMatrixView<'_, Complex64>,
++    cap: usize,
++) -> Result<DMatrix<Complex64>, &'static str> {
++    let rank = center.nrows();
++    // A thin QR of the adjoint drops the right isometry. For the remaining
++    // square factor B, [0 B†; B 0] has eigenvalues ±σ. Its positive eigenvectors'
++    // top halves span the left Schmidt directions, including for complex states.
++    let adjoint = center.adjoint();
++    let factor = if adjoint.nrows() > rank {
++        adjoint.qr().unpack_r()
++    } else {
++        adjoint
++    };
++    let mut hermitian = DMatrix::zeros(2 * rank, 2 * rank);
++    // SymmetricEigen uses only the lower triangle of a Hermitian input.
++    hermitian
++        .view_mut((rank, 0), (rank, rank))
++        .copy_from(&factor);
++    drop(factor);
++    let eig = SymmetricEigen::try_new(hermitian, f64::EPSILON, 200 * rank)
++        .ok_or("Schmidt eigensolver did not converge")?;
++    let mut order: Vec<_> = (0..2 * rank).collect();
++    order.sort_unstable_by(|&a, &b| eig.eigenvalues[b].total_cmp(&eig.eigenvalues[a]));
++    let leading = DMatrix::from_fn(rank, cap, |i, j| eig.eigenvectors[(i, order[j])]);
++    Ok(leading.qr().q())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn cnot() -> DMatrix<Complex64> {
++        let mut gate = DMatrix::identity(4, 4);
++        gate.swap_rows(2, 3);
++        gate
++    }
++
++    // Prepare (3|0> + 4i|1>)/5 so both the phase and the magnitudes are observable.
++    fn prepare_control(state: &mut ColumnMps) {
++        let a = Complex64::new(0.6, 0.0);
++        let b = Complex64::new(0.0, 0.8);
++        state.apply_one(0, 0, &DMatrix::from_row_slice(2, 2, &[a, b, b, a]));
++    }
++
++    fn assert_control_branches(state: &ColumnMps, excited: usize) {
++        for (basis, amplitude) in state.statevector().into_iter().enumerate() {
++            let expected = match basis {
++                0 => Complex64::new(0.6, 0.0),
++                i if i == excited => Complex64::new(0.0, 0.8),
++                _ => Complex64::ZERO,
++            };
++            assert!(
++                (amplitude - expected).norm() < 1e-12,
++                "basis {basis}: {amplitude}"
++            );
++        }
++    }
++
++    #[test]
++    fn undoing_entanglement_recovers_rank_storage_and_relative_phase() {
++        let mut state = ColumnMps::new(2);
++        let initial_bytes = state.state_bytes();
++        prepare_control(&mut state);
++        let gate = cnot();
++        state.apply_leg(0, 0, &gate).unwrap();
++        assert_eq!(state.bonds(), [2]);
++        assert_control_branches(&state, 0b0011);
++
++        state.apply_leg(0, 0, &gate).unwrap();
++        assert_eq!(state.bonds(), [1]);
++        assert_eq!(state.state_bytes(), initial_bytes);
++        assert_control_branches(&state, 0b0001);
++    }
++
++    #[test]
++    fn rung_and_leg_controls_follow_row_major_wire_order() {
++        let mut state = ColumnMps::new(4);
++        prepare_control(&mut state);
++        let gate = cnot();
++        state.apply_rung(0, &gate); // q0 -> q4, within one column
++        assert_eq!(state.bonds(), [1, 1, 1]);
++        state.apply_leg(0, 1, &gate).unwrap(); // q4 -> q5
++        assert_control_branches(&state, 0b0011_0001);
++
++        state.apply_leg(1, 1, &gate).unwrap(); // q5 -> q6
++        assert_control_branches(&state, 0b0111_0001);
++        state.apply_leg(2, 1, &gate).unwrap(); // q6 -> q7
++        assert_control_branches(&state, 0b1111_0001);
++        state.apply_leg(0, 0, &gate).unwrap(); // q0 -> q1, across the first cut again
++        assert_eq!(state.bonds(), [2, 2, 2]);
++        assert_control_branches(&state, 0b1111_0011);
++    }
++
++    // Entangle both rows across one bond, rotating the right bottom Schmidt
++    // vectors to |+> and |->. The four Schmidt weights are the products of
++    // (0.6², 0.8²) and (0.96², 0.28²).
++    fn prepare_four_schmidt_modes(state: &mut ColumnMps) {
++        prepare_control(state);
++        state.apply_leg(0, 0, &cnot()).unwrap();
++        let a = Complex64::new(0.96, 0.0);
++        let b = Complex64::new(0.0, 0.28);
++        state.apply_one(0, 1, &DMatrix::from_row_slice(2, 2, &[a, b, b, a]));
++        let s = Complex64::new(std::f64::consts::FRAC_1_SQRT_2, 0.0);
++        let h = DMatrix::from_row_slice(2, 2, &[s, s, s, -s]);
++        let gate = DMatrix::identity(2, 2).kronecker(&h) * cnot();
++        state.apply_leg(0, 1, &gate).unwrap();
++    }
++
++    #[test]
++    fn binding_cap_keeps_the_leading_complex_modes_and_normalizes() {
++        let mut state = ColumnMps::with_bond_cap(2, 2);
++        prepare_four_schmidt_modes(&mut state);
++        assert_eq!(state.bonds(), [2]);
++        assert!((state.discarded_weight_sum() - 0.28_f64.powi(2)).abs() < 1e-12);
++        for (i, amplitude) in state.statevector().into_iter().enumerate() {
++            // The kept bottom state is |0+>, with the original top pair intact.
++            let expected = match i {
++                0 | 8 => Complex64::new(0.6, 0.0),
++                3 | 11 => Complex64::new(0.0, 0.8),
++                _ => Complex64::ZERO,
++            } * std::f64::consts::FRAC_1_SQRT_2;
++            assert!((amplitude - expected).norm() < 1e-12, "basis {i}");
++        }
++    }
++
++    #[test]
++    fn nonbinding_cap_preserves_exact_path_and_roundoff_accounting() {
++        let mut exact = ColumnMps::new(2);
++        let mut capped = ColumnMps::with_bond_cap(2, 4);
++        prepare_four_schmidt_modes(&mut exact);
++        prepare_four_schmidt_modes(&mut capped);
++        assert_eq!(exact.bonds(), [4]);
++        assert_eq!(capped.bonds(), exact.bonds());
++        assert_eq!(capped.statevector(), exact.statevector());
++        assert_eq!(capped.discarded_weight_sum(), exact.discarded_weight_sum());
++    }
++
++    #[test]
++    fn weak_schmidt_modes_remain_resolvable_below_gram_precision() {
++        let fourier = DMatrix::from_fn(4, 4, |i, j| {
++            Complex64::from_polar(0.5, std::f64::consts::FRAC_PI_2 * (i * j) as f64)
++        });
++        // The 1e-10 component must survive a rank-two projection even though
++        // its weight falls below the numerical precision of the density matrix.
++        let mut modes = DMatrix::from_diagonal_element(4, 4, Complex64::ONE);
++        modes[(1, 1)] = Complex64::new(0.0, 1e-10);
++        modes[(2, 2)] = Complex64::new(2e-11, 0.0);
++        modes[(3, 3)] = Complex64::new(0.0, 1e-12);
++        let mut center = &fourier * &modes * &fourier;
++        let (basis, projected, lost) = truncate_schmidt(center.as_view_mut(), 2).unwrap();
++        modes[(2, 2)] = Complex64::ZERO;
++        modes[(3, 3)] = Complex64::ZERO;
++        let ideal = &fourier * modes * &fourier;
++        assert!((basis * projected - ideal).norm() < 1e-14);
++        assert!((lost - 4.01e-22).abs() < 1e-26);
++    }
++}
+diff --git a/crates/quantsim_core/examples/audit_benchmark.rs b/crates/quantsim_core/examples/audit_benchmark.rs
+new file mode 100644
+index 0000000..432744a
+--- /dev/null
++++ b/crates/quantsim_core/examples/audit_benchmark.rs
+@@ -0,0 +1,359 @@
++//! Native publication benchmark. Each measurement or correctness run is a fresh process.
++#[path = "audit_benchmark/heap.rs"]
++mod heap;
++#[path = "audit_benchmark/mps.rs"]
++#[allow(dead_code)]
++mod mps;
++#[path = "audit_benchmark/reference.rs"]
++mod reference;
++#[path = "audit_benchmark/workloads.rs"]
++mod workloads;
++
++use mps::ColumnMps;
++use num_complex::{Complex32, Complex64 as C};
++use num_traits::ToPrimitive;
++use quantsim_core::{
++    circuit::{Circuit, RunOptions},
++    grouped::GroupedState,
++    product_state::ProductState,
++    stabilizer::{StabilizerAmplitudes, StabilizerState},
++    types::{Gate, Operation},
++    BasisIndex,
++};
++use serde_json::{json, Value};
++use std::{error::Error, time::Instant};
++use workloads::Workload;
++
++enum State {
++    Product(ProductState),
++    Tableau(StabilizerState),
++    Grouped(GroupedState),
++    Dense(Vec<Complex32>),
++    Mps(ColumnMps),
++}
++
++fn simulate(
++    workload: &Workload,
++    backend: &str,
++    cap: usize,
++) -> Result<(State, Value), Box<dyn Error>> {
++    let circuit = &workload.circuit;
++    let depth = circuit.steps.len();
++    let n = circuit.num_qubits;
++    let compact_error = |e: quantsim_core::circuit::ValidationError| {
++        format!(
++            "column {} gate {}: {}",
++            e.step + 1,
++            e.op_index + 1,
++            e.message
++        )
++    };
++    let (state, model) = match backend {
++        "product" => (
++            State::Product(circuit.run_product_prefix(depth).map_err(compact_error)?),
++            json!({"estimated_peak_state_bytes":32*n,"largest_dense_subsystem":0}),
++        ),
++        "tableau" => {
++            let state = circuit
++                .run_stabilizer_prefix(depth)
++                .map_err(compact_error)?;
++            let bytes = 2 * n * (2 * 8 * n.div_ceil(64) + 1);
++            (
++                State::Tableau(state),
++                json!({"estimated_peak_state_bytes":bytes,"largest_dense_subsystem":0}),
++            )
++        }
++        "grouped" => {
++            let state = circuit.run_grouped_prefix(depth).map_err(compact_error)?;
++            let model = json!({
++                "estimated_peak_state_bytes":16*workload.estimated_group_entries,
++                "largest_dense_subsystem":if workload.estimated_group_width == 1 {0} else {workload.estimated_group_width},
++                "final_largest_factor":state.largest_group_size(),
++            });
++            (State::Grouped(state), model)
++        }
++        "dense" => {
++            let result = circuit.run(&RunOptions::default());
++            if !result.diagnostics.is_empty() {
++                return Err(format!("{:?}", result.diagnostics).into());
++            }
++            // Returning the probability vector is within the measured API
++            // call. Its ownership can be dropped before correctness work.
++            (
++                State::Dense(result.final_state_vector.ok_or("missing state")?),
++                json!({"estimated_peak_state_bytes":12*(1usize<<n),"largest_dense_subsystem":n,"final_largest_factor":n}),
++            )
++        }
++        "mps" => {
++            let cols = n / 2;
++            let mut state = ColumnMps::with_bond_cap(cols, cap);
++            let mut bytes = state.state_bytes();
++            let mut bond = 1;
++            for (i, column) in circuit.steps.iter().enumerate() {
++                for op in column {
++                    let mut matrix = reference::matrix(op);
++                    if i >= workload.forward_depth {
++                        matrix = matrix.adjoint();
++                    }
++                    match *op.qubits.as_slice() {
++                        [q] => {
++                            let q = q as usize;
++                            state.apply_one(q % cols, q / cols, &matrix);
++                        }
++                        [a, b] if a as usize % cols == b as usize % cols => {
++                            state.apply_rung(a as usize % cols, &matrix)
++                        }
++                        [a, b] if b == a + 1 && a as usize / cols == b as usize / cols => {
++                            state.apply_leg(a as usize % cols, a as usize / cols, &matrix)?;
++                        }
++                        _ => return Err("invalid ladder gate".into()),
++                    }
++                    bytes = bytes.max(state.state_bytes());
++                    bond = bond.max(state.max_bond());
++                }
++            }
++            let model = json!({
++                "estimated_peak_state_bytes":bytes,"largest_dense_subsystem":0,
++                "peak_bond":bond, "discarded_weight_sum":state.discarded_weight_sum(),
++            });
++            (State::Mps(state), model)
++        }
++        _ => return Err(format!("unknown backend {backend}").into()),
++    };
++    Ok((state, model))
++}
++
++fn verify(workload: &Workload, state: &State, name: &str, backend: &str, cap: usize) -> Value {
++    let n = workload.circuit.num_qubits;
++    let tableau: Option<StabilizerAmplitudes> = match state {
++        State::Tableau(state) => Some(state.amplitude_view()),
++        _ => None,
++    };
++    let mps_vector = match state {
++        State::Mps(state) if n <= 16 => Some(state.statevector()),
++        _ => None,
++    };
++    let amplitude = |index: &BasisIndex| -> C {
++        match state {
++            State::Product(s) => s.amplitude_wide(index).unwrap(),
++            State::Tableau(_) => tableau.as_ref().unwrap().amplitude_wide(index).unwrap(),
++            State::Grouped(s) => s.amplitude_wide(index).unwrap(),
++            State::Dense(s) => {
++                let a = s[index.to_usize().unwrap()];
++                C::new(f64::from(a.re), f64::from(a.im))
++            }
++            State::Mps(s) => match &mps_vector {
++                Some(v) => v[index.to_usize().unwrap()],
++                None => {
++                    assert_eq!(index.bits(), 0);
++                    s.zero_amplitude()
++                }
++            },
++        }
++    };
++    let mut out = json!({"validation_status":"pass"});
++    let mut pass = true;
++    let tolerance = match backend {
++        "dense" => 3e-5,
++        "grouped" => 2e-7,
++        _ => 2e-10,
++    };
++    if n <= 16 {
++        let expected = reference::dense(workload, name);
++        let actual: Vec<_> = (0..expected.len())
++            .map(|i| amplitude(&BasisIndex::from(i)))
++            .collect();
++        let reference_norm = expected.iter().map(C::norm_sqr).sum::<f64>();
++        let norm = actual.iter().map(C::norm_sqr).sum::<f64>();
++        let inner: C = expected
++            .iter()
++            .zip(&actual)
++            .map(|(e, a)| e.conj() * a)
++            .sum();
++        let phase = if inner.norm() > 0.0 {
++            inner / inner.norm()
++        } else {
++            C::ONE
++        };
++        let errors = expected
++            .iter()
++            .zip(&actual)
++            .map(|(e, a)| (a - e * phase).norm());
++        let max = errors.clone().fold(0.0, f64::max);
++        let l2 = errors.map(|e| e * e).sum::<f64>().sqrt();
++        out["dense_reference"] = json!("independent_f64");
++        let projection = inner / reference_norm;
++        let orthogonal_weight = expected
++            .iter()
++            .zip(&actual)
++            .map(|(e, a)| (a - e * projection).norm_sqr())
++            .sum::<f64>();
++        out["fidelity"] = json!(1.0 - orthogonal_weight / norm);
++        out["norm_error"] = json!((norm - 1.0).abs());
++        out["max_abs_amplitude_error"] = json!(max);
++        out["l2_amplitude_error"] = json!(l2);
++        pass &=
++            (backend == "mps" && cap != 0 || l2 <= tolerance) && (norm - 1.0).abs() <= tolerance;
++    }
++    if name != "mps_ladder" {
++        let probes = reference::probes(n, &workload.target);
++        let scale = if workload.inverse {
++            1.0
++        } else {
++            reference::analytical(name, workload, &BasisIndex::default()).norm()
++        };
++        let mut max: f64 = 0.0;
++        // A tableau fixes a global phase convention. For basis-state
++        // returns, the target probability is invariant under global phase.
++        for i in &probes {
++            let a = amplitude(i);
++            let e = reference::analytical(name, workload, i);
++            let error = if workload.inverse {
++                (a.norm() - e.norm()).abs()
++            } else {
++                (a - e).norm()
++            };
++            pass &= error.is_finite();
++            max = max.max(error / scale);
++        }
++        out["analytical_probe_count"] = json!(probes.len());
++        out["max_scaled_analytical_error"] = json!(max);
++        pass &= max <= tolerance;
++        if let State::Grouped(grouped) = state {
++            let observed_peak = if workload.inverse {
++                workload
++                    .circuit
++                    .run_grouped_prefix(workload.forward_depth)
++                    .unwrap()
++                    .largest_group_size()
++            } else {
++                grouped.largest_group_size()
++            };
++            out["validated_peak_factor_width"] = json!(observed_peak);
++            pass &= observed_peak == workload.estimated_group_width;
++        }
++    } else if n > 16 && !workload.inverse {
++        out["validation_status"] = json!("norm_only");
++    }
++    if let State::Mps(s) = state {
++        let norm = s.norm_squared_at_center();
++        out["norm_error"] = json!((norm - 1.0).abs());
++        pass &= (norm - 1.0).abs() <= tolerance;
++    }
++
++    if workload.inverse {
++        let p = amplitude(&workload.target).norm_sqr();
++        out["return_probability"] = json!(p);
++        if cap == 0 {
++            pass &= (1.0 - p).abs() <= tolerance;
++        }
++    }
++    if !pass {
++        out["validation_status"] = json!("failed");
++    } else if backend == "mps" && cap != 0 && out["validation_status"] == "pass" {
++        out["validation_status"] = json!("approximation_measured");
++    }
++    out
++}
++
++fn issues() {
++    let mut circuit = Circuit::new(2);
++    circuit.initial_state = Some(vec![
++        Complex32::ONE,
++        Complex32::new(5e-7, 0.0),
++        Complex32::ZERO,
++        Complex32::ZERO,
++    ]);
++    circuit.steps = vec![vec![Operation::new(Gate::Z, vec![0], vec![])]];
++    let state = circuit
++        .run(&RunOptions::default())
++        .final_state_vector
++        .unwrap();
++    let wide = workloads::build("qft", 32, "reverse");
++    let product_error = wide
++        .circuit
++        .run_product_prefix(wide.circuit.steps.len())
++        .err();
++    let mut blocks = Circuit::new(4);
++    blocks.steps = vec![
++        vec![
++            Operation::new(Gate::H, vec![0], vec![]),
++            Operation::new(Gate::H, vec![2], vec![]),
++        ],
++        vec![
++            Operation::new(Gate::CX, vec![0, 1], vec![]),
++            Operation::new(Gate::CX, vec![2, 3], vec![]),
++        ],
++        vec![Operation::new(Gate::CZ, vec![1, 2], vec![])],
++        vec![Operation::new(Gate::CZ, vec![1, 2], vec![])],
++    ];
++    let block_before = blocks.run_grouped_prefix(2).unwrap();
++    let block_after = blocks.run_grouped_prefix(4).unwrap();
++    let block_diff = (0..16)
++        .map(|i| (block_after.amplitude(i).unwrap() - block_before.amplitude(i).unwrap()).norm())
++        .fold(0.0_f64, f64::max);
++    println!(
++        "{}",
++        json!({
++            "two_bell_factors_before_bridge":block_before.largest_group_size(),
++            "two_bell_factors_after_bridge_and_inverse":block_after.largest_group_size(),
++            "two_bell_factors_max_amplitude_difference":block_diff,
++            "dense_input_tiny_amplitude":5e-7,"dense_expected_tiny_amplitude_after_z":-5e-7,
++            "dense_observed_tiny_amplitude_after_z":state[1].re,
++            "qft32_product_inverse_error":product_error.as_ref().map(|e| &e.message),
++            "qft32_product_inverse_first_rejected_column":product_error.as_ref().map(|e| e.step+1),
++        })
++    );
++}
++
++fn main() -> Result<(), Box<dyn Error>> {
++    let args: Vec<_> = std::env::args().skip(1).collect();
++    if args.as_slice() == ["issues"] {
++        issues();
++        return Ok(());
++    }
++    let [mode, name, width, backend, variant, cap] = args.as_slice() else {
++        return Err(
++            "usage: audit_benchmark <measure|verify> FAMILY QUBITS BACKEND VARIANT BOND_CAP".into(),
++        );
++    };
++    let n = width.parse::<usize>()?;
++    let cap = cap.parse::<usize>()?;
++    let workload = workloads::build(name, n, variant);
++    let steps = &workload.circuit.steps;
++    let prep_gates = usize::from(name == "qft") * 2;
++    let setup_peak = heap::peak();
++    let baseline = heap::start();
++    let start = Instant::now();
++    let result = simulate(&workload, backend, if cap == 0 { usize::MAX } else { cap });
++    let elapsed = start.elapsed();
++    let peak = heap::peak();
++    let (state, mut output) = match result {
++        Ok(result) => result,
++        Err(err) => {
++            println!(
++                "{}",
++                json!({"status":"backend_error","detail":err.to_string()})
++            );
++            return Ok(());
++        }
++    };
++    if mode == "verify" {
++        println!("{}", verify(&workload, &state, name, backend, cap));
++    } else if mode == "measure" {
++        output["status"] = json!("ok");
++        output["gates"] = json!(steps.iter().map(Vec::len).sum::<usize>());
++        output["depth"] = json!(steps.iter().filter(|c| !c.is_empty()).count());
++        output["authored_columns"] = json!(steps.len());
++        output["input_prep_gates"] = json!(prep_gates);
++        output["elapsed_ns"] = json!(elapsed.as_nanos() as u64);
++        output["peak_live_heap_bytes"] = json!(peak);
++        output["process_peak_live_heap_bytes"] = json!(peak.max(setup_peak));
++        output["pre_run_live_heap_bytes"] = json!(baseline);
++        output["peak_live_heap_above_baseline_bytes"] = json!(peak - baseline);
++        println!("{output}");
++    } else {
++        return Err("expected measure or verify".into());
++    }
++    Ok(())
++}
+diff --git a/docs/benchmarks/run.py b/docs/benchmarks/run.py
+new file mode 100644
+index 0000000..47cdd9a
+--- /dev/null
++++ b/docs/benchmarks/run.py
+@@ -0,0 +1,223 @@
++#!/usr/bin/env python3
++"""Build and run the native audit, writing raw repetitions and provenance."""
++import argparse
++import csv
++import datetime as dt
++import hashlib
++import json
++import os
++from pathlib import Path
++import platform
++import signal
++import subprocess as sp
++import sys
++import tempfile
++import time
++
++HERE = Path(__file__).resolve().parent
++ROOT = HERE.parents[1]
++CORE = Path("crates/quantsim_core")
++ENGINE = CORE / "src/core/engine.rs"
++CHAIN = CORE / "examples/sycamore_mps/chain.rs"
++WIDTHS = (8, 16, 24, 32, 50, 64, 128, 256)
++STRUCTURED = (*WIDTHS, 512, 1024)
++CAPS = (2, 4, 8, 16, 32)
++COLUMNS = (
++    "workload variant qubits backend stage repetition bond_cap status detail "
++    "gates depth authored_columns input_prep_gates elapsed_ns peak_live_heap_bytes "
++    "pre_run_live_heap_bytes peak_live_heap_above_baseline_bytes process_peak_live_heap_bytes peak_rss_bytes "
++    "estimated_peak_state_bytes theoretical_dense_f32_bytes theoretical_dense_f64_bytes "
++    "largest_dense_subsystem final_largest_factor peak_bond discarded_weight_sum "
++    "validation_status dense_reference fidelity return_probability norm_error "
++    "max_abs_amplitude_error l2_amplitude_error analytical_probe_count "
++    "max_scaled_analytical_error validated_peak_factor_width"
++).split()
++
++
++def cases():
++    for n in STRUCTURED:
++        for family, backend, inverse in (
++            ("product", "product", "reverse"),
++            ("ghz", "tableau", "reverse"),
++            ("groups", "grouped", "reverse"),
++            ("qft", "product", "decode"),
++        ):
++            for variant in ("forward", inverse):
++                yield family, n, backend, variant, 0, ""
++        if n <= 16:
++            for family in ("product", "ghz", "groups", "qft"):
++                for variant in ("forward", "reverse"):
++                    yield family, n, "dense", variant, 0, ""
++            for variant in ("forward", "reverse"):
++                yield "ghz", n, "grouped", variant, 0, ""
++        if n in WIDTHS:
++            limit = "" if n <= 24 else "dense-memory/runtime budget"
++            for variant in ("forward", "reverse"):
++                yield "non_clifford", n, "grouped", variant, 0, limit
++                yield "non_clifford", n, "dense", variant, 0, limit
++    for n in (*WIDTHS[:5], 53, *WIDTHS[5:]):
++        for variant in ("phase_flip", "no_flip"):
++            skip = "" if n <= 53 else "fixed 53-site template has no wider instance"
++            yield "sycamore_echo", n, "tableau", variant, 0, skip
++            if n <= 16:
++                yield "sycamore_echo", n, "dense", variant, 0, ""
++    for n in WIDTHS:
++        if n <= 16:
++            yield "mps_ladder", n, "dense", "forward", 0, ""
++        extra_caps = (0, 64, 128) if n == 16 else (0,) if n == 8 else ()
++        for cap in (*CAPS, *extra_caps):
++            for variant in ("forward", "reverse"):
++                yield "mps_ladder", n, "mps", variant, cap, ""
++
++
++def command(*args):
++    return sp.check_output(args, cwd=ROOT, text=True).strip()
++
++
++def snapshot(out):
++    files = [
++        *sorted((ROOT / CORE / "src").rglob("*.rs")),
++        ROOT / CORE / "circuits/sycamore_echo_53.json",
++        ROOT / CORE / "build.rs",
++        ROOT / CORE / "Cargo.lock",
++        ROOT / CORE / "Cargo.toml",
++        ROOT / CORE / "examples/audit_benchmark.rs",
++        *sorted((ROOT / CORE / "examples/audit_benchmark").glob("*.rs")),
++        ROOT / CHAIN,
++        Path(__file__).resolve(),
++    ]
++    diff = sp.check_output(["git", "diff", "--binary", "HEAD", "--", str(ENGINE)], cwd=ROOT)
++    if sp.run(["git", "ls-files", "--error-unmatch", str(CHAIN)], cwd=ROOT,
++              stdout=sp.DEVNULL, stderr=sp.DEVNULL).returncode:
++        patch = sp.run(["git", "diff", "--no-index", "--binary", "--", "/dev/null", str(CHAIN)],
++                       cwd=ROOT, capture_output=True)
++        if patch.returncode != 1:
++            raise RuntimeError(patch.stderr.decode())
++        diff += patch.stdout
++    else:
++        diff += sp.check_output(["git", "diff", "--binary", "HEAD", "--", str(CHAIN)], cwd=ROOT)
++    (out / "audited-source.patch").write_bytes(diff)
++    return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
++
++
++def hardware():
++    data = {"machine": platform.machine(), "system": platform.system(), "kernel": platform.release()}
++    if sys.platform == "darwin":
++        # Capture only relevant hardware fields.
++        source = command("system_profiler", "SPHardwareDataType").splitlines()
++        keys = {"Model Name", "Model Identifier", "Chip", "Total Number of Cores", "Memory"}
++        data.update(dict(line.strip().split(": ", 1) for line in source
++                         if line.strip().split(": ", 1)[0] in keys))
++        data["os_version"] = command("sw_vers", "-productVersion")
++        data["os_build"] = command("sw_vers", "-buildVersion")
++    elif sys.platform == "linux":
++        data["cpu"] = next((line.split(":", 1)[1].strip() for line in
++                            Path("/proc/cpuinfo").read_text().splitlines()
++                            if line.startswith("model name")), platform.processor())
++        data["memory"] = Path("/proc/meminfo").read_text().splitlines()[0]
++        data["logical_cpus"] = os.cpu_count()
++    return data
++
++
++def child(args, timeout, measure, env):
++    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
++        with sp.Popen(args, cwd=ROOT, env=env, stdout=stdout, stderr=stderr,
++                      start_new_session=True) as process:
++            deadline = time.monotonic() + timeout
++            while True:
++                pid, status, usage = os.wait4(process.pid, os.WNOHANG)
++                if pid:
++                    process.returncode = os.waitstatus_to_exitcode(status)
++                    break
++                if time.monotonic() >= deadline:
++                    os.killpg(process.pid, signal.SIGKILL)
++                    process.wait()
++                    return {"status": "timeout", "detail": f"child exceeded {timeout} seconds"}
++                time.sleep(0.002)
++            if process.returncode:
++                stderr.seek(0)
++                return {"status": "process_error", "detail": stderr.read().decode().strip()}
++            stdout.seek(0)
++            data = json.load(stdout)
++    if measure and data["status"] == "ok":
++        # Darwin reports bytes, Linux reports KiB.
++        data["peak_rss_bytes"] = usage.ru_maxrss * (1 if sys.platform == "darwin" else 1024)
++    return data
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--out", type=Path, default=HERE)
++    parser.add_argument("--repetitions", type=int, default=3)
++    parser.add_argument("--timeout", type=int, default=120)
++    parser.add_argument("--workload", action="append", help="restrict to these families")
++    parser.add_argument("--offline", action="store_true")
++    args = parser.parse_args()
++    if args.repetitions < 1 or args.timeout < 1:
++        parser.error("repetitions and timeout must be positive")
++    if sys.platform not in {"linux", "darwin"}:
++        parser.error("peak RSS collection supports macOS and Linux")
++    out = args.out.resolve()
++    out.mkdir(parents=True, exist_ok=True)
++    env = {**os.environ, "RAYON_NUM_THREADS": "1", "CARGO_TARGET_DIR": str(ROOT / "target/audit")}
++    build = ["cargo", "build", "--locked", "--release", "--manifest-path",
++             str(CORE / "Cargo.toml"), "--example", "audit_benchmark"]
++    if args.offline:
++        build.insert(2, "--offline")
++    sp.run(build, cwd=ROOT, env=env, check=True)
++    binary = str(Path(env["CARGO_TARGET_DIR"]) / "release/examples/audit_benchmark")
++    metadata = {
++        "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
++        "git_commit": command("git", "rev-parse", "HEAD"),
++        "hardware": hardware(),
++        "rustc": command("rustc", "-vV"),
++        "cargo": command("cargo", "-V"),
++        "cargo_build": build,
++        "environment": {k: env.get(k) for k in ("RAYON_NUM_THREADS", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTUP_TOOLCHAIN")},
++        "repetitions": args.repetitions,
++        "timeout_seconds_per_child": args.timeout,
++        "workload_filter": args.workload,
++        "ladder_seed": 53,
++        "ladder_rounds": 8,
++        "validation_l2_and_norm_tolerances": {"dense": 3e-5, "grouped": 2e-7, "compact_other_and_mps": 2e-10},
++        "sha256": snapshot(out),
++    }
++    (out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
++    issues = child([binary, "issues"], args.timeout, False, env)
++    (out / "correctness-probes.json").write_text(json.dumps(issues, indent=2) + "\n")
++    if issues.get("status"):
++        raise RuntimeError(issues)
++    with (out / "benchmark.csv").open("w", newline="") as file:
++        writer = csv.DictWriter(file, COLUMNS)
++        writer.writeheader()
++        for family, n, backend, variant, cap, skip in cases():
++            if args.workload and family not in args.workload:
++                continue
++            label = f"{family} {n} {backend} {variant} cap={cap}"
++            print(label, file=sys.stderr, flush=True)
++            row = dict(workload=family, qubits=n, backend=backend, variant=variant,
++                       bond_cap=cap if backend == "mps" else "",
++                       theoretical_dense_f32_bytes=8 << n, theoretical_dense_f64_bytes=16 << n)
++            if skip:
++                writer.writerow({**row, "stage": "measure", "status": "skipped", "detail": skip})
++                continue
++            flags = [family, str(n), backend, variant, str(cap)]
++            success = True
++            for rep in range(1, args.repetitions + 1):
++                measurement = child([binary, "measure", *flags], args.timeout, True, env)
++                writer.writerow({**row, "stage": "measure", "repetition": rep, **measurement})
++                file.flush()
++                if measurement["status"] != "ok":
++                    success = False
++                    print(measurement, file=sys.stderr)
++                    break
++            if success:
++                result = child([binary, "verify", *flags], args.timeout, False, env)
++                writer.writerow({**row, "stage": "verify", "status": "ok", **result})
++                file.flush()
++                if result.get("validation_status") in {None, "failed"}:
++                    print(result, file=sys.stderr)
++
++
++if __name__ == "__main__":
++    main()

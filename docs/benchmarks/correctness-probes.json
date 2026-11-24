@@ -1,0 +1,10 @@
+{
+  "dense_expected_tiny_amplitude_after_z": -5e-07,
+  "dense_input_tiny_amplitude": 5e-07,
+  "dense_observed_tiny_amplitude_after_z": 0.0,
+  "qft32_product_inverse_error": "Gate CZPow on [2, 3] can create entanglement between these wires.",
+  "qft32_product_inverse_first_rejected_column": 71,
+  "two_bell_factors_after_bridge_and_inverse": 4,
+  "two_bell_factors_before_bridge": 2,
+  "two_bell_factors_max_amplitude_difference": 0.0
+}

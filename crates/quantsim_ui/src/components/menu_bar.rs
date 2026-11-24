@@ -37,6 +37,10 @@ pub fn menu_bar(state: &mut AppState, ui: &mut egui::Ui) -> Vec<Message> {
         if ui.button("Set Initial State...").clicked() {
             messages.push(Message::ToggleInitialStateEditor);
         }
+        if ui.button("MPS ladder experiment").clicked() {
+            state.ui_state.mps_ladder.open = true;
+            ui.close();
+        }
     });
     if ui.button("New Circuit").clicked() {
         messages.push(Message::NewCircuit);
