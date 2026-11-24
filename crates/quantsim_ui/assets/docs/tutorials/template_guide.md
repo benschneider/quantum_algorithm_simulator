@@ -1,6 +1,12 @@
 # Explore the circuit templates
 
-Open **File > Load Template**. Click a numbered column to read all wires after that step, or click a section heading to read its last step. Hover over a gate to see what it does in the example. In **Results**, q0 is the rightmost bit of each joint state. The probability beside a wire describes that wire alone.
+Open **File > Load Template** and expand a category. In the circuit grid, click a numbered column to read all wires after that step, or click a section heading to read its last step. Hover over a gate to see what it does in the example. In **Results**, q0 is the rightmost bit of each joint state. The probability beside a wire describes that wire alone.
+
+## Follow a ring or a tree
+
+Under **Qubit layouts**, open **Ring interferometer (8 qubits)** and step through the 2D map. At step 4 the excitation is equally likely to be at q0 or q1. Three pairs of SWAPs carry those amplitudes around opposite sides of the ring. At step 11 they recombine and q4 reads 1 with certainty. To send the excitation to q5 instead, open **Circuit**, right-click the Z on q4 in step 8 to remove it, and press **Run**.
+
+Open **Binary tree GHZ (7 qubits)** in the same category. Step through the CNOTs and watch each newly reached qubit turn the same color as the root. At the final step every qubit reads 1 half the time. In **Results**, the only joint outcomes are seven zeros and seven ones.
 
 ## Find a correlation
 
@@ -41,7 +47,7 @@ Click step 6. The receiver q2 still reads 1 half the time. The X correction at s
 
 Open **sycamore echo 53** and press **Play** to watch seven layers of CNOTs reach every site from q23. At step 8 the only joint outcomes are all zeros and all ones. At step 9 a Z gate on q33 changes their relative phase while the colors stay at 50%. The circuit then reverses the CNOT layers. The final Hadamard makes q23 read 1 every time. To compare, right-click the Z in step 9 of the circuit grid to remove it, then run again. Now q23 reads 0 every time. [Watch the 29-second demo](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
 
-Open **File**, choose **Load Template**, and select **sycamore 53**. The five-step circuit uses a 2×4 patch on the 53-site chip. [Watch the 3D walkthrough](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4)
+Open **File > Load Template > Qubit layouts > sycamore 53**. The five-step circuit uses a 2×4 patch on the 53-site chip. [Watch the 3D walkthrough](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4)
 
 - In the **Layout** tab, drag inside the **3D stack** to orbit the chip. Time runs upward. Gold bonds show which couplers are active on each layer.
 - Choose **Next step** to prepare q21 in 1 and seven neighbors in superposition. Advance twice more. Four outer row couplers light up at step 2, then two middle row couplers at step 3.

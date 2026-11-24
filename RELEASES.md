@@ -1,5 +1,13 @@
 # Quantum Algorithm Simulator releases
 
+## 0.4.1
+
+**File → Load Template** now groups 24 editable circuits into six categories. Under **Qubit layouts**, two new examples open directly in the 2D map. [Open the simulator](https://benschneider.github.io/quantum_algorithm_simulator/)
+
+- **Ring interferometer (8 qubits).** At step 7, q4 and q5 each have a 50% chance of carrying the excitation. The Z gate at step 8 changes one path’s phase. When the paths recombine at step 11, q4 reads 1 every time. In **Circuit**, right-click that Z to remove it and press **Run**. The excitation now exits at q5. [Ring and tree walkthrough](crates/quantsim_ui/assets/docs/tutorials/template_guide.md#follow-a-ring-or-a-tree)
+- **Binary tree GHZ (7 qubits).** Step through the CNOTs to watch the correlation reach each branch. At step 5 the only joint outcomes are seven zeros and seven ones, each with 50% probability.
+- **Circuit scrolling.** The horizontal scrollbar stays visible whenever the timeline extends past the viewport. Click near its right end to reach the final columns of a wide timeline such as **Fourier transforms → qft 50**.
+
 ## 0.4.0
 
 Install the desktop app from the `v0.4.0` Git tag. When this tag was cut, crates.io listed 0.2.2 for all three crates. [Desktop install command](crates/quantsim/README.md#quick-start)

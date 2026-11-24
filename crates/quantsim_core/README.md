@@ -21,7 +21,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quantsim_core = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.0" }
+quantsim_core = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.1" }
 ```
 
 ### Basic Example

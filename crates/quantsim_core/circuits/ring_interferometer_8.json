@@ -1,0 +1,27 @@
+{
+  "num_qubits": 8,
+  "layout": {
+    "positions": [[1, 0], [3, 0], [4, 1], [4, 3], [3, 4], [1, 4], [0, 3], [0, 1]],
+    "links": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 0]]
+  },
+  "sections": [
+    {"start": 1, "end": 1, "label": "Prepare q0", "description": "Start with one excitation at the top of the ring."},
+    {"start": 2, "end": 4, "label": "Split the paths", "description": "The two CNOTs and the Hadamard split the excitation between q0 and q1. Each now has a 50% chance of reading 1."},
+    {"start": 5, "end": 7, "label": "Follow both arms", "description": "Each pair of SWAPs moves the two amplitudes one site. Follow q0 through q7 to q5 and q1 through q2 to q4."},
+    {"start": 8, "end": 8, "label": "Change one phase", "description": "Z on q4 reverses the sign of that path's amplitude. Both paths still have equal probability."},
+    {"start": 9, "end": 11, "label": "Recombine at q4 and q5", "description": "Interference sends the excitation to q4. Delete the Z in step 8 and run again to send it to q5."}
+  ],
+  "steps": [
+    [{"id": "X", "qubits": [0]}],
+    [{"id": "CX", "qubits": [0, 1]}],
+    [{"id": "H", "qubits": [0]}],
+    [{"id": "CX", "qubits": [0, 1]}],
+    [{"id": "SWAP", "qubits": [0, 7]}, {"id": "SWAP", "qubits": [1, 2]}],
+    [{"id": "SWAP", "qubits": [7, 6]}, {"id": "SWAP", "qubits": [2, 3]}],
+    [{"id": "SWAP", "qubits": [6, 5]}, {"id": "SWAP", "qubits": [3, 4]}],
+    [{"id": "Z", "qubits": [4]}],
+    [{"id": "CX", "qubits": [5, 4]}],
+    [{"id": "H", "qubits": [5]}],
+    [{"id": "CX", "qubits": [5, 4]}]
+  ]
+}

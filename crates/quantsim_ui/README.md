@@ -68,7 +68,7 @@ The application consists of several key panels:
 2. **Build Circuit**: Click on the circuit grid to place gates
 3. **Configure**: Set initial states and circuit parameters
 4. **Simulate**: Click "Run ▶" to execute the simulation
-5. Choose **3D stack** and click a site to select its wire and step in **Results**. Drag to rotate the stack. For a five-wire example, load **File → Load Template → plaquette z check** and compare q4 at steps 4 and 5.
+5. Choose **3D stack** and click a site to select its wire and step in **Results**. Drag to rotate the stack. For a five-wire example, load **File → Load Template → Error correction → plaquette z check** and compare q4 at steps 4 and 5.
 
 ### Key Features
 

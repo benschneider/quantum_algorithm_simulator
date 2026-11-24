@@ -1,0 +1,21 @@
+{
+  "num_qubits": 7,
+  "layout": {
+    "positions": [[3, 0], [1, 1], [5, 1], [0, 2], [2, 2], [4, 2], [6, 2]],
+    "links": [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]]
+  },
+  "sections": [
+    {"start": 1, "end": 1, "label": "Prepare the root", "description": "H on q0 prepares equal amplitudes for 0 and 1. All other nodes start at 0."},
+    {"start": 2, "end": 2, "label": "Entangle the first branch", "description": "The first CNOT creates a Bell pair. q0 and q1 now agree in every joint measurement."},
+    {"start": 3, "end": 3, "label": "Branch in parallel", "description": "q0 reaches the right branch q2 while q1 reaches its first leaf q3. Four nodes now share the same bit."},
+    {"start": 4, "end": 4, "label": "Reach two more leaves", "description": "The branches pass their correlations to q4 and q5. Only q6 still reads 0 with certainty."},
+    {"start": 5, "end": 5, "label": "Complete the tree", "description": "q2 reaches q6. The seven-qubit GHZ state yields all zeros or all ones, each with 50% probability. Delete this last CNOT to leave q6 at 0."}
+  ],
+  "steps": [
+    [{"id": "H", "qubits": [0]}],
+    [{"id": "CX", "qubits": [0, 1]}],
+    [{"id": "CX", "qubits": [0, 2]}, {"id": "CX", "qubits": [1, 3]}],
+    [{"id": "CX", "qubits": [1, 4]}, {"id": "CX", "qubits": [2, 5]}],
+    [{"id": "CX", "qubits": [2, 6]}]
+  ]
+}

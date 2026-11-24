@@ -55,8 +55,10 @@ fn ladder_template_opens_the_benchmark_and_preserves_the_working_circuit() {
     app.handle_message(Message::RunSimulation);
     let editor_json = app.state.ui_state.circuit_json_string.clone();
     let ctx = egui::Context::default();
+    ctx.style_mut(|style| style.animation_time = 0.0);
     click(&mut app, &ctx, "File");
     click(&mut app, &ctx, "Load Template");
+    click(&mut app, &ctx, "Scale experiments");
     click(&mut app, &ctx, "MPS ladder echo 256");
     frame(&mut app, &ctx, Vec::new());
     let output = frame(&mut app, &ctx, Vec::new());

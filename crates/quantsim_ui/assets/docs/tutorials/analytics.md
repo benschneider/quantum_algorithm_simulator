@@ -1,6 +1,6 @@
 # Estimate success from the joint state
 
-Load **File > Load Template > grover algorithm**. For the target `100`, q2 must be 1 **and** q1 and q0 must both be 0. How often would reading all three wires give the right answer?
+Load **File > Load Template > Algorithms > grover algorithm**. For the target `100`, q2 must be 1 **and** q1 and q0 must both be 0. How often would reading all three wires give the right answer?
 
 1. Click **First amplification** (step 7). **Wire readout** gives q2 an 87.50% chance of reading 1.
 2. Find `100` in **Joint state**. Its probability is 25/32, so the search succeeds about 78% of the time. The wire probability also includes `101`, `110` and `111`. Each of those rows has probability 1/32.

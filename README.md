@@ -17,7 +17,7 @@ Build a circuit gate by gate, place its qubits on a 2D map, and follow each wire
 
 - ▶️ **Live demo**: https://benschneider.github.io/quantum_algorithm_simulator/
 - [How many qubits can I simulate, and with what accuracy?](docs/benchmarks/README.md#what-the-qubit-counts-mean)
-- [What’s new in 0.4.0 and earlier release notes](RELEASES.md)
+- [What’s new in 0.4.1 and earlier release notes](RELEASES.md)
 - 📄 **License**: [MIT OR Apache-2.0](COPYRIGHT.md)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
@@ -29,7 +29,7 @@ If Pages is set to publish from **main /docs**, run `./deploy-web.sh` and commit
 
 # Introduction to `quantsim`
 
-Try **File → Load Template → plaquette z check**. Four data qubits surround one ancilla, A0 (wire q4). In **2D layout**, select A0 to highlight its four neighbors. Step 1 flips q3. When will the ancilla first read 1?
+Try **File → Load Template → Error correction → plaquette z check**. Four data qubits surround one ancilla, A0 (wire q4). In **2D layout**, select A0 to highlight its four neighbors. Step 1 flips q3. When will the ancilla first read 1?
 
 Switch to **3D stack** below the grid and follow A0 upward. Select its site on layer 4, then on layer 5. **Results** shows q4’s probability of reading 1 change from 0% to 100% when the last CNOT couples q3 to q4. The dashed links show physical neighbors. The gold marks show which gates ran.
 
@@ -314,7 +314,7 @@ For users familiar with the circuit JSON format, or for loading pre-defined circ
 
 #### Example: Bell State Circuit (from Template)
 
-Open **File → Load Template → bell** for the annotated circuit. This minimal JSON uses the same gates.
+Open **File → Load Template → Entanglement → bell** for the annotated circuit. This minimal JSON uses the same gates.
 
 ```json
 {
@@ -358,7 +358,7 @@ A Chrome check on November 23, 2026 recorded these pre-run estimates for three 3
 | Controlled quarter-phase gates joining 16 wires | ≤3 MiB | Set the warning to 1 MiB and completed all 16 steps with one click |
 | Controlled quarter-phase gates joining all 30 wires | ≤32.1 GiB | Previewed at step 0 only |
 
-To try the wide Bell pair, choose **File → Load Template → bell 256**, then **Run**.
+To try the wide Bell pair, choose **File → Load Template → Scale experiments → bell 256**, then **Run**.
 
 In Chrome, q0 and q255 each read 50%. Of 1,024 shots, 515 were all zeros and 509 had only q0 and q255 set. All 254 intervening wires stayed at zero. For a step-by-step example, the 50-wire QFT template shows the Fourier waveform, and the 53-site Sycamore template lights up the active couplers on its 2×4 patch. That patch's readouts match a dense eight-wire reference at every step.
 
@@ -380,7 +380,7 @@ On the eight-round version of this patch, profiling each cut and giving the midd
 
 For your current circuit, open **Est. peak RAM → Estimate MPS cap**. On a compatible two-row ladder, it reads the gate schedule and reports a sufficient bond cap and a bound on retained tensor storage. Factorization needs additional workspace. The editor’s **Run** button still uses the dense or compact methods described above.
 
-Open **File → Load Template → MPS ladder echo 256** or **Settings → MPS ladder experiment**. **Auto** computes the cap from the built-in 256-qubit forward circuit. **Target return** chooses among measured caps for this seed and depth, and **Manual** lets you try one directly. The desktop **Run echo** button applies the selected cap locally. Use `cargo run --release --locked -p quantsim_ui` for a native release build. The web build offers cap inference and the recorded curve. [Curve, measurements and reproduction](docs/benchmarks/README.md#choosing-a-bond-cap)
+Open **File → Load Template → Scale experiments → MPS ladder echo 256** or **Settings → MPS ladder experiment**. **Auto** computes the cap from the built-in 256-qubit forward circuit. **Target return** chooses among measured caps for this seed and depth, and **Manual** lets you try one directly. The desktop **Run echo** button applies the selected cap locally. Use `cargo run --release --locked -p quantsim_ui` for a native release build. The web build offers cap inference and the recorded curve. [Curve, measurements and reproduction](docs/benchmarks/README.md#choosing-a-bond-cap)
 
 #### Results View
 
@@ -405,28 +405,47 @@ To annotate a circuit, open **Sections** beside the slider, choose **New section
 
 ### Loading and Saving Circuits
 
-Open **File → Load Template** to choose a bundled circuit. To import your own circuit, paste its JSON into the **JSON** tab and select **Apply Changes**. To save an editable copy, open the **JSON** tab, choose **Copy to Clipboard**, and paste the result into a JSON file.
+Open **File → Load Template** and expand a category to choose a bundled circuit. To import your own circuit, paste its JSON into the **JSON** tab and select **Apply Changes**. To save an editable copy, open the **JSON** tab, choose **Copy to Clipboard**, and paste the result into a JSON file.
 
 #### Available Templates
 
 For a step-by-step reading of the examples, open **Help → Tutorial → Template guide**. [Read the template guide](crates/quantsim_ui/assets/docs/tutorials/template_guide.md).
 
+##### Entanglement
+
 *   **Bell** and **GHZ** show how a controlled gate turns one wire's superposition into correlations between two or three data wires.
+*   **Bell test complex** uses two extra wires to select rotations of a Bell pair. Group the final rows by those setting bits to see how often the two data wires agree.
+*   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
+
+##### Algorithms
+
+*   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
+*   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.
+
+##### Fourier transforms
+
+*   **QFT** and **QFT4** apply the forward Fourier transform to `01` and `1011`. The output probabilities are uniform. The complex amplitudes show how the phases advance.
+*   **qft 50** starts with an X gate on q45 to prepare a single input spike. Select **Input** to inspect it, then **Run** to see the Fourier transform. Its imaginary amplitude follows a sine wave with 32 basis indices per period. The template guide shows how to turn an edited phase into a measurable change on q0.
+*   **fourier wave 50** builds one Fourier mode in ten labeled steps. The first five spread the amplitude over all 50 qubits. The next five change only the phases. Watch the imaginary amplitude resolve into a sine wave while the measurement probabilities stay fixed.
+
+##### Qubit layouts
+
+*   **Ring interferometer (8 qubits)** splits one excitation between the two arms of a ring. Removing the Z on one arm switches the final excitation from q4 to q5.
+*   **Binary tree GHZ (7 qubits)** spreads a correlation from q0 through both branches. At the final step, all seven wires agree in every measurement.
+*   **sycamore 53** opens the 53-site chip in 3D. Drag to orbit, then choose **Next step** to follow the prepared 1 from q21 to q22, q23 and q33 on a 2×4 patch. Inspect q33 at steps 3 and 4 to see it split from a four-qubit group. [Watch the 3D walkthrough](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4) · [Sycamore chip layout and gate](https://quantumai.google/hardware/datasheet/weber.pdf)
+*   **sycamore echo 53** spreads a GHZ state from q23 across all 53 sites in seven layers of CNOTs. The Z gate on q33 at step 9 leaves all local probabilities at 50%. After reversing the CNOTs, the final Hadamard makes q23 read 1 with certainty. Remove that Z and run again to see q23 read 0. [Watch the 29-second demo](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
+
+##### Scale experiments
+
 *   **ghz 50** extends a Bell pair to 50 wires in seven steps. Compare steps 6 and 7 to see q49 join the correlated group.
 *   **bell 256** entangles q0 with q255 in two steps. Each endpoint reads 50%, and they agree in every joint shot.
 *   **MPS ladder echo 256** opens the benchmark’s 2×128 ladder in its own window. Compare the measured chance of returning to all zeros at bond caps 128 and 256. The desktop app can also run the echo at the selected cap.
 *   **phase echo 512** rotates and reverses the phase on 512 independent wires. Remove the inverse rotation on q0 at step 3 and run again. Only q0 changes, with a 14.64% chance of reading 1.
 *   **grouped blocks 1024** prepares 256 entangled four-wire blocks. The final CNOT connects the first two blocks. Remove it to see the largest group shrink from eight wires to four while each wire still reads 1 half the time.
-*   **sycamore echo 53** spreads a GHZ state from q23 across all 53 sites in seven layers of CNOTs. The Z gate on q33 at step 9 leaves all local probabilities at 50%. After reversing the CNOTs, the final Hadamard makes q23 read 1 with certainty. Remove that Z and run again to see q23 read 0. [Watch the 29-second demo](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
-*   **Bell test complex** uses two extra wires to select rotations of a Bell pair. Group the final rows by those setting bits to see how often the two data wires agree.
-*   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
-*   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.
-*   **QFT** and **QFT4** apply the forward Fourier transform to `01` and `1011`. The output probabilities are uniform. The complex amplitudes show how the phases advance.
-*   **qft 50** starts with an X gate on q45 to prepare a single input spike. Select **Input** to inspect it, then **Run** to see the Fourier transform. Its imaginary amplitude follows a sine wave with 32 basis indices per period. The template guide shows how to turn an edited phase into a measurable change on q0.
-*   **fourier wave 50** builds one Fourier mode in ten labeled steps. The first five spread the amplitude over all 50 qubits. The next five change only the phases. Watch the imaginary amplitude resolve into a sine wave while the measurement probabilities stay fixed.
-*   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
+
+##### Error correction
+
 *   **Plaquette z check** uses one central ancilla to read the joint Z parity of four neighboring data qubits over four CNOT steps.
-*   **sycamore 53** opens the 53-site chip in 3D. Drag to orbit, then choose **Next step** to follow the prepared 1 from q21 to q22, q23 and q33 on a 2×4 patch. Inspect q33 at steps 3 and 4 to see it split from a four-qubit group. [Watch the 3D walkthrough](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4) · [Sycamore chip layout and gate](https://quantumai.google/hardware/datasheet/weber.pdf)
 *   **Error correction bit flip** and **Error correction bit flip two faults** encode one logical qubit across q0–q2. The **Z coupling** section writes adjacent-pair parities into ancillas q3 and q4. Compare the syndrome at step 7 and the decoded output on q1 at step 13.
 *   **Error correction phase flip** and **Error correction phase flip two faults** use the same five-wire layout. The **X coupling** section surrounds ancilla-controlled CNOTs with Hadamards on the ancillas. Compare the syndrome at step 10 and the decoded output on q1 at step 17.
 

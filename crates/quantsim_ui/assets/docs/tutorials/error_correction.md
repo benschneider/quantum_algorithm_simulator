@@ -1,6 +1,6 @@
 # Read a five-wire repetition circuit
 
-Open **File**, choose **Load Template**, and load **error correction phase flip**. Three data wires (q0, q1, q2) encode one logical qubit. Two separate ancillas (q3, q4) start in `|0>` and collect parity. The middle data wire, q1, holds the logical input before encoding and the output after decoding.
+Open **File**, expand **Error correction** under **Load Template**, and load **error correction phase flip**. Three data wires (q0, q1, q2) encode one logical qubit. Two separate ancillas (q3, q4) start in `|0>` and collect parity. The middle data wire, q1, holds the logical input before encoding and the output after decoding.
 
 Click a numbered column to inspect the joint state of all five wires after that step. Click a section heading to inspect its last step. Step 0 shows the initial state. Read the basis rows in **q4 q3 q2 q1 q0** order, with the ancillas first. At step 2 the amplitudes are `0.8660` for `00000` and `0.5000i` for `00010`. Keep their relative phase in mind when you compare the decoded output. Inspecting a step leaves the state available for the next gate.
 

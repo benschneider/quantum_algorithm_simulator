@@ -1,6 +1,6 @@
 # Check what a probability can tell you
 
-Try **File > Load Template > quantum teleportation**. The sender's message starts on q0, and q2 is the receiver. Click **Prepare message** (step 4) and note the 25% chance of reading 1 on q0.
+Try **File > Load Template > Entanglement > quantum teleportation**. The sender's message starts on q0, and q2 is the receiver. Click **Prepare message** (step 4) and note the 25% chance of reading 1 on q0.
 
 Now inspect q2 at steps **6**, **7** and **8**. Which correction restores that probability? What does the other correction change?
 

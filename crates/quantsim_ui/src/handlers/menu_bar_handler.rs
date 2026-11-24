@@ -14,7 +14,9 @@ pub fn handle_menu_bar_message(state: &mut AppState, message: Message, _messages
                 let ui = &mut state.ui_state;
                 if ui.error_message.is_none() {
                     match template_name.as_str() {
-                        "sycamore_echo_53.json" => {
+                        "sycamore_echo_53.json"
+                        | "ring_interferometer_8.json"
+                        | "tree_ghz_7.json" => {
                             ui.active_central_tab = CentralPanelTab::Layout;
                             ui.layout_view = LayoutView::Plane;
                         }

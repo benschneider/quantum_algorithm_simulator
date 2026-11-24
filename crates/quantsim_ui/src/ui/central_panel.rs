@@ -2,7 +2,10 @@ use crate::components::{
     circuit_controls, circuit_grid, gate_palette, json_editor_panel, layout_panel,
 };
 use crate::messages::Message;
-use crate::state::{ui_state::{CentralPanelTab, LeftPanelTab}, AppState};
+use crate::state::{
+    ui_state::{CentralPanelTab, LeftPanelTab},
+    AppState,
+};
 
 /// The `central_panel` module is responsible for rendering the main content of
 /// the application. This includes the circuit grid, the JSON editor, and the
@@ -76,6 +79,8 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
         }
         match state.ui_state.active_central_tab {
             CentralPanelTab::Circuit => {
+                // Keep overflowing timelines discoverable even before the pointer enters the grid.
+                ui.spacing_mut().scroll.floating = false;
                 egui::ScrollArea::vertical()
                     .id_salt("circuit_workspace")
                     .show(ui, |ui| {
