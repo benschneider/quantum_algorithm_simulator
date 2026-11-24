@@ -60,6 +60,7 @@ Switch to **3D stack** below the grid and follow A0 upward. Select its site on l
         *   [Example: Bell State Circuit (from Template)](#example-bell-state-circuit-from-template)
     *   [Simulating a Quantum Circuit](#simulating-a-quantum-circuit)
         *   [Wide circuits and RAM estimates](#wide-circuits-and-ram-estimates)
+        *   [Sycamore benchmark on 16 qubits](#sycamore-benchmark-on-16-qubits)
         *   [Results View](#results-view)
         *   [Time Scrubber](#time-scrubber)
     *   [Loading and Saving Circuits](#loading-and-saving-circuits)
@@ -364,6 +365,20 @@ To try a wider register, paste this Bell circuit into **JSON**, select **Apply C
 ```
 
 In Chrome, q0 and q255 each read 50%. Of 1,024 shots, 515 were all zeros and 509 had only q0 and q255 set. All 254 intervening wires stayed at zero. For a step-by-step example, the 50-wire QFT template shows the Fourier waveform, and the 53-site Sycamore template lights up the active couplers on its 2×4 patch. That patch's readouts match a dense eight-wire reference at every step.
+
+#### Sycamore benchmark on 16 qubits
+
+A separate native experiment compared a matrix product state (MPS) with a double-precision dense simulation on a 2×8 Sycamore patch. Both ran the same 16 rounds with random single-qubit gates (seed 53) and alternating couplers. The dense state used 1 MiB for its 65,536 amplitudes. By round 7, the uncapped MPS reached bond dimension 256 and used 2.13 MiB for its tensors. Its amplitudes agreed with dense to within 5.6 × 10⁻¹⁶ across the run.
+
+Limiting the bond dimension saved tensor storage at the cost of accuracy. The table gives **round-16** results. Fidelity is the squared overlap with the dense state. The two error columns average absolute differences across all 16 wires and all 22 neighboring pairs. Tensor storage excludes temporary workspace.
+
+| Bond cap | Tensor storage | Fidelity | Error in probability of 1 | Error in connected Z correlation |
+| ---: | ---: | ---: | ---: | ---: |
+| 16 | 72.5 KiB | 0.77% | 2.00 percentage points | 0.02289 |
+| 32 | 200.5 KiB | 3.24% | 1.11 percentage points | 0.01151 |
+| 64 | 648.5 KiB | 17.11% | 0.42 percentage points | 0.00681 |
+
+Local readouts could look close even at low fidelity because the dense wire probabilities approached 50% and neighboring correlations approached zero. Earlier rounds showed larger individual differences. At round 7, cap 64 gave 73.12% on wire 7, where dense gave 62.50%. The browser's RAM warning estimates its own dense, stabilizer, product, or grouped simulation.
 
 #### Results View
 
