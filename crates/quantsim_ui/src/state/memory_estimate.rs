@@ -1,4 +1,6 @@
-use super::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS, WAVEFORM_POINTS};
+use super::simulation_state::{
+    COMPACT_SHOTS, MAX_PROBABILITY_BINS, MAX_SAMPLE_ROWS, WAVEFORM_POINTS,
+};
 use super::{AppState, CircuitState};
 use nalgebra::Complex;
 use quantsim_core::circuit::Circuit;
@@ -25,6 +27,8 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
 
     // Include retained buffers that overlap the next run.
     let mut bytes = readout.populated_indices.capacity() as u128 * INDEX;
+    let overview_bytes = size_of::<[f64; MAX_PROBABILITY_BINS]>() as u128;
+    bytes += overview_bytes; // The existing Results panel retains one overview.
     let wave_point = size_of::<Complex<f64>>() as u128;
     bytes += WAVEFORM_POINTS as u128 * wave_point;
     if let Some(wave) = readout.waveform() {
@@ -53,7 +57,8 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
     }
 
     if circuit.num_qubits > CircuitState::MAX_DENSE_QUBITS {
-        bytes += wide_run_bytes(circuit);
+        // The next compact readout is built before it replaces the current one.
+        bytes += wide_run_bytes(circuit) + overview_bytes;
         return Some(bytes.min(SATURATED) as u64);
     }
 

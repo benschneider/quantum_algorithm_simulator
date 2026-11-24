@@ -395,6 +395,7 @@ The "Results" window displays the outcome of your simulation:
 
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
 *   **Amplitude waveform** plots the real and imaginary parts at up to 64 basis indices. The axis gives the actual amplitude scale. The automatic window follows the first occupied index and the lowest varying bit as the circuit evolves. Small registers show every index. Use **Range** to inspect another part of a large register. All simulators use the first occupied index as a positive real phase reference for the graph.
+*   Choose **Overview** to see how probability is distributed across the whole register at the selected step. It groups adjacent basis indices into up to 32 bars and combines them on narrower panels. Dense runs sum the simulated probabilities directly. Wide runs count all 1,024 joint samples, including outcomes outside the 16 displayed rows.
 *   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
 *   For **22 or more wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
 *   Select a wire in the 3D inspector to see which other wires share its group at that step.

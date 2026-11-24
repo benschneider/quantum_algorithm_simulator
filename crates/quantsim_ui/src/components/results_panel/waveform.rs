@@ -3,15 +3,8 @@ use egui::{Color32, Ui};
 use egui_plot::{GridMark, Line, LineStyle, Plot, PlotResponse, Points};
 use quantsim_core::BasisIndex;
 
-pub(super) fn show(ui: &mut Ui, simulation: &mut SimulationState) {
-    let Some(wave) = simulation.waveform() else {
-        return;
-    };
-    if wave.points.is_empty() {
-        return;
-    }
-
-    let (real, imaginary) = if ui.visuals().dark_mode {
+fn colors(ui: &Ui) -> (Color32, Color32) {
+    if ui.visuals().dark_mode {
         (
             Color32::from_rgb(100, 203, 249),
             Color32::from_rgb(255, 181, 96),
@@ -21,13 +14,25 @@ pub(super) fn show(ui: &mut Ui, simulation: &mut SimulationState) {
             Color32::from_rgb(14, 95, 158),
             Color32::from_rgb(160, 73, 7),
         )
+    }
+}
+
+pub(super) fn legend(ui: &mut Ui) {
+    let (real, imaginary) = colors(ui);
+    ui.colored_label(real, "Real");
+    ui.colored_label(imaginary, "Imaginary")
+        .on_hover_text("Dashed line");
+}
+
+pub(super) fn show(ui: &mut Ui, simulation: &mut SimulationState) {
+    let Some(wave) = simulation.waveform() else {
+        return;
     };
-    ui.horizontal_wrapped(|ui| {
-        ui.strong("Amplitude waveform");
-        ui.colored_label(real, "Real");
-        ui.colored_label(imaginary, "Imaginary")
-            .on_hover_text("Dashed line");
-    });
+    if wave.points.is_empty() {
+        return;
+    }
+
+    let (real, imaginary) = colors(ui);
     plot(ui, wave, real, imaginary);
 
     let selection = ui

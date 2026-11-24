@@ -4,6 +4,7 @@ use crate::state::AppState;
 use egui_plot::{Bar, BarChart, GridMark, Plot};
 use quantsim_core::{circuit::QubitRole, core::engine::QuantumState, BasisIndex};
 
+mod overview;
 mod waveform;
 
 pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message> {
@@ -29,7 +30,31 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
         ui.heading(format!("After step {step}"));
     }
 
-    waveform::show(ui, simulation);
+    // Results moves between a window and a bottom panel on resize.
+    let mode_id = egui::Id::new("results_probability_overview");
+    let previous_mode = ui.data(|data| data.get_temp::<bool>(mode_id).unwrap_or(false));
+    let mut show_overview = previous_mode;
+    ui.horizontal_wrapped(|ui| {
+        ui.selectable_value(&mut show_overview, false, "Amplitude waveform");
+        ui.selectable_value(&mut show_overview, true, "Overview");
+        if show_overview {
+            if simulation.compact_samples.is_some() {
+                ui.label(format!("Sampled · {COMPACT_SHOTS} shots"));
+            } else {
+                ui.label("Exact probabilities");
+            }
+        } else {
+            waveform::legend(ui);
+        }
+    });
+    if previous_mode != show_overview {
+        ui.data_mut(|data| data.insert_temp(mode_id, show_overview));
+    }
+    if show_overview {
+        overview::show(ui, simulation);
+    } else {
+        waveform::show(ui, simulation);
+    }
     if let Some(samples) = &simulation.compact_samples {
         show_joint_samples(ui, samples, circuit.num_qubits);
         ui.separator();
@@ -239,6 +264,92 @@ mod tests {
     use super::*;
     use crate::app::QCSimApp;
     use quantsim_core::core::types::Gate;
+
+    #[test]
+    fn overview_selection_survives_new_readouts_and_resizing() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::ChangeQubits(6));
+        for wire in 0..6 {
+            app.handle_message(Message::PlaceGate(Gate::X, wire, 0));
+        }
+        app.handle_message(Message::SelectTimestep(0));
+        let ctx = egui::Context::default();
+        let render = |width, events, state: &mut AppState| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(width, 850.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        // The application reparents Results at its layout breakpoint.
+                        ui.push_id(width > 400.0, |ui| results_panel(ui, state));
+                    });
+                },
+            )
+        };
+        let label = |output: &egui::FullOutput, needle: &str| {
+            output.shapes.iter().find_map(|shape| match &shape.shape {
+                egui::Shape::Text(t) if t.galley.text() == needle => {
+                    Some(t.visual_bounding_rect().center())
+                }
+                _ => None,
+            })
+        };
+        let click = |pos| {
+            let mut events = vec![egui::Event::PointerMoved(pos)];
+            events.extend([true, false].map(|pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            }));
+            events
+        };
+        render(740.0, vec![], &mut app.state);
+        let initial = render(740.0, vec![], &mut app.state);
+        assert!(label(&initial, "Real").is_some());
+        let pos = label(&initial, "Overview").unwrap();
+        render(740.0, click(pos), &mut app.state);
+        let wide = render(740.0, vec![], &mut app.state);
+        assert!(label(&wide, "Leading 5 bits of basis state").is_some());
+        assert!(label(&wide, "Exact probabilities").is_some());
+        assert!(label(&wide, "Real").is_none());
+        let top = label(&wide, "00000").unwrap();
+        let mid = label(&wide, "50%").unwrap();
+        render(740.0, click(egui::pos2(top.x, mid.y)), &mut app.state);
+        let pinned = render(740.0, vec![egui::Event::PointerGone], &mut app.state);
+        assert!(label(&pinned, "Indices 0–1 · 100.00%").is_some());
+
+        app.handle_message(Message::SelectTimestep(1));
+        let medium = render(365.0, vec![], &mut app.state);
+        assert!(label(&medium, "Leading 4 bits of basis state").is_some());
+        let narrow = render(300.0, vec![], &mut app.state);
+        assert!(label(&narrow, "Leading 3 bits of basis state").is_some());
+        assert!(label(&narrow, "Indices 0–7 · 0.00%").is_some());
+        let restored = render(740.0, vec![], &mut app.state);
+        assert!(label(&restored, "Indices 0–1 · 0.00%").is_some());
+
+        // A pin originating at 16 bars cannot identify which of its two
+        // children to select at 32 bars. Only the right child has mass here.
+        let medium = render(365.0, vec![], &mut app.state);
+        let last = label(&medium, "1111").unwrap();
+        let mid = label(&medium, "50%").unwrap();
+        render(365.0, click(egui::pos2(last.x, mid.y)), &mut app.state);
+        let pinned = render(365.0, vec![egui::Event::PointerGone], &mut app.state);
+        assert!(label(&pinned, "Indices 60–63 · 100.00%").is_some());
+        let wide = render(740.0, vec![], &mut app.state);
+        assert!(label(&wide, "Select a bar to inspect its probability.").is_some());
+        let pos = label(&wide, "Amplitude waveform").unwrap();
+        render(740.0, click(pos), &mut app.state);
+        let waveform = render(740.0, vec![], &mut app.state);
+        assert!(label(&waveform, "Real").is_some());
+        assert!(label(&waveform, "Exact probabilities").is_none());
+    }
 
     #[test]
     fn narrow_compact_results_show_sample_counts_and_wrap_all_outcome_bits() {
