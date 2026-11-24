@@ -79,7 +79,13 @@ pub fn circuit_grid(
     for cell in &grid.cells {
         // Preserve focus and pointer identity as cells enter and leave the viewport.
         let index = cell.widget_index(circuit.sections.len(), grid.num_qubits, grid.num_steps);
-        ui.skip_ahead_auto_ids(index - next_widget);
+        // egui's ID counter is u64, but its skip API takes a platform-sized count.
+        let mut skipped = index - next_widget;
+        while skipped > usize::MAX as u64 {
+            ui.skip_ahead_auto_ids(usize::MAX);
+            skipped -= usize::MAX as u64;
+        }
+        ui.skip_ahead_auto_ids(skipped as usize);
         next_widget = index + 1;
         match cell {
             GridCell::QubitLabel { rect, row } => {

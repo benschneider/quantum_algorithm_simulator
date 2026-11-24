@@ -2741,6 +2741,7 @@ dependencies = [
  "log",
  "nalgebra",
  "nalgebra-sparse",
+ "num-bigint",
  "num-complex",
  "num-traits",
  "rand",

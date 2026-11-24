@@ -1,8 +1,8 @@
 use crate::state::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS};
 use crate::{messages::Message, QCSimApp};
 use nalgebra::Complex;
-use quantsim_core::circuit::forward_qft_steps;
 use quantsim_core::types::{Gate, Operation};
+use quantsim_core::{circuit::forward_qft_steps, BasisIndex};
 use serde_json::json;
 
 #[test]
@@ -21,7 +21,9 @@ fn run_and_scrub_a_64_wire_qft_with_an_entangling_suffix() {
     ));
     app.handle_message(Message::SelectTimestep(133));
     assert_eq!(app.state.ui_state.error_message, None);
-    app.state.simulation_state.set_waveform_window(0, 16);
+    app.state
+        .simulation_state
+        .set_waveform_window(0u8.into(), 16u8.into());
     app.handle_message(Message::RunSimulation);
     assert_eq!(app.state.ui_state.error_message, None);
     assert_eq!(app.state.ui_state.current_timestep, 218);
@@ -40,9 +42,9 @@ fn run_and_scrub_a_64_wire_qft_with_an_entangling_suffix() {
     let samples = readout.compact_samples.as_ref().unwrap();
     assert_eq!(samples.rows.len(), MAX_SAMPLE_ROWS);
     assert!(samples.distinct <= COMPACT_SHOTS as usize);
-    for &(bits, _) in &samples.rows {
-        assert_eq!(bits & (1 << 53), 0);
-        assert!(bits & (1 << 52) == 0 || bits & (1 << 54) != 0);
+    for (bits, _) in &samples.rows {
+        assert!(!bits.bit(53));
+        assert!(!bits.bit(52) || bits.bit(54));
     }
 
     // In this window q49–q54 are zero, so only the Hadamards change the
@@ -56,8 +58,11 @@ fn run_and_scrub_a_64_wire_qft_with_an_entangling_suffix() {
         app.handle_message(Message::SelectTimestep(step));
         assert_eq!(app.state.ui_state.error_message, None);
         let wave = app.state.simulation_state.waveform().unwrap();
-        assert_eq!((wave.first, wave.stride, wave.points.len()), (0, 16, 64));
-        assert_eq!(wave.phase_reference, Some(0));
+        assert_eq!(
+            (&wave.first, &wave.stride, wave.points.len()),
+            (&BasisIndex::ZERO, &16u8.into(), 64)
+        );
+        assert_eq!(wave.phase_reference, Some(BasisIndex::ZERO));
         for (j, &amplitude) in wave.points.iter().enumerate() {
             let expected = Complex::from_polar(magnitude, std::f64::consts::TAU * j as f64 / 32.0);
             assert!(

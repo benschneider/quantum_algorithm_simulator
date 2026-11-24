@@ -16,6 +16,7 @@ getrandom = { version = "0.2.16", features = ["js"] }
 log = "0.4.28"
 nalgebra = { version = "0.34.1", features = ["serde-serialize", "sparse"] }
 nalgebra-sparse = { version = "0.11.0", features = ["serde-serialize"] }
+num-bigint = "0.4.6"
 num-complex = "0.4.6"
 num-traits = "0.2.19"
 rand = "0.8.5"

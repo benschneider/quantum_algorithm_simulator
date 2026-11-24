@@ -2,7 +2,7 @@ use crate::messages::Message;
 use crate::state::simulation_state::{CompactSamples, COMPACT_SHOTS};
 use crate::state::AppState;
 use egui_plot::{Bar, BarChart, GridMark, Plot};
-use quantsim_core::{circuit::QubitRole, core::engine::QuantumState};
+use quantsim_core::{circuit::QubitRole, core::engine::QuantumState, BasisIndex};
 
 mod waveform;
 
@@ -122,7 +122,7 @@ fn show_joint_samples(ui: &mut egui::Ui, samples: &CompactSamples, width: usize)
             ui.strong("Shots");
             ui.strong(format!("Outcome (q{} … q0)", width - 1));
             ui.end_row();
-            for &(outcome, count) in &samples.rows {
+            for (outcome, count) in &samples.rows {
                 ui.monospace(count.to_string());
                 ui.add(
                     egui::Label::new(egui::RichText::new(grouped_bits(outcome, width)).monospace())
@@ -142,15 +142,16 @@ fn show_joint_samples(ui: &mut egui::Ui, samples: &CompactSamples, width: usize)
         });
 }
 
-fn grouped_bits(outcome: u128, width: usize) -> String {
-    let mut bits = format!("{outcome:0width$b}");
-    // Group from q0 so each full group corresponds to eight consecutive wires.
-    let mut boundary = width;
-    while boundary > 8 {
-        boundary -= 8;
-        bits.insert(boundary, ' ');
+fn grouped_bits(outcome: &BasisIndex, width: usize) -> String {
+    let bits = format!("{outcome:0width$b}");
+    let mut grouped = String::with_capacity(bits.len() + bits.len().saturating_sub(1) / 8);
+    for (i, bit) in bits.bytes().enumerate() {
+        if i != 0 && (bits.len() - i).is_multiple_of(8) {
+            grouped.push(' ');
+        }
+        grouped.push(char::from(bit));
     }
-    bits
+    grouped
 }
 
 fn probability_plot(
@@ -241,7 +242,7 @@ mod tests {
 
     #[test]
     fn narrow_compact_results_show_sample_counts_and_wrap_all_outcome_bits() {
-        for width in [64, 128] {
+        for width in [64, 128, 200] {
             check_narrow_sample_table(width);
         }
     }
@@ -281,7 +282,7 @@ mod tests {
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
-                        egui::vec2(360.0, 1600.0),
+                        egui::vec2(360.0, 3000.0),
                     )),
                     ..Default::default()
                 },
@@ -329,7 +330,7 @@ mod tests {
             "Other {} observed outcomes",
             samples.distinct - 16
         ));
-        for &(bits, _) in &samples.rows {
+        for (bits, _) in &samples.rows {
             let text = label(&grouped_bits(bits, width));
             assert!(text.galley.text().starts_with("10000000 "));
             assert_eq!(

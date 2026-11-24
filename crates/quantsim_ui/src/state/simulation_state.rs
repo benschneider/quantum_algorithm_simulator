@@ -2,7 +2,7 @@ use quantsim_core::core::engine::QuantumState;
 use quantsim_core::grouped::GroupedState;
 use quantsim_core::product_state::ProductState;
 use quantsim_core::stabilizer::{StabilizerAmplitudes, StabilizerState};
-use std::cmp::Reverse;
+use quantsim_core::BasisIndex;
 
 use super::pagination::PaginationState;
 mod waveform;
@@ -22,8 +22,30 @@ pub(crate) const MAX_SAMPLE_ROWS: usize = 16;
 #[derive(Debug)]
 pub(crate) struct CompactSamples {
     /// Most frequent sampled bitstrings, with q0 in the least significant bit.
-    pub(crate) rows: Vec<(u128, u32)>,
+    pub(crate) rows: Vec<(BasisIndex, u32)>,
     pub(crate) distinct: usize,
+}
+
+impl CompactSamples {
+    fn count<T: Ord + Into<BasisIndex>>(mut outcomes: Vec<T>) -> Self {
+        outcomes.sort_unstable();
+        let mut counts: Vec<(T, u32)> = Vec::new();
+        for outcome in outcomes {
+            if let Some((_, count)) = counts.last_mut().filter(|(bits, _)| *bits == outcome) {
+                *count += 1;
+            } else {
+                counts.push((outcome, 1));
+            }
+        }
+        counts.sort_unstable_by(|(a, ca), (b, cb)| cb.cmp(ca).then_with(|| a.cmp(b)));
+        let distinct = counts.len();
+        let rows = counts
+            .into_iter()
+            .take(MAX_SAMPLE_ROWS)
+            .map(|(bits, count)| (bits.into(), count))
+            .collect();
+        Self { rows, distinct }
+    }
 }
 
 /// Represents the state of the simulation.
@@ -33,8 +55,8 @@ pub struct SimulationState {
     pub(crate) compact_samples: Option<CompactSamples>,
     compact_amplitudes: Option<CompactAmplitudes>,
     waveform: Option<Waveform>,
-    auto_window: (u128, u128),
-    manual_window: Option<(u128, u128)>,
+    auto_window: (BasisIndex, BasisIndex),
+    manual_window: Option<(BasisIndex, BasisIndex)>,
     /// Marginals in wire order (q0 first), including every basis probability.
     pub(crate) wire_one_probabilities: Vec<f64>,
     /// Basis indices shown in the joint-state table and chart.
@@ -52,7 +74,7 @@ impl Default for SimulationState {
             compact_samples: None,
             compact_amplitudes: None,
             waveform: None,
-            auto_window: (0, 1),
+            auto_window: (BasisIndex::ZERO, 1u8.into()),
             manual_window: None,
             wire_one_probabilities: Vec::new(),
             populated_indices: Vec::new(),
@@ -71,6 +93,20 @@ impl SimulationState {
         }
     }
 
+    pub(crate) fn retained_group_amplitudes(&self) -> Option<usize> {
+        match self.compact_amplitudes.as_ref()? {
+            CompactAmplitudes::Grouped(state) => Some(state.stored_amplitudes()),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn retained_stabilizer(&self) -> bool {
+        matches!(
+            self.compact_amplitudes,
+            Some(CompactAmplitudes::Stabilizer(_))
+        )
+    }
+
     pub(crate) fn has_readout(&self) -> bool {
         self.quantum_state.is_some() || self.compact_samples.is_some()
     }
@@ -78,7 +114,8 @@ impl SimulationState {
     pub(crate) fn from_stabilizer(state: &StabilizerState, wires: usize) -> Self {
         Self::from_samples(
             (0..wires).map(|wire| state.probability_one(wire)),
-            state.sample(COMPACT_SHOTS, SAMPLE_SEED),
+            |shots, seed| state.sample(shots, seed),
+            |shots, seed| state.sample_wide(shots, seed),
         )
         .with_amplitudes(CompactAmplitudes::Stabilizer(state.amplitude_view()))
     }
@@ -86,7 +123,8 @@ impl SimulationState {
     pub(crate) fn from_product(state: ProductState, wires: usize) -> Self {
         Self::from_samples(
             (0..wires).map(|wire| state.probability_one(wire)),
-            state.sample(COMPACT_SHOTS, SAMPLE_SEED),
+            |shots, seed| state.sample(shots, seed),
+            |shots, seed| state.sample_wide(shots, seed),
         )
         .with_amplitudes(CompactAmplitudes::Product(state))
     }
@@ -94,16 +132,17 @@ impl SimulationState {
     pub(crate) fn from_grouped(state: GroupedState, wires: usize) -> Self {
         Self::from_samples(
             (0..wires).map(|wire| state.probability_one(wire)),
-            state.sample(COMPACT_SHOTS, SAMPLE_SEED),
+            |shots, seed| state.sample(shots, seed),
+            |shots, seed| state.sample_wide(shots, seed),
         )
         .with_amplitudes(CompactAmplitudes::Grouped(state))
     }
 
     fn with_amplitudes(mut self, amplitudes: CompactAmplitudes) -> Self {
         self.auto_window = match &amplitudes {
-            CompactAmplitudes::Stabilizer(view) => view.basis_slice(),
-            CompactAmplitudes::Product(state) => state.basis_slice(),
-            CompactAmplitudes::Grouped(state) => state.basis_slice(),
+            CompactAmplitudes::Stabilizer(view) => view.basis_slice_wide(),
+            CompactAmplitudes::Product(state) => state.basis_slice_wide(),
+            CompactAmplitudes::Grouped(state) => state.basis_slice_wide(),
         };
         self.compact_amplitudes = Some(amplitudes);
         self.refresh_waveform();
@@ -112,24 +151,22 @@ impl SimulationState {
 
     fn from_samples(
         probabilities: impl Iterator<Item = Option<f32>>,
-        mut outcomes: Vec<u128>,
+        packed_samples: impl FnOnce(u32, u64) -> Vec<u128>,
+        wide_samples: impl FnOnce(u32, u64) -> Vec<BasisIndex>,
     ) -> Self {
-        let wire_one_probabilities = probabilities
+        let wire_one_probabilities: Vec<_> = probabilities
             .map(|p| f64::from(p.expect("validated circuit wire")))
             .collect();
-        outcomes.sort_unstable();
-        let mut rows: Vec<_> = outcomes
-            .chunk_by(|left, right| left == right)
-            .map(|group| (group[0], group.len() as u32))
-            .collect();
-        rows.sort_unstable_by_key(|&(bits, count)| (Reverse(count), bits));
-        let distinct = rows.len();
-        rows.truncate(MAX_SAMPLE_ROWS);
-        rows.shrink_to_fit();
-
+        // Keep individual shots inline when they fit. Only the displayed rows
+        // need arbitrary-width formatting after the packed shots are counted.
+        let samples = if wire_one_probabilities.len() <= u128::BITS as usize {
+            CompactSamples::count(packed_samples(COMPACT_SHOTS, SAMPLE_SEED))
+        } else {
+            CompactSamples::count(wide_samples(COMPACT_SHOTS, SAMPLE_SEED))
+        };
         Self {
             wire_one_probabilities,
-            compact_samples: Some(CompactSamples { rows, distinct }),
+            compact_samples: Some(samples),
             ..Default::default()
         }
     }
@@ -182,10 +219,11 @@ impl SimulationState {
         self.page_input_text = self.pagination.current_page.to_string();
         self.quantum_state = Some(quantum_state);
         self.auto_window = (
-            first_nonzero.unwrap_or(0),
+            first_nonzero.unwrap_or(0).into(),
             1u128
                 .checked_shl(varying_bits.trailing_zeros())
-                .unwrap_or(1),
+                .unwrap_or(1)
+                .into(),
         );
         self.refresh_waveform();
     }

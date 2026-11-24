@@ -35,7 +35,7 @@ fn sycamore_uses_the_53_site_chip_and_only_the_patch_couplers() {
     let positions: Vec<_> = row_spans
         .into_iter()
         .enumerate()
-        .flat_map(|(row, (first, last))| (first..=last).map(move |col| [col, row as i16]))
+        .flat_map(|(row, (first, last))| (first..=last).map(move |col| [col, row as i64]))
         .collect();
     assert_eq!(circuit.num_qubits, 53);
     assert_eq!(layout.positions, positions);

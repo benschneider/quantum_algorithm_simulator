@@ -2,8 +2,7 @@ use super::circuit::{Circuit, ValidationError};
 use super::gates::registry::GateRegistry;
 use super::types::{Operation, Param};
 
-/// Maximum circuit width supported by the compact simulators' packed bitstrings.
-pub const MAX_COMPACT_QUBITS: usize = u128::BITS as usize;
+use std::collections::HashSet;
 
 pub(super) fn gate_parameter(op: &Operation, registry: &GateRegistry) -> Result<f64, String> {
     let arity = registry
@@ -30,12 +29,7 @@ impl Circuit {
             op_index: 0,
             message,
         };
-        if !(1..=MAX_COMPACT_QUBITS).contains(&self.num_qubits) {
-            return Err(error(format!(
-                "{backend} simulation supports 1–{MAX_COMPACT_QUBITS} qubits. This circuit has {}.",
-                self.num_qubits
-            )));
-        }
+        super::circuit::validate_wire_count(self.num_qubits).map_err(error)?;
         if self.initial_state.is_some() {
             return Err(error(format!(
                 "{backend} simulation requires a product preparation. Found an explicit initial state vector."
@@ -61,8 +55,9 @@ impl Circuit {
         backend: &str,
         mut apply: impl FnMut(&Operation) -> Result<(), String>,
     ) -> Result<(), ValidationError> {
+        let mut occupied = HashSet::new();
         for (step, column) in self.steps.iter().take(step_count).enumerate() {
-            let mut occupied = 0u128;
+            occupied.clear();
             for (op_index, op) in column.iter().enumerate() {
                 let error = |message| ValidationError {
                     step,
@@ -81,13 +76,11 @@ impl Circuit {
                             self.num_qubits
                         )));
                     }
-                    let mask = 1u128 << wire;
-                    if occupied & mask != 0 {
+                    if !occupied.insert(wire) {
                         return Err(error(format!(
                             "Qubit {wire} is used more than once in the same timestep."
                         )));
                     }
-                    occupied |= mask;
                 }
                 apply(op).map_err(error)?;
             }

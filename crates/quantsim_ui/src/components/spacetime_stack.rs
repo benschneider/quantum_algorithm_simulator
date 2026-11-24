@@ -1,6 +1,6 @@
 mod section_axis;
 
-use super::qubit_layout::site_name;
+use super::qubit_layout::{local_coordinates, site_name};
 use crate::state::ui_state::StackCamera;
 use egui::{
     pos2, vec2, Align2, Color32, FontId, PointerButton, Pos2, Rect, Sense, Shape, Stroke,
@@ -22,11 +22,7 @@ struct Projection {
 
 impl Projection {
     fn new(layout: &QubitLayout, steps: usize, camera: &StackCamera, viewport: Rect) -> Self {
-        let coords: Vec<_> = layout
-            .positions
-            .iter()
-            .map(|&[x, y]| pos2(f32::from(x), f32::from(y)))
-            .collect();
+        let coords = local_coordinates(&layout.positions);
         let bounds = Rect::from_points(&coords);
         let unit = bounds.width().max(bounds.height()).max(1.0);
         let (sy, cy) = camera.yaw.to_radians().sin_cos();

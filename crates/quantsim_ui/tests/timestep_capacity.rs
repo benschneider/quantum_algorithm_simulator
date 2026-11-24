@@ -52,6 +52,47 @@ fn click(ctx: &Context, app: &mut QCSimApp, label: &str) {
     render(ctx, app, events);
 }
 
+fn ram_button(ctx: &Context, app: &mut QCSimApp) -> String {
+    render(ctx, app, vec![])
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            Shape::Text(text) if text.galley.text().starts_with("Est. peak RAM") => {
+                Some(text.galley.text().to_owned())
+            }
+            _ => None,
+        })
+        .expect("RAM estimate button")
+}
+
+#[test]
+fn editable_ram_warning_persists_and_allows_run_above_threshold() {
+    let ctx = Context::default();
+    let mut app = QCSimApp::default();
+    let circuit = r#"{"num_qubits":16,"steps":[[{"id":"X","qubits":[15]}]]}"#;
+    app.handle_message(Message::UpdateCircuitFromJson(circuit.into()));
+    let estimate = ram_button(&ctx, &mut app);
+    assert!(!estimate.contains("above"));
+    click(&ctx, &mut app, &estimate);
+    let default = if cfg!(target_arch = "wasm32") {
+        "64 MiB"
+    } else {
+        "128 MiB"
+    };
+    click(&ctx, &mut app, default);
+    render(&ctx, &mut app, vec![Event::Text("1".into())]);
+    assert!(ram_button(&ctx, &mut app).contains("above 1 MiB"));
+
+    let saved = ctx.data(|data| serde_json::to_string(data).unwrap());
+    let restored = Context::default();
+    restored.data_mut(|data| *data = serde_json::from_str(&saved).unwrap());
+    assert!(ram_button(&restored, &mut app).contains("above 1 MiB"));
+    click(&restored, &mut app, "Run ▶");
+    assert_eq!(app.state.ui_state.error_message, None);
+    let state = app.state.simulation_state.quantum_state.as_ref().unwrap();
+    assert_eq!(state.state_vector[1 << 15].re, 1.0);
+}
+
 #[test]
 fn edit_to_one_thousand_steps_and_scrub_the_final_gate() {
     let ctx = Context::default();

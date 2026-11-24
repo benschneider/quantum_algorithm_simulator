@@ -1,4 +1,4 @@
-//! Exact computational-basis readout of Clifford circuits on 1–128 wires.
+//! Exact computational-basis readout of Clifford circuits on variable-width registers.
 //! Uses the [Aaronson–Gottesman tableau](https://arxiv.org/abs/quant-ph/0406196).
 
 mod tableau;
@@ -8,6 +8,16 @@ use super::types::{Gate, Operation, QubitPrep};
 pub use tableau::{StabilizerAmplitudes, StabilizerState};
 
 impl Circuit {
+    /// Checks input and gates for the selected prefix without constructing a tableau.
+    pub fn validate_stabilizer_prefix(&self, step_count: usize) -> Result<(), ValidationError> {
+        self.validate_compact_input("Stabilizer")?;
+        self.visit_compact_operations(step_count, "Stabilizer", |op| {
+            CliffordOperation::decode(op)
+                .map(|_| ())
+                .map_err(|reason| format!("Gate {} {reason}", op.id))
+        })
+    }
+
     /// Simulates the prepared input and the first `step_count` authored columns
     /// in a packed tableau. A count past the last column runs the whole circuit.
     ///
@@ -34,8 +44,13 @@ impl Circuit {
         &self,
         step_count: usize,
     ) -> Result<StabilizerState, ValidationError> {
-        self.validate_compact_input("Stabilizer")?;
-        let mut state = StabilizerState::zero(self.num_qubits);
+        self.validate_stabilizer_prefix(step_count)?;
+        let mut state =
+            StabilizerState::zero(self.num_qubits).map_err(|message| ValidationError {
+                step: 0,
+                op_index: 0,
+                message,
+            })?;
         for (wire, &prep) in self.initial_preps.iter().enumerate() {
             let Some(prep) = prep else { continue };
             match prep {
@@ -49,32 +64,47 @@ impl Circuit {
             }
         }
 
-        self.visit_compact_operations(step_count, "Stabilizer", |op| state.apply_operation(op))?;
+        for op in self.steps.iter().take(step_count).flatten() {
+            CliffordOperation::decode(op)
+                .expect("validated Clifford operation")
+                .apply(&mut state);
+        }
         Ok(state)
     }
 }
 
-impl StabilizerState {
-    fn apply_operation(&mut self, op: &Operation) -> Result<(), String> {
-        match (&op.id, op.qubits.as_slice()) {
-            (Gate::H, &[q]) => self.h(q as usize),
-            (Gate::SqrtZ, &[q]) => self.s(q as usize),
-            (Gate::X, &[q]) => self.x(q as usize),
-            (Gate::Y, &[q]) => self.y(q as usize),
-            (Gate::Z, &[q]) => self.z(q as usize),
-            (Gate::CX, &[control, target]) => self.cx(control as usize, target as usize),
-            (Gate::H | Gate::SqrtZ | Gate::X | Gate::Y | Gate::Z, _) => {
-                return Err(format!("Gate {} requires one qubit.", op.id))
-            }
-            (Gate::CX, _) => return Err("Gate CX requires two qubits (control, target).".into()),
-            _ => {
-                return Err(format!(
-                    "Gate {} is unsupported by the stabilizer simulator.",
-                    op.id
-                ))
-            }
+enum CliffordOperation {
+    Single(fn(&mut StabilizerState, usize), usize),
+    Cx(usize, usize),
+}
+
+impl CliffordOperation {
+    fn decode(op: &Operation) -> Result<Self, &'static str> {
+        if op.id == Gate::CX {
+            return match op.qubits.as_slice() {
+                &[control, target] => Ok(Self::Cx(control as usize, target as usize)),
+                _ => Err("requires two qubits (control, target)."),
+            };
         }
-        Ok(())
+        let apply = match op.id {
+            Gate::H => StabilizerState::h,
+            Gate::SqrtZ => StabilizerState::s,
+            Gate::X => StabilizerState::x,
+            Gate::Y => StabilizerState::y,
+            Gate::Z => StabilizerState::z,
+            _ => return Err("is unsupported by the stabilizer simulator."),
+        };
+        match op.qubits.as_slice() {
+            &[wire] => Ok(Self::Single(apply, wire as usize)),
+            _ => Err("requires one qubit."),
+        }
+    }
+
+    fn apply(self, state: &mut StabilizerState) {
+        match self {
+            Self::Single(apply, wire) => apply(state, wire),
+            Self::Cx(control, target) => state.cx(control, target),
+        }
     }
 }
 
@@ -148,12 +178,6 @@ mod tests {
             .message
             .contains("explicit initial state"));
 
-        for width in [0, 129] {
-            assert!(Circuit::new(width)
-                .run_stabilizer_prefix(0)
-                .unwrap_err()
-                .message
-                .contains("1–128"));
-        }
+        assert!(Circuit::new(0).run_stabilizer_prefix(0).is_err());
     }
 }

@@ -12,13 +12,6 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
             return;
         }
     };
-    if !(1..=CircuitState::MAX_QUBITS).contains(&data.num_qubits) {
-        state.ui_state.error_message = Some(format!(
-            "Choose between 1 and {} qubits for this simulator.",
-            CircuitState::MAX_QUBITS
-        ));
-        return;
-    }
     if let Some(vector) = &data.initial_state {
         let Some(expected) = CircuitState::dense_amplitude_count(data.num_qubits) else {
             state.ui_state.error_message = Some(format!(

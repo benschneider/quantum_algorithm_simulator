@@ -26,7 +26,7 @@ impl CircuitGrid {
             return None;
         }
         let width = self.grid_rect.width() / self.num_steps as f32;
-        let height = self.grid_rect.height() / (self.num_qubits + 1) as f32;
+        let height = self.grid_rect.height() / (self.num_qubits as f32 + 1.0);
         let corner = self.grid_rect.min + egui::vec2(col as f32 * width, (row + 1) as f32 * height);
         Some(Rect::from_min_size(corner, egui::vec2(width, height)).shrink(2.0))
     }
@@ -51,13 +51,14 @@ pub enum GridCell {
 
 impl GridCell {
     /// Widget position in the full grid, including cells outside the scroll viewport.
-    pub(crate) fn widget_index(&self, sections: usize, qubits: usize, steps: usize) -> usize {
+    pub(crate) fn widget_index(&self, sections: usize, qubits: usize, steps: usize) -> u64 {
+        let (sections, qubits, steps) = (sections as u64, qubits as u64, steps as u64);
         match self {
-            Self::Section { index, .. } => *index,
-            Self::QubitLabel { row, .. } => sections + row,
-            Self::Timestep { step, .. } => sections + qubits + step - 1,
+            Self::Section { index, .. } => *index as u64,
+            Self::QubitLabel { row, .. } => sections + *row as u64,
+            Self::Timestep { step, .. } => sections + qubits + *step as u64 - 1,
             Self::Gate(GateCell { row, col, .. }) | Self::Empty { row, col, .. } => {
-                sections + qubits + steps + row * steps + col
+                sections + qubits + steps + *row as u64 * steps + *col as u64
             }
         }
     }
@@ -183,7 +184,7 @@ pub(crate) fn generate_grid_in_view(
         26.0
     };
     let required_width = label_width + cell_width * num_steps as f32;
-    let required_height = section_height + cell_height * (num_qubits + 1) as f32;
+    let required_height = section_height + cell_height * (num_qubits as f32 + 1.0);
 
     let (response, _painter) = ui.allocate_painter(
         egui::Vec2::new(required_width, required_height),
@@ -269,7 +270,7 @@ pub(crate) fn generate_grid_in_view(
         column_maps.push((multi_gate_map, multi_gate_counter));
     }
 
-    for row in rows {
+    for row in rows.clone() {
         for (col, (column_map, group_count)) in columns.clone().zip(&column_maps) {
             let gate_rect = egui::Rect::from_min_size(
                 grid_rect.min + egui::vec2(col as f32 * cell_width, (row + 1) as f32 * cell_height),
@@ -339,7 +340,7 @@ pub(crate) fn generate_grid_in_view(
     let painter = ui.painter();
 
     // Draw lines for qubit lanes
-    for row in 0..=num_qubits {
+    for row in rows.start..=rows.end.saturating_add(1).min(num_qubits) {
         let y = grid_rect.min.y + row as f32 * cell_height;
         let start_pos = egui::pos2(grid_rect.min.x, y);
         let end_pos = egui::pos2(grid_rect.max.x, y);
@@ -404,6 +405,20 @@ mod tests {
     use quantsim_core::core::types::Operation;
 
     #[test]
+    fn virtual_cells_keep_distinct_ids_beyond_four_billion_positions() {
+        let index = |row, col| {
+            GridCell::Empty {
+                rect: Rect::NOTHING,
+                row,
+                col,
+            }
+            .widget_index(0, 5_000_000, 1000)
+        };
+        assert_eq!(index(4_999_998, 999), 5_004_999_999);
+        assert_eq!(index(4_999_999, 0), 5_005_000_000);
+    }
+
+    #[test]
     fn scrolled_view_builds_only_visible_cells_with_original_coordinates() {
         let mut circuit = Circuit::new(128);
         circuit.steps.resize_with(1000, Vec::new);
@@ -416,7 +431,7 @@ mod tests {
             )),
             ..Default::default()
         };
-        let _ = ctx.run(input, |ctx| {
+        let output = ctx.run(input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 let origin = ui.next_widget_position();
                 let viewport = Rect::from_min_max(
@@ -436,5 +451,6 @@ mod tests {
                 assert_eq!(grid.qubit_cell_rect(127, 999), Some(gate.rect));
             });
         });
+        assert!(output.shapes.len() < 50, "only paint visible grid lines");
     }
 }

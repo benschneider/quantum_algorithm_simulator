@@ -1,7 +1,7 @@
 use crate::messages::Message;
 use crate::state::memory_estimate::estimated_peak_bytes;
 use crate::state::ui_state::{CentralPanelTab, SectionDraft};
-use crate::state::{AppState, CircuitState};
+use crate::state::AppState;
 use egui::widgets::DragValue;
 
 /// Renders the circuit controls, which include the "Run" button, qubit and
@@ -25,7 +25,7 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         let mut num_qubits = state.circuit_state.num_qubits;
         ui.label("Qubits:");
         if ui
-            .add(DragValue::new(&mut num_qubits).range(1..=CircuitState::MAX_QUBITS))
+            .add(DragValue::new(&mut num_qubits).range(1..=usize::MAX))
             .changed()
         {
             messages.push(Message::ChangeQubits(num_qubits));
@@ -95,30 +95,84 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
     }
 }
 
-fn show_memory_estimate(ui: &mut egui::Ui, state: &AppState) {
-    const KIB: u64 = 1024;
-    const MIB: u64 = KIB * KIB;
-    const GUIDELINE_MIB: u64 = if cfg!(target_arch = "wasm32") {
-        64
-    } else {
-        128
-    };
+const MIB: u64 = 1 << 20;
+const DEFAULT_WARNING_MIB: u64 = if cfg!(target_arch = "wasm32") {
+    64
+} else {
+    128
+};
 
-    let Some(bytes) = estimated_peak_bytes(state) else {
-        ui.label("Estimate unavailable");
-        return;
+fn ram_label(bytes: Option<u64>, warning_mib: u64) -> (String, bool) {
+    let Some(bytes) = bytes else {
+        return ("Peak RAM estimate unavailable".into(), false);
     };
-    let (unit, divisor) = if bytes < MIB {
-        ("KiB", KIB)
+    let mut label = if bytes == u64::MAX {
+        "RAM upper bound ≥ 16 EiB".into()
+    } else if bytes < MIB {
+        format!("Est. peak RAM ≤ {} KiB", bytes.div_ceil(1024))
+    } else if bytes < 1 << 30 {
+        format!("Est. peak RAM ≤ {} MiB", bytes.div_ceil(MIB))
     } else {
-        ("MiB", MIB)
+        let order = bytes.ilog2() / 10;
+        let unit = ["GiB", "TiB", "PiB", "EiB"][(order - 3) as usize];
+        let tenths = (10 * u128::from(bytes)).div_ceil(1u128 << (10 * order));
+        format!("Est. peak RAM ≤ {}.{} {unit}", tenths / 10, tenths % 10)
     };
-    let mut label = format!("Est. peak RAM ≤ {} {unit}", bytes.div_ceil(divisor));
-    if bytes > GUIDELINE_MIB * MIB {
-        label.push_str(&format!(" · above {GUIDELINE_MIB} MiB guideline"));
+    let above = u128::from(bytes) > u128::from(warning_mib) * u128::from(MIB);
+    if above {
+        label.push_str(&format!(" · above {warning_mib} MiB warning level"));
     }
-    ui.label(label).on_hover_text(format!(
-        "Estimated upper bound for a full run’s simulation buffers, including input, editor buffers, \
-         and previous results. Total app memory can be higher. The {GUIDELINE_MIB} MiB guideline is advisory."
-    ));
+    (label, above)
+}
+
+fn show_memory_estimate(ui: &mut egui::Ui, state: &AppState) {
+    // eframe saves egui's persisted data on both web and native.
+    let id = egui::Id::new("ram_warning_mib");
+    let mut warning_mib = ui
+        .data_mut(|data| data.get_persisted(id))
+        .unwrap_or(DEFAULT_WARNING_MIB);
+    let (label, above) = ram_label(estimated_peak_bytes(state), warning_mib);
+    let mut text = egui::RichText::new(label);
+    if above {
+        text = text.color(ui.visuals().warn_fg_color).strong();
+    }
+    egui::ComboBox::from_id_salt("ram_warning_menu")
+        .selected_text(text)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .show_ui(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Warn above");
+                if ui
+                    .add(
+                        DragValue::new(&mut warning_mib)
+                            .range(0..=u64::MAX / MIB)
+                            .suffix(" MiB"),
+                    )
+                    .changed()
+                {
+                    ui.data_mut(|data| data.insert_persisted(id, warning_mib));
+                }
+            });
+            ui.label("You can run circuits above this level.");
+        })
+        .response
+        .on_hover_text(
+            "Estimated upper bound for the full run’s simulation buffers. Total app memory can be higher. Click to set the RAM warning.",
+        );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ram_warning_compares_exact_bytes_and_handles_unavailable_estimates() {
+        assert!(!ram_label(Some(4 * MIB), 4).1);
+        assert!(ram_label(Some(4 * MIB + 1), 4).1);
+        assert!(!ram_label(Some(4 * MIB + 1), 5).1);
+        assert!(ram_label(Some(u64::MAX), u64::MAX / MIB).1);
+        assert!(ram_label(Some(u64::MAX), 64).0.contains("≥ 16 EiB"));
+        assert!(ram_label(Some((3 << 30) + 1), 64).0.contains("≤ 3.1 GiB"));
+        assert!(ram_label(None, 64).0.contains("unavailable"));
+    }
 }

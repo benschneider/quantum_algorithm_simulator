@@ -35,6 +35,33 @@ fn roles_are_unset(roles: &[Option<QubitRole>]) -> bool {
     roles.iter().all(Option::is_none)
 }
 
+pub(super) fn validate_wire_count(count: usize) -> Result<(), String> {
+    let last_wire = count
+        .checked_sub(1)
+        .ok_or("A circuit needs at least one qubit.")?;
+    u32::try_from(last_wire)
+        .map_err(|_| format!("Wire q{last_wire} cannot be addressed by a circuit gate."))?;
+    Ok(())
+}
+
+fn resize_wire_metadata(
+    count: usize,
+    roles: &mut Vec<Option<QubitRole>>,
+    preps: &mut Vec<Option<QubitPrep>>,
+) -> Result<(), String> {
+    validate_wire_count(count)?;
+    let no_space = |_| format!("Unable to allocate register metadata for {count} qubits.");
+    roles
+        .try_reserve_exact(count.saturating_sub(roles.len()))
+        .map_err(no_space)?;
+    preps
+        .try_reserve_exact(count.saturating_sub(preps.len()))
+        .map_err(no_space)?;
+    roles.resize(count, None);
+    preps.resize(count, None);
+    Ok(())
+}
+
 /// A data-transfer object (DTO) for serializing and deserializing a `Circuit`.
 ///
 /// This struct is used to represent the circuit in a format that can be easily
@@ -192,6 +219,23 @@ impl Circuit {
         }
     }
 
+    /// Resize register metadata without changing the authored gates.
+    pub fn resize_wires(&mut self, count: usize) -> Result<(), String> {
+        if let Some(layout) = &mut self.layout {
+            validate_wire_count(count)?;
+            layout
+                .positions
+                .try_reserve_exact(count.saturating_sub(layout.positions.len()))
+                .map_err(|_| format!("Unable to allocate layout positions for {count} qubits."))?;
+        }
+        resize_wire_metadata(count, &mut self.qubit_roles, &mut self.initial_preps)?;
+        if let Some(layout) = &mut self.layout {
+            layout.resize(count);
+        }
+        self.num_qubits = count;
+        Ok(())
+    }
+
     /// Updates the circuit's state from a `CircuitData` object.
     ///
     /// This method consumes a `CircuitData` object and updates the fields of the
@@ -211,23 +255,19 @@ impl Circuit {
         if let Some(layout) = &data.layout {
             layout.validate(data.num_qubits)?;
         }
+        resize_wire_metadata(
+            data.num_qubits,
+            &mut data.qubit_roles,
+            &mut data.initial_preps,
+        )?;
         self.num_qubits = data.num_qubits;
         self.qubit_roles = data.qubit_roles;
-        self.qubit_roles.resize(self.num_qubits, None);
         self.layout = data.layout;
         self.steps = data.steps;
         self.sections = data.sections;
         self.initial_state = data.initial_state;
 
-        // Ensure initial_preps is the correct size, as the data from JSON
-        // might have a different number of qubits.
-        let mut new_preps = vec![None; self.num_qubits];
-        for (i, prep) in data.initial_preps.into_iter().enumerate() {
-            if i < self.num_qubits {
-                new_preps[i] = prep;
-            }
-        }
-        self.initial_preps = new_preps;
+        self.initial_preps = data.initial_preps;
         Ok(())
     }
 
@@ -368,12 +408,17 @@ impl Circuit {
     /// preparation steps.
     fn initialize_state(&self) -> Result<QuantumState, RunResult> {
         match self.initial_state.as_ref() {
-            Some(state_vector) => QuantumState::from_vector(self.num_qubits, state_vector).map_err(|msg| RunResult {
-                diagnostics: vec![ValidationError { step: 0, op_index: 0, message: msg.to_string() }],
-                ..Default::default()
-            }),
-            None => Ok(QuantumState::new(self.num_qubits)),
+            Some(state_vector) => QuantumState::from_vector(self.num_qubits, state_vector),
+            None => QuantumState::try_new(self.num_qubits),
         }
+        .map_err(|msg| RunResult {
+            diagnostics: vec![ValidationError {
+                step: 0,
+                op_index: 0,
+                message: msg.to_string(),
+            }],
+            ..Default::default()
+        })
     }
 
     /// Executes the main simulation loop over the prepared steps.

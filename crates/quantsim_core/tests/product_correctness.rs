@@ -137,11 +137,9 @@ fn controlled_x_on_an_x_eigenstate_retains_its_kickback_phase() {
 
 #[test]
 fn invalid_inputs_and_overridden_gates_cannot_yield_a_product_readout() {
-    for width in [0, 129] {
-        let circuit = Circuit::new(width);
-        assert!(circuit.run_product_prefix(0).is_err());
-        assert!(circuit.run_grouped_prefix(0).is_err());
-    }
+    let empty = Circuit::new(0);
+    assert!(empty.run_product_prefix(0).is_err());
+    assert!(empty.run_grouped_prefix(0).is_err());
     let mut circuit = Circuit::new(2);
     circuit.initial_state = Some(vec![0.0.into(), 1.0.into(), 0.0.into(), 0.0.into()]);
     assert!(circuit.run_product_prefix(0).is_err());

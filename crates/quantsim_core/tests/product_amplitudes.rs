@@ -121,3 +121,30 @@ fn reference_phase_survives_joint_amplitude_underflow() {
     let expected = Complex64::from_polar(1.0, std::f64::consts::FRAC_PI_4);
     assert!((state.reference_phase() - expected).norm() < 1e-7);
 }
+
+#[test]
+fn high_wire_product_samples_and_amplitudes_preserve_phase() {
+    use quantsim_core::BasisIndex;
+    let mut circuit = Circuit::new(257);
+    circuit.initial_preps[128] = Some(QubitPrep::One);
+    circuit.initial_preps[256] = Some(QubitPrep::Minus);
+    circuit.steps = vec![vec![Operation::new(Gate::SqrtZ, vec![128], vec![])]];
+    let state = circuit.run_product_prefix(1).unwrap();
+    let first = BasisIndex::from(1u8) << 128usize;
+    let stride = BasisIndex::from(1u8) << 256usize;
+    let other = &first | &stride;
+    assert_eq!(state.basis_slice_wide(), (first.clone(), stride));
+    assert_eq!(state.probability_one(256), Some(0.5));
+    assert!((state.reference_phase() - Complex64::I).norm() < 1e-12);
+    let a = Complex64::I * std::f64::consts::FRAC_1_SQRT_2;
+    assert!((state.amplitude_wide(&first).unwrap() - a).norm() < 1e-12);
+    assert!((state.amplitude_wide(&other).unwrap() + a).norm() < 1e-12);
+    assert_eq!(state.amplitude(0), Some(Complex64::ZERO));
+    assert_eq!(
+        state.amplitude_wide(&(BasisIndex::from(1u8) << 257usize)),
+        None
+    );
+    let shots = state.sample_wide(128, 42);
+    assert!(shots.contains(&first) && shots.contains(&other));
+    assert!(shots.iter().all(|v| v == &first || v == &other));
+}

@@ -1,24 +1,27 @@
-use super::{Factor, FactorState, GroupedState, Wire};
+use super::{reserve_group, Factor, FactorState, GroupedState, Wire};
 use num_complex::Complex64;
+use smallvec::SmallVec;
 
 impl GroupedState {
-    pub(super) fn split_singletons(&mut self, index: usize) {
-        while let Some(single) = self.factors[index].split_singleton() {
+    pub(super) fn split_singletons(&mut self, index: usize) -> Result<(), String> {
+        while let Some(single) = self.factors[index].split_singleton()? {
             self.factors.push(single);
         }
+        Ok(())
     }
 }
 
 impl Factor {
-    fn split_singleton(&mut self) -> Option<Factor> {
+    fn split_singleton(&mut self) -> Result<Option<Factor>, String> {
         let FactorState::Group(values) = &self.state else {
-            return None;
+            return Ok(None);
         };
         // Each wire defines a 2 x N matrix, with one row for each bit value.
         // A largest-amplitude pivot lies in a nonzero row and bounds the
         // magnitude of the other row's candidate multiplier by one.
         let pivot = (0..values.len())
-            .max_by(|&a, &b| values[a].norm_sqr().total_cmp(&values[b].norm_sqr()))?;
+            .max_by(|&a, &b| values[a].norm_sqr().total_cmp(&values[b].norm_sqr()))
+            .expect("a factor has at least two amplitudes");
         for bit in 0..self.wires.len() {
             let mask = 1 << bit;
             let pivot_bit = pivot & mask;
@@ -38,15 +41,20 @@ impl Factor {
             // Its original phase stays in the remaining amplitudes.
             let mut rest = row.map(|i| values[i] * scale);
             self.state = if self.wires.len() == 2 {
-                FactorState::Single(Wire::from_factor([rest.next()?, rest.next()?]))
+                FactorState::Single(Wire::from_factor([
+                    rest.next().expect("two-entry row"),
+                    rest.next().expect("two-entry row"),
+                ]))
             } else {
-                FactorState::Group(rest.collect())
+                let (_, mut remainder) = reserve_group(self.wires.len() - 1)?;
+                remainder.extend(rest);
+                FactorState::Group(remainder)
             };
-            return Some(Factor {
-                wires: vec![self.wires.remove(bit)],
+            return Ok(Some(Factor {
+                wires: SmallVec::from_buf([self.wires.remove(bit)]),
                 state: FactorState::Single(Wire::from_factor(pair)),
-            });
+            }));
         }
-        None
+        Ok(None)
     }
 }

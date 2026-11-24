@@ -3,6 +3,7 @@ use quantsim_core::{
     circuit::{Circuit, QubitLayout, QubitRole},
     core::types::Operation,
 };
+use std::collections::BTreeSet;
 
 /// Show physical links and the operations in the selected gate column.
 pub(super) fn draw_map(
@@ -228,29 +229,62 @@ fn draw_site(ui: &Ui, rect: Rect, square: bool, fill: Color32, outline: Stroke) 
     }
 }
 
+/// Subtract the coordinate minima before projection so a large shared offset
+/// does not erase small separations when converting to screen coordinates.
+pub(super) fn local_coordinates(positions: &[[i64; 2]]) -> Vec<Pos2> {
+    let min = positions
+        .iter()
+        .fold([i64::MAX; 2], |[x, y], &[a, b]| [x.min(a), y.min(b)]);
+    positions
+        .iter()
+        .map(|&[x, y]| pos2(x.abs_diff(min[0]) as f32, y.abs_diff(min[1]) as f32))
+        .collect()
+}
+
+// Labels need 58 horizontal or 91 vertical pixels between centers. After
+// weighting the axes, the closest pair determines the smallest readable scale.
+fn label_scale(positions: &[[i64; 2]]) -> f32 {
+    const X: i128 = 58;
+    const Y: i128 = 91;
+    let mut sites: Vec<_> = positions
+        .iter()
+        .map(|&[x, y]| (i128::from(x) * Y, i128::from(y) * X))
+        .collect();
+    sites.sort_unstable();
+    sites.dedup();
+    let mut closest = i128::MAX;
+    let mut by_y = BTreeSet::new();
+    let mut left = 0;
+    for &(x, y) in &sites {
+        while x - sites[left].0 >= closest {
+            let (old_x, old_y) = sites[left];
+            by_y.remove(&(old_y, old_x));
+            left += 1;
+        }
+        // Only points inside this square can improve the current distance.
+        let bottom = (y.saturating_sub(closest), i128::MIN);
+        let top = (y.saturating_add(closest), i128::MAX);
+        for &(other_y, other_x) in by_y.range(bottom..=top) {
+            closest = closest.min((x - other_x).max((y - other_y).abs()));
+        }
+        by_y.insert((y, x));
+    }
+    (X * Y) as f32 / closest as f32
+}
+
 // Preserve the coordinate aspect ratio. Use scrolling when fitting the full
 // arrangement would make adjacent labels or gate badges overlap.
-fn map_geometry(positions: &[[i16; 2]], width: f32) -> (Vec2, Vec<Vec2>) {
-    let coords: Vec<_> = positions
-        .iter()
-        .map(|&[x, y]| pos2(f32::from(x), f32::from(y)))
-        .collect();
+fn map_geometry(positions: &[[i64; 2]], width: f32) -> (Vec2, Vec<Vec2>) {
+    let coords = local_coordinates(positions);
     let bounds = Rect::from_points(&coords);
     let padding = vec2(35.0, 48.0);
     let span = bounds.size();
     let available = vec2((width - padding.x * 2.0).max(1.0), 204.0);
     let fit = (available.x / span.x).min(available.y / span.y);
-    let mut min_scale: f32 = 0.0;
-    for (i, &point) in coords.iter().enumerate() {
-        for &other in &coords[..i] {
-            let delta = (other - point).abs();
-            min_scale = min_scale.max((58.0 / delta.x).min(91.0 / delta.y));
-        }
-    }
-    let scale = if coords.len() == 1 {
+    let scale = if span == Vec2::ZERO {
         1.0
     } else {
-        fit.max(min_scale)
+        fit.max(label_scale(positions))
     };
     let extent = span * scale;
     let size = vec2(
@@ -268,6 +302,35 @@ fn map_geometry(positions: &[[i16; 2]], width: f32) -> (Vec2, Vec<Vec2>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coincident_wires_share_a_center_without_affecting_map_spacing() {
+        let (size, centers) = map_geometry(&[[0, 0], [0, 0], [1, 0]], 300.0);
+        let (expected, distinct) = map_geometry(&[[0, 0], [1, 0]], 300.0);
+        assert_eq!(size, expected);
+        assert_eq!(centers, [distinct[0], distinct[0], distinct[1]]);
+
+        let (size, centers) = map_geometry(&[[5, 5]; 3], 300.0);
+        assert!(size.is_finite());
+        assert_eq!(centers, [size * 0.5; 3]);
+    }
+
+    #[test]
+    fn map_spacing_survives_wide_registers_and_translated_coordinates() {
+        let wide = QubitLayout::wire_order(65_537);
+        let (size, centers) = map_geometry(&wide.positions, 300.0);
+        assert!(size.is_finite());
+        assert_eq!(centers[65_536].x - centers[65_535].x, 58.0);
+
+        let translated = [[i64::MAX - 1, i64::MIN], [i64::MAX, i64::MIN + 1]];
+        assert_eq!(
+            map_geometry(&translated, 300.0),
+            map_geometry(&[[0, 0], [1, 1]], 300.0)
+        );
+        let extremes = [[i64::MIN, i64::MAX], [i64::MAX, i64::MIN]];
+        let (size, centers) = map_geometry(&extremes, 300.0);
+        assert!(size.is_finite() && centers.iter().all(|p| p.is_finite()));
+    }
 
     #[test]
     fn two_fault_badges_follow_the_template_wires_and_selected_column() {

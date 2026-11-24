@@ -103,13 +103,13 @@ fn compact_readout(circuit: &Circuit, step_count: usize) -> Result<SimulationSta
         Ok(state) => return Ok(SimulationState::from_grouped(state, circuit.num_qubits)),
         Err(error) => error,
     };
-    // Prefer the grouped diagnostic on ties; it explains the group-size limit.
+    // On ties prefer the grouped backend's diagnostic for the failing gate.
     let error = [stabilizer_error, product_error, grouped_error]
         .into_iter()
         .max_by_key(|e| (e.step, e.op_index))
         .expect("three backend diagnostics");
     // Input diagnostics share (0, 0) with the first authored gate.
-    if error.step == 0 && error.op_index == 0 && circuit.run_stabilizer_prefix(0).is_err() {
+    if error.step == 0 && error.op_index == 0 && circuit.validate_stabilizer_prefix(0).is_err() {
         return Err(error.message);
     }
     Err(format!(
@@ -127,7 +127,7 @@ mod grouped_tests;
 mod tests {
     use crate::state::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS};
     use crate::{app::QCSimApp, messages::Message};
-    use quantsim_core::{circuit::QubitRole, core::types::Gate};
+    use quantsim_core::{circuit::QubitRole, core::types::Gate, BasisIndex};
     use serde_json::json;
 
     #[test]
@@ -141,9 +141,12 @@ mod tests {
             let readout = &app.state.simulation_state;
             let samples = readout.compact_samples.as_ref().unwrap();
             assert_eq!(samples.distinct, 2);
-            let ones = (1_u128 << entangled_wires) - 1;
-            assert!(samples.rows.iter().any(|&(bits, _)| bits == 0));
-            assert!(samples.rows.iter().any(|&(bits, _)| bits == ones));
+            let ones = BasisIndex::from((1_u128 << entangled_wires) - 1);
+            assert!(samples
+                .rows
+                .iter()
+                .any(|(bits, _)| *bits == BasisIndex::ZERO));
+            assert!(samples.rows.iter().any(|(bits, _)| *bits == ones));
             assert_eq!(samples.rows.iter().map(|r| r.1).sum::<u32>(), COMPACT_SHOTS);
             assert!(readout.quantum_state.is_none());
             assert!(readout.populated_indices.is_empty());
@@ -158,29 +161,59 @@ mod tests {
     }
 
     #[test]
-    fn a_clifford_prefix_beyond_group_capacity_reports_the_first_unsupported_gate() {
+    fn ghz_at_256_wires_keeps_high_bits_in_samples_and_waveform() {
+        let wires = 256;
+        let mut steps = vec![vec![json!({"id":"H","qubits":[0]})]];
+        for wire in 1..wires {
+            steps.push(vec![json!({"id":"CX","qubits":[wire - 1, wire]})]);
+        }
+
         let mut app = QCSimApp::default();
-        app.handle_message(Message::LoadTemplate("ghz_50.json".into()));
-        let last = app.state.circuit_state.num_timesteps;
-        app.handle_message(Message::ChangeTimesteps(last + 1));
-        app.handle_message(Message::PlaceGate(Gate::ZPow, 0, last));
-        app.handle_message(Message::SelectGateForEditing(0, last));
-        app.handle_message(Message::UpdateGateAngle(0.25));
+        app.handle_message(Message::UpdateCircuitFromJson(
+            json!({"num_qubits":wires,"steps":steps}).to_string(),
+        ));
         app.handle_message(Message::RunSimulation);
-        let error = app.state.ui_state.error_message.as_ref().unwrap();
-        assert!(
-            error.contains(&format!("Step {}, gate 1", last + 1)),
-            "{error}"
-        );
-        assert!(error.contains("ZPow"), "{error}");
+        assert_eq!(app.state.ui_state.error_message, None);
+        let readout = &mut app.state.simulation_state;
+        assert_eq!(readout.wire_one_probabilities, vec![0.5; wires]);
+        let samples = readout.compact_samples.as_ref().unwrap();
+        let ones = (BasisIndex::from(1u8) << wires) - 1u8;
+        assert_eq!(samples.distinct, 2);
+        assert!(samples
+            .rows
+            .iter()
+            .any(|(bits, _)| *bits == BasisIndex::ZERO));
+        assert!(samples.rows.iter().any(|(bits, _)| *bits == ones));
+        assert_eq!(samples.rows.iter().map(|r| r.1).sum::<u32>(), COMPACT_SHOTS);
+
+        readout.set_waveform_window(BasisIndex::ZERO, ones.clone());
+        let wave = readout.waveform().unwrap();
+        assert_eq!(wave.last_index, ones);
+        assert_eq!(wave.points.len(), 2);
+        for amp in &wave.points {
+            assert!((amp.re - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-12);
+            assert_eq!(amp.im, 0.0);
+        }
     }
 
     #[test]
-    fn exceeding_group_capacity_preserves_readable_prefixes_and_bounded_rows() {
-        use quantsim_core::grouped::MAX_GROUP_QUBITS;
+    fn a_clifford_prefix_reports_a_subsequent_explicit_matrix() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::UpdateCircuitFromJson(
+            json!({"num_qubits":50,"steps":[[{"id":"H","qubits":[0]}],[{"id":"CX","qubits":[0,49]}],[]]}).to_string(),
+        ));
+        app.handle_message(Message::PlaceGate(Gate::Custom, 0, 2));
+        app.handle_message(Message::RunSimulation);
+        let error = app.state.ui_state.error_message.as_ref().unwrap();
+        assert!(error.contains("Step 3, gate 1"), "{error}");
+        assert!(error.contains("explicit matrix"), "{error}");
+    }
+
+    #[test]
+    fn nine_wire_group_preserves_readable_prefixes_and_bounded_rows() {
         let independent: Vec<_> = (0..50).map(|q| json!({"id":"H","qubits":[q]})).collect();
         let mut columns = vec![independent];
-        for wire in 1..=MAX_GROUP_QUBITS {
+        for wire in 1..9 {
             columns.push(vec![json!({"id":"CZPow","qubits":[0,wire],"params":[0.3]})]);
         }
         let mut app = QCSimApp::default();
@@ -188,19 +221,13 @@ mod tests {
             json!({"num_qubits":50,"steps":columns}).to_string(),
         ));
         app.handle_message(Message::RunSimulation);
-        let error = app.state.ui_state.error_message.as_ref().unwrap();
-        assert!(
-            error.contains(&format!("Step {}, gate 1", MAX_GROUP_QUBITS + 1))
-                && error.contains("CZPow")
-                && error.contains(&format!("{}-qubit group", MAX_GROUP_QUBITS + 1))
-                && error.contains(&format!("limit is {MAX_GROUP_QUBITS}")),
-            "{error}"
-        );
-        assert!(!app.state.simulation_state.has_readout());
+        assert_eq!(app.state.ui_state.error_message, None);
+        assert_eq!(app.state.simulation_state.group_wires(0).unwrap().len(), 9);
 
-        app.handle_message(Message::SelectTimestep(MAX_GROUP_QUBITS));
-        assert!(app.state.ui_state.error_message.is_none());
+        app.handle_message(Message::SelectTimestep(8));
+        assert_eq!(app.state.ui_state.error_message, None);
         let readout = &app.state.simulation_state;
+        assert_eq!(readout.group_wires(0).unwrap().len(), 8);
         assert!(readout
             .wire_one_probabilities
             .iter()
@@ -208,9 +235,9 @@ mod tests {
         let samples = readout.compact_samples.as_ref().unwrap();
         assert!(samples.distinct > MAX_SAMPLE_ROWS && samples.distinct <= COMPACT_SHOTS as usize);
         assert_eq!(samples.rows.len(), MAX_SAMPLE_ROWS);
-        assert!(samples
-            .rows
-            .is_sorted_by_key(|&(bits, count)| (std::cmp::Reverse(count), bits)));
+        assert!(samples.rows.is_sorted_by(
+            |(a, count_a), (b, count_b)| count_a > count_b || (count_a == count_b && a <= b)
+        ));
         assert!(samples.rows.iter().map(|r| r.1).sum::<u32>() < COMPACT_SHOTS);
 
         app.handle_message(Message::DeleteGate(0, 0));
@@ -227,10 +254,10 @@ mod tests {
             let readout = &app.state.simulation_state;
             assert_eq!(
                 readout.compact_samples.as_ref().unwrap().rows,
-                [(input, COMPACT_SHOTS)]
+                [(BasisIndex::from(input), COMPACT_SHOTS)]
             );
             let wave = readout.waveform().unwrap();
-            assert_eq!((wave.first, wave.stride), (input, 1));
+            assert_eq!((&wave.first, &wave.stride), (&input.into(), &1u8.into()));
             assert_eq!(wave.points[0], nalgebra::Complex::ONE);
             assert!(wave.points[1..]
                 .iter()
@@ -240,7 +267,10 @@ mod tests {
         assert_eq!(app.state.ui_state.error_message, None);
         assert_eq!(app.state.ui_state.current_timestep, 101);
         let wave = app.state.simulation_state.waveform().unwrap();
-        assert_eq!((wave.first, wave.stride, wave.points.len()), (0, 1, 64));
+        assert_eq!(
+            (&wave.first, &wave.stride, wave.points.len()),
+            (&BasisIndex::ZERO, &1u8.into(), 64)
+        );
         let amplitude = 2.0_f64.powi(-25);
         for (index, point) in wave.points.iter().enumerate() {
             let angle = std::f64::consts::TAU * index as f64 / 32.0;

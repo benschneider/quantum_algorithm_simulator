@@ -77,7 +77,8 @@ fn rejected_json_keeps_the_last_working_circuit_and_results() {
 
     for invalid in [
         "{",
-        r#"{"num_qubits":129,"steps":[]}"#,
+        r#"{"num_qubits":0,"steps":[]}"#,
+        r#"{"num_qubits":18446744073709551615,"steps":[]}"#,
         r#"{"num_qubits":2,"steps":[],"initial_state":[[1,0]]}"#,
     ] {
         app.handle_message(Message::UpdateCircuitFromJson(invalid.into()));
@@ -180,10 +181,10 @@ fn width_changes_preserve_explicit_input_and_validate_both_dimension_messages() 
         0
     );
     app.handle_message(Message::CircuitDimensionsChanged {
-        num_qubits: 128,
+        num_qubits: 320,
         num_timesteps: 2,
     });
-    assert_eq!(app.state.initial_state_editor_state.num_qubits, 128);
+    assert_eq!(app.state.initial_state_editor_state.num_qubits, 320);
     assert_eq!(
         app.state.initial_state_editor_state.state_vector.capacity(),
         0

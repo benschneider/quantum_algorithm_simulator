@@ -86,13 +86,6 @@ fn resize_steps(state: &mut AppState, count: usize) {
 }
 
 fn resize_wires(state: &mut AppState, count: usize) -> bool {
-    if !(1..=CircuitState::MAX_QUBITS).contains(&count) {
-        state.ui_state.error_message = Some(format!(
-            "Choose between 1 and {} qubits for this simulator.",
-            CircuitState::MAX_QUBITS
-        ));
-        return false;
-    }
     if count > CircuitState::MAX_DENSE_QUBITS && state.circuit_state.circuit.initial_state.is_some()
     {
         state.ui_state.error_message = Some(format!(
@@ -101,6 +94,10 @@ fn resize_wires(state: &mut AppState, count: usize) -> bool {
         return false;
     }
     if count != state.circuit_state.num_qubits {
+        if let Err(error) = state.circuit_state.circuit.resize_wires(count) {
+            state.ui_state.error_message = Some(error);
+            return false;
+        }
         state.simulation_state = Default::default();
         state.ui_state.current_timestep = 0;
         state.ui_state.error_message = None;
@@ -112,17 +109,7 @@ fn resize_wires(state: &mut AppState, count: usize) -> bool {
             .ui_state
             .selected_layout_wire
             .filter(|&wire| wire < count);
-        if let Some(layout) = &mut state.circuit_state.circuit.layout {
-            layout.resize(count);
-        }
     }
     state.circuit_state.num_qubits = count;
-    state.circuit_state.circuit.num_qubits = count;
-    state.circuit_state.circuit.qubit_roles.resize(count, None);
-    state
-        .circuit_state
-        .circuit
-        .initial_preps
-        .resize(count, None);
     true
 }

@@ -1,6 +1,5 @@
 use num_complex::Complex64;
 use quantsim_core::circuit::Circuit;
-use quantsim_core::grouped::MAX_GROUP_QUBITS;
 use quantsim_core::types::{Gate, Operation, QubitPrep};
 use quantsim_core::CircuitBuilder;
 
@@ -134,8 +133,7 @@ fn swapped_factors_sample_correlated_bits_and_find_the_lowest_physical_index() {
 }
 
 #[test]
-fn two_full_groups_can_swap_then_a_ninth_entangled_wire_hits_the_cap() {
-    assert_eq!(MAX_GROUP_QUBITS, 8);
+fn two_eight_wire_groups_can_swap_then_a_ninth_entangled_wire_joins_one() {
     let mut builder = CircuitBuilder::new(128);
     builder.h(0).h(8).h(127).next_step();
     for target in 1..8 {
@@ -147,7 +145,7 @@ fn two_full_groups_can_swap_then_a_ninth_entangled_wire_hits_the_cap() {
     let mut circuit = builder.build();
     let before_last = circuit.steps.len();
     let valid = circuit.run_grouped_prefix(before_last).unwrap();
-    assert_eq!(valid.largest_group_size(), MAX_GROUP_QUBITS);
+    assert_eq!(valid.largest_group_size(), 8);
     assert!((valid.amplitude(0).unwrap().norm_sqr() - 0.125).abs() < 1e-8);
     // Even a tiny nonzero phase is entangling here.
     for exponent in [0.25, 1e-11] {
@@ -155,16 +153,14 @@ fn two_full_groups_can_swap_then_a_ninth_entangled_wire_hits_the_cap() {
             Operation::new(Gate::X, vec![61], vec![]),
             Operation::new(Gate::CZPow, vec![1, 127], vec![exponent]),
         ]);
-        let error = circuit
-            .run_grouped_prefix(circuit.steps.len())
-            .err()
-            .unwrap();
-        assert_eq!((error.step, error.op_index), (before_last, 1));
-        assert!(
-            error.message.contains('9') && error.message.contains('8'),
-            "{}",
-            error.message
-        );
+        let merged = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+        assert_eq!(merged.group_wires(127).unwrap().len(), 9);
+        assert_eq!(merged.group_wires(0).unwrap().len(), 8);
+        let bits = (1u128 << 127) | (1u128 << 61) | 0b1_1111_1110;
+        let expected =
+            Complex64::from_polar(0.125_f64.sqrt(), std::f64::consts::PI * f64::from(exponent));
+        assert!((merged.amplitude(bits).unwrap() - expected).norm() < 1e-12);
+        assert!((merged.probability_one(127).unwrap() - 0.5).abs() < 1e-6);
         circuit.steps.pop();
     }
 
@@ -180,8 +176,29 @@ fn two_full_groups_can_swap_then_a_ninth_entangled_wire_hits_the_cap() {
         .steps
         .push(vec![Operation::new(Gate::CZPow, vec![1, 127], vec![0.25])]);
     let joined = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
-    assert_eq!(joined.group_wires(127).unwrap().len(), MAX_GROUP_QUBITS);
+    assert_eq!(joined.group_wires(127).unwrap().len(), 8);
     assert_eq!(joined.probability_one(7), Some(0.0));
+}
+
+#[test]
+fn twelve_entangled_wires_match_all_dense_amplitudes() {
+    let mut circuit = Circuit::new(12);
+    circuit.initial_preps.fill(Some(QubitPrep::Plus));
+    for wire in 1..12 {
+        circuit.steps.push(vec![Operation::new(
+            Gate::CZPow,
+            vec![wire - 1, wire],
+            vec![0.25],
+        )]);
+    }
+    let grouped = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+    assert_eq!(grouped.largest_group_size(), 12);
+    let dense = circuit.run(&Default::default());
+    assert!(dense.diagnostics.is_empty());
+    for (i, value) in dense.final_state_vector.unwrap().into_iter().enumerate() {
+        let expected = Complex64::new(value.re.into(), value.im.into());
+        assert!((grouped.amplitude(i as u128).unwrap() - expected).norm() < 2e-6);
+    }
 }
 
 #[test]
@@ -238,4 +255,62 @@ fn reference_phase_survives_underflow_across_entangled_and_product_factors() {
     assert_eq!(groups.basis_slice(), (first, 1));
     assert_eq!(groups.amplitude(first), Some(Complex64::ZERO));
     assert!((groups.reference_phase() - Complex64::I).norm() < 1e-8);
+}
+
+#[test]
+fn high_wire_anticorrelated_factor_keeps_both_outcomes_and_their_phases() {
+    use quantsim_core::BasisIndex;
+    let mut builder = CircuitBuilder::new(257);
+    builder
+        .h(256)
+        .next_step()
+        .cx(256, 2)
+        .next_step()
+        .y(2)
+        .next_step()
+        .swap(2, 128);
+    let circuit = builder.build();
+    let state = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+    let low = BasisIndex::from(1u8) << 128usize;
+    let high = BasisIndex::from(1u8) << 256usize;
+    assert_eq!(state.basis_slice_wide(), (low.clone(), low.clone()));
+    assert_eq!(state.probability_one(128), Some(0.5));
+    assert_eq!(state.probability_one(256), Some(0.5));
+    assert!((state.reference_phase() - Complex64::I).norm() < 1e-12);
+    let a = Complex64::I * std::f64::consts::FRAC_1_SQRT_2;
+    assert!((state.amplitude_wide(&low).unwrap() - a).norm() < 1e-12);
+    assert!((state.amplitude_wide(&high).unwrap() + a).norm() < 1e-12);
+    assert_eq!(state.amplitude_wide(&(&low | &high)), Some(Complex64::ZERO));
+    assert_eq!(state.amplitude(0), Some(Complex64::ZERO));
+    assert_eq!(
+        state.amplitude_wide(&(BasisIndex::from(1u8) << 257usize)),
+        None
+    );
+    let shots = state.sample_wide(128, 42);
+    assert!(shots.contains(&low) && shots.contains(&high));
+    assert!(shots.iter().all(|v| v == &low || v == &high));
+}
+
+#[test]
+fn streaming_factor_samples_match_small_cdf_search_for_identical_draws() {
+    use quantsim_core::BasisIndex;
+    let mut builder = CircuitBuilder::new(6);
+    builder.add_gate(Gate::Ry, &[0], &[0.9]).next_step();
+    for wire in 1..6 {
+        builder.cx(0, wire).next_step();
+    }
+    builder.x(0);
+    let circuit = builder.build();
+    let state = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+    assert_eq!(state.largest_group_size(), 6);
+    // Seventeen draws scan the 64-entry factor; 128 use its CDF.
+    let few = state.sample(17, 42);
+    let many = state.sample(128, 42);
+    assert_eq!(few, many[..17]);
+    assert!(many.contains(&1) && many.contains(&62));
+    assert!(many.iter().all(|&value| value == 1 || value == 62));
+    assert_eq!(
+        state.sample_wide(17, 42),
+        few.into_iter().map(BasisIndex::from).collect::<Vec<_>>()
+    );
 }

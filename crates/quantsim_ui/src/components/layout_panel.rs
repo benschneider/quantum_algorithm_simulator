@@ -47,7 +47,7 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
                     circuit
                         .layout
                         .clone()
-                        .unwrap_or_else(|| wire_order(circuit.num_qubits)),
+                        .unwrap_or_else(|| QubitLayout::wire_order(circuit.num_qubits)),
                 );
                 view.selected_layout_wire.get_or_insert(0);
             }
@@ -57,7 +57,7 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
         let saved = if let Some(layout) = &circuit.layout {
             layout
         } else {
-            fallback = wire_order(circuit.num_qubits);
+            fallback = QubitLayout::wire_order(circuit.num_qubits);
             &fallback
         };
         // A wire can temporarily share a site while its coordinates are being edited.
@@ -227,13 +227,6 @@ fn camera_controls(ui: &mut egui::Ui, camera: &mut StackCamera) {
             *camera = StackCamera::default();
         }
     });
-}
-
-fn wire_order(count: usize) -> QubitLayout {
-    QubitLayout {
-        positions: (0..count).map(|wire| [wire as i16, 0]).collect(),
-        links: Vec::new(),
-    }
 }
 
 fn edit_layout(ui: &mut egui::Ui, draft: &mut QubitLayout, wire: &mut usize) {

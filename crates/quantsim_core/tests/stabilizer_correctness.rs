@@ -189,3 +189,64 @@ fn four_bell_states_and_superdense_decoding_across_50_wires() {
         );
     }
 }
+
+#[test]
+fn ghz256_preserves_high_outcome_bits_and_relative_phase() {
+    use num_complex::Complex64;
+    use quantsim_core::BasisIndex;
+
+    let mut circuit = Circuit::new(256);
+    circuit.steps.push(vec![op(Gate::H, &[255])]);
+    for q in 0..255 {
+        circuit.steps.push(vec![op(Gate::CX, &[255, q])]);
+    }
+    circuit.steps.push(vec![op(Gate::SqrtZ, &[255])]);
+    let state = circuit.run_stabilizer_prefix(circuit.steps.len()).unwrap();
+    let one = BasisIndex::from(1u8);
+    let ones = (&one << 256usize) - &one;
+    let zero = BasisIndex::default();
+    let view = state.amplitude_view();
+    let half = std::f64::consts::FRAC_1_SQRT_2;
+    assert_eq!(view.basis_slice_wide(), (zero.clone(), one.clone()));
+    assert!((view.amplitude_wide(&zero).unwrap() - half).norm() < 1e-15);
+    assert!((view.amplitude_wide(&ones).unwrap() - Complex64::I * half).norm() < 1e-15);
+    assert_eq!(
+        view.amplitude_wide(&(&one << 255usize)),
+        Some(Complex64::ZERO)
+    );
+    assert_eq!(view.amplitude_wide(&(&one << 256usize)), None);
+    assert!((0..256).all(|q| state.probability_one(q) == Some(0.5)));
+    assert_eq!(state.probability_one(256), None);
+
+    let samples = state.sample_wide(1024, 42);
+    assert_eq!(samples.len(), 1024);
+    assert!(samples.contains(&zero) && samples.contains(&ones));
+    assert!(samples
+        .iter()
+        .all(|sample| sample == &zero || sample == &ones));
+}
+
+#[test]
+fn wide_slice_handles_fixed_and_varying_high_bits() {
+    use quantsim_core::BasisIndex;
+
+    let mut circuit = Circuit::new(201);
+    circuit
+        .steps
+        .push(vec![op(Gate::X, &[200]), op(Gate::H, &[130])]);
+    let state = circuit.run_stabilizer_prefix(1).unwrap();
+    let view = state.amplitude_view();
+    let fixed = BasisIndex::from(1u8) << 200usize;
+    let stride = BasisIndex::from(1u8) << 130usize;
+    assert_eq!(view.reference_index_wide(), fixed);
+    assert_eq!(view.basis_slice_wide(), (fixed.clone(), stride.clone()));
+    assert_eq!(state.probability_one(200), Some(1.0));
+    assert_eq!(state.probability_one(130), Some(0.5));
+    assert_eq!(view.amplitude(0).unwrap().norm_sqr(), 0.0);
+    for index in [&fixed, &(&fixed + stride)] {
+        assert!(
+            (view.amplitude_wide(index).unwrap().re - std::f64::consts::FRAC_1_SQRT_2).abs()
+                < 1e-15
+        );
+    }
+}

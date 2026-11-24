@@ -1,44 +1,60 @@
 use super::{sections, Circuit, CircuitSection, Gate, Operation};
-use crate::MAX_COMPACT_QUBITS;
+
+// A CZPow parameter is stored as f32. 2^-149 is its smallest positive
+// value; every smaller power of two rounds to zero (the identity).
+const LAST_PHASE_DISTANCE: usize = 149;
 
 /// Builds the forward QFT on consecutive wires, with `first_wire` as the
 /// least significant bit. The last column reverses the wire order for the
 /// usual Fourier output ordering when the transform spans multiple wires.
+/// Rotations that round to the identity at the gate parameter precision are omitted.
 pub fn forward_qft_steps(first_wire: usize, width: usize) -> Result<Vec<Vec<Operation>>, String> {
-    if !(1..=MAX_COMPACT_QUBITS).contains(&width) || first_wire > MAX_COMPACT_QUBITS - width {
-        return Err(format!(
-            "Choose a QFT spanning 1 to {MAX_COMPACT_QUBITS} wires within q0–q{}.",
-            MAX_COMPACT_QUBITS - 1
-        ));
-    }
+    let span = width
+        .checked_sub(1)
+        .ok_or("A QFT needs at least one wire.")?;
+    let last_wire = first_wire
+        .checked_add(span)
+        .filter(|&last| u32::try_from(last).is_ok())
+        .ok_or("The QFT's final wire exceeds the circuit wire-index range.")?;
 
-    let last_wire = first_wire + width - 1;
-    let mut steps = vec![Vec::new(); 2 * width - 1];
+    let depth = if width == 1 {
+        1
+    } else {
+        width
+            .checked_mul(2)
+            .ok_or("QFT depth exceeds the addressable range.")?
+    };
+    let mut steps = Vec::new();
+    steps
+        .try_reserve_exact(depth)
+        .map_err(|e| format!("Cannot allocate {depth} QFT columns: {e}"))?;
+    steps.resize_with(depth, Vec::new);
     for target in (first_wire..=last_wire).rev() {
         // Two columns between successive Hadamards let disjoint phase gates
         // overlap. Each control contributes its phase before its own Hadamard.
         let hadamard_step = 2 * (last_wire - target);
         steps[hadamard_step].push(Operation::new(Gate::H, vec![target as u32], vec![]));
-        for control in first_wire..target {
+        for control in first_wire.max(target.saturating_sub(LAST_PHASE_DISTANCE))..target {
             let distance = target - control;
             steps[hadamard_step + distance].push(Operation::new(
                 Gate::CZPow,
                 vec![control as u32, target as u32],
-                vec![0.5_f32.powi(distance as i32)],
+                vec![2.0_f64.powi(-(distance as i32)) as f32],
             ));
         }
     }
     if width > 1 {
-        let swaps = (0..width / 2)
-            .map(|offset| {
-                Operation::new(
-                    Gate::SWAP,
-                    vec![(first_wire + offset) as u32, (last_wire - offset) as u32],
-                    vec![],
-                )
-            })
-            .collect();
-        steps.push(swaps);
+        let swaps = steps.last_mut().unwrap();
+        swaps
+            .try_reserve_exact(width / 2)
+            .map_err(|e| format!("Cannot allocate QFT swaps: {e}"))?;
+        for offset in 0..width / 2 {
+            swaps.push(Operation::new(
+                Gate::SWAP,
+                vec![(first_wire + offset) as u32, (last_wire - offset) as u32],
+                vec![],
+            ));
+        }
     }
     Ok(steps)
 }
@@ -71,6 +87,9 @@ impl Circuit {
         sections::validate_sorted_sections(annotations.iter(), self.steps.len())?;
 
         let depth = steps.len();
+        self.steps
+            .try_reserve(depth)
+            .map_err(|e| format!("Cannot insert {depth} QFT columns: {e}"))?;
         let mut insert_at = annotations.partition_point(|section| section.end <= after_step);
         if let Some(section) = annotations
             .get_mut(insert_at)
@@ -174,8 +193,8 @@ mod tests {
 
     #[test]
     fn generator_handles_register_boundaries() {
-        let one = forward_qft_steps(127, 1).unwrap();
-        assert_eq!(one, [vec![Operation::new(Gate::H, vec![127], vec![])]]);
+        let one = forward_qft_steps(u32::MAX as usize, 1).unwrap();
+        assert_eq!(one, [vec![Operation::new(Gate::H, vec![u32::MAX], vec![])]]);
 
         for register_width in [64, 128] {
             for width in 2..=register_width {
@@ -198,16 +217,52 @@ mod tests {
                 }
             }
         }
-        for (first, width) in [
-            (0, 0),
-            (128, 1),
-            (127, 2),
-            (1, 128),
-            (0, 129),
-            (usize::MAX, 1),
-            (usize::MAX, usize::MAX),
-        ] {
+        for (first, width) in [(0, 0), (u32::MAX as usize, 2), (usize::MAX, usize::MAX)] {
             assert!(forward_qft_steps(first, width).is_err());
+        }
+    }
+
+    #[test]
+    fn wide_blocks_use_high_wires_and_keep_all_representable_phases() {
+        use crate::types::Param;
+
+        let (first, width) = (200_usize, 151_usize);
+        let last = first + width - 1;
+        let steps = forward_qft_steps(first, width).unwrap();
+        assert_eq!(steps.len(), 2 * width);
+        assert_eq!(
+            steps.iter().map(Vec::len).sum::<usize>(),
+            width + width * (width - 1) / 2 - 1 + width / 2
+        );
+        for (i, column) in steps.iter().enumerate() {
+            let mut used = std::collections::HashSet::new();
+            for op in column {
+                for &wire in &op.qubits {
+                    assert!((first..=last).contains(&(wire as usize)));
+                    assert!(used.insert(wire), "wire {wire} occurs twice in column {i}");
+                }
+            }
+        }
+        assert!(steps[149].iter().any(|op| op.qubits.as_slice()
+            == [(first + 1) as u32, last as u32]
+            && op.params.as_slice() == [Param::Scalar(f32::from_bits(1))]));
+        assert!(steps
+            .iter()
+            .flatten()
+            .all(|op| op.qubits.as_slice() != [first as u32, last as u32] || op.id == Gate::SWAP));
+
+        // Input 2^(width-5) creates one phase turn per 32 local basis indices.
+        let mut circuit = Circuit::new(last + 1);
+        circuit.steps = steps;
+        circuit.initial_preps[first + width - 5] = Some(QubitPrep::One);
+        let output = circuit.run_product_prefix(circuit.steps.len()).unwrap();
+        let magnitude = (-0.5 * width as f64).exp2();
+        for j in [0u32, 1, 8, 31, 32, 47] {
+            let index =
+                (crate::BasisIndex::from(j) << first) | (crate::BasisIndex::from(1u32) << last);
+            let expected =
+                Complex64::from_polar(magnitude, std::f64::consts::TAU * f64::from(j % 32) / 32.0);
+            assert!((output.amplitude_wide(&index).unwrap() - expected).norm() < 1e-12 * magnitude);
         }
     }
 

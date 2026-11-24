@@ -1,105 +1,150 @@
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use crate::BasisIndex;
 
 mod amplitudes;
 pub use amplitudes::StabilizerAmplitudes;
 
 /// Represents i^phase X^x Z^z, with all X factors ordered before all Z factors.
 /// In particular Y = iXZ. This convention keeps the phase of a row product explicit.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct Pauli {
-    x: u128,
-    z: u128,
+    x: BasisIndex,
+    z: BasisIndex,
     phase: u8,
 }
 
+fn parity(a: &BasisIndex, b: &BasisIndex) -> u8 {
+    let overlap = a
+        .iter_u64_digits()
+        .zip(b.iter_u64_digits())
+        .fold(0_u64, |acc, (x, z)| acc ^ (x & z));
+    (overlap.count_ones() & 1) as u8
+}
+
 impl Pauli {
-    fn multiply(&mut self, rhs: Self) {
+    fn multiply(&mut self, rhs: &Self) {
         // Moving rhs's X factors past our Z factors gives one minus sign per overlap.
-        let odd_swaps = (self.z & rhs.x).count_ones() & 1;
-        self.phase = (self.phase + rhs.phase + 2 * odd_swaps as u8) & 3;
-        self.x ^= rhs.x;
-        self.z ^= rhs.z;
+        self.phase = (self.phase + rhs.phase + 2 * parity(&self.z, &rhs.x)) & 3;
+        self.x ^= &rhs.x;
+        self.z ^= &rhs.z;
     }
 }
 
-/// A pure stabilizer state on at most 128 wires. Each row stores two packed Pauli
-/// masks. The first half are destabilizers paired with the stabilizers in the
-/// second half, as in the Aaronson–Gottesman tableau.
+// On 32-bit targets BigUint takes ownership of base-2^32 digits. Reserve the
+// identity masks fallibly so wasm can report failed allocations during setup.
+fn identity_mask(wire: usize) -> Result<BasisIndex, String> {
+    #[cfg(target_pointer_width = "32")]
+    {
+        let word = wire / 32;
+        let mut digits = Vec::new();
+        digits
+            .try_reserve_exact(word + 1)
+            .map_err(|e| format!("Cannot allocate stabilizer mask for q{wire}: {e}."))?;
+        digits.resize(word, 0);
+        digits.push(1u32 << (wire % 32));
+        Ok(BasisIndex::new(digits))
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        Ok(BasisIndex::from(1u8) << wire)
+    }
+}
+
+/// Each row stores two variable-width packed Pauli masks. The first half are
+/// destabilizers paired with the stabilizers in the second half, as in the
+/// Aaronson–Gottesman tableau.
 #[derive(Clone, Debug)]
 pub struct StabilizerState {
     rows: Vec<Pauli>,
 }
 
 impl StabilizerState {
-    pub(super) fn zero(num_qubits: usize) -> Self {
-        debug_assert!((1..=crate::MAX_COMPACT_QUBITS).contains(&num_qubits));
-        let mut rows = Vec::with_capacity(2 * num_qubits);
+    pub(super) fn zero(num_qubits: usize) -> Result<Self, String> {
+        debug_assert!(num_qubits > 0);
+        let count = num_qubits
+            .checked_mul(2)
+            .ok_or("Tableau row count overflow.")?;
+        // The initial X and Z identities alone need two copies of masks of
+        // bit lengths 1..=n, even before digit alignment and allocator overhead.
+        let n = num_qubits as u128;
+        let minimum_bytes =
+            (n * (n + 1)).div_ceil(8) + count as u128 * std::mem::size_of::<Pauli>() as u128;
+        if minimum_bytes > usize::MAX as u128 {
+            return Err(
+                "The initial stabilizer tableau exceeds this platform's address space.".into(),
+            );
+        }
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(count).map_err(|e| {
+            format!("Cannot allocate a {num_qubits}-qubit stabilizer tableau: {e}.")
+        })?;
         for wire in 0..num_qubits {
             rows.push(Pauli {
-                x: 1 << wire,
+                x: identity_mask(wire)?,
                 ..Pauli::default()
             });
         }
         for wire in 0..num_qubits {
             rows.push(Pauli {
-                z: 1 << wire,
+                z: identity_mask(wire)?,
                 ..Pauli::default()
             });
         }
-        Self { rows }
+        Ok(Self { rows })
     }
 
     pub(super) fn h(&mut self, wire: usize) {
-        let mask = 1 << wire;
+        let wire = wire as u64;
         for row in &mut self.rows {
-            if row.x & row.z & mask != 0 {
+            let x = row.x.bit(wire);
+            let z = row.z.bit(wire);
+            if x && z {
                 row.phase ^= 2; // H exchanges X and Z, reversing XZ on this wire.
             }
-            let swap = (row.x ^ row.z) & mask;
-            row.x ^= swap;
-            row.z ^= swap;
+            if x != z {
+                row.x.set_bit(wire, z);
+                row.z.set_bit(wire, x);
+            }
         }
     }
 
     pub(super) fn s(&mut self, wire: usize) {
-        let mask = 1 << wire;
+        let wire = wire as u64;
         for row in &mut self.rows {
-            if row.x & mask != 0 {
+            if row.x.bit(wire) {
                 row.phase = (row.phase + 1) & 3; // S maps X to iXZ.
-                row.z ^= mask;
+                row.z.set_bit(wire, !row.z.bit(wire));
             }
         }
     }
 
     pub(super) fn x(&mut self, wire: usize) {
-        self.conjugate_pauli(1 << wire, 0);
+        self.conjugate_pauli(wire, true, false);
     }
 
     pub(super) fn y(&mut self, wire: usize) {
-        self.conjugate_pauli(1 << wire, 1 << wire);
+        self.conjugate_pauli(wire, true, true);
     }
 
     pub(super) fn z(&mut self, wire: usize) {
-        self.conjugate_pauli(0, 1 << wire);
+        self.conjugate_pauli(wire, false, true);
     }
 
-    fn conjugate_pauli(&mut self, x: u128, z: u128) {
+    fn conjugate_pauli(&mut self, wire: usize, x: bool, z: bool) {
         for row in &mut self.rows {
-            if ((row.x & z) ^ (row.z & x)).count_ones() & 1 != 0 {
+            if (z && row.x.bit(wire as u64)) ^ (x && row.z.bit(wire as u64)) {
                 row.phase ^= 2;
             }
         }
     }
 
     pub(super) fn cx(&mut self, control: usize, target: usize) {
-        let control = 1 << control;
-        let target = 1 << target;
+        let (control, target) = (control as u64, target as u64);
         for row in &mut self.rows {
-            if row.x & control != 0 {
-                row.x ^= target;
+            if row.x.bit(control) {
+                row.x.set_bit(target, !row.x.bit(target));
             }
-            if row.z & target != 0 {
-                row.z ^= control;
+            if row.z.bit(target) {
+                row.z.set_bit(control, !row.z.bit(control));
             }
         }
     }
@@ -110,76 +155,43 @@ impl StabilizerState {
         if wire >= self.rows.len() / 2 {
             return None;
         }
-        let mask = 1 << wire;
-        Some(if self.pivot(mask).is_some() {
-            0.5
-        } else {
-            u8::from(self.deterministic_one(mask)) as f32
-        })
-    }
-
-    // A stabilizer with X on the measured wire anticommutes with Z, making its result random.
-    fn pivot(&self, mask: u128) -> Option<usize> {
-        self.rows[self.rows.len() / 2..]
-            .iter()
-            .position(|row| row.x & mask != 0)
-    }
-
-    fn deterministic_one(&self, mask: u128) -> bool {
-        // With no anticommuting stabilizer, ±Z belongs to the group. The paired
-        // destabilizers tell us which stabilizers multiply to it.
+        let wire = wire as u64;
         let (destabilizers, stabilizers) = self.rows.split_at(self.rows.len() / 2);
+        if stabilizers.iter().any(|row| row.x.bit(wire)) {
+            // A stabilizer anticommutes with Z on this wire.
+            return Some(0.5);
+        }
+        // Otherwise ±Z belongs to the group. Its sign comes from the product
+        // of stabilizers whose paired destabilizers anticommute with Z.
         let mut product = Pauli::default();
         for (destabilizer, stabilizer) in destabilizers.iter().zip(stabilizers) {
-            if destabilizer.x & mask != 0 {
-                product.multiply(*stabilizer);
+            if destabilizer.x.bit(wire) {
+                product.multiply(stabilizer);
             }
         }
-        debug_assert_eq!((product.x, product.z), (0, mask));
+        debug_assert!(product.x.bits() == 0 && product.z.bit(wire) && product.z.count_ones() == 1);
         debug_assert!(product.phase == 0 || product.phase == 2);
-        product.phase == 2
+        Some(f32::from(product.phase / 2))
     }
 
-    fn measure(&mut self, mask: u128, rng: &mut StdRng) -> bool {
-        let Some(pair) = self.pivot(mask) else {
-            return self.deterministic_one(mask);
-        };
-        let pivot = self.rows.len() / 2 + pair;
-        let old = self.rows[pivot];
-        for (index, row) in self.rows.iter_mut().enumerate() {
-            if index != pair && index != pivot && row.x & mask != 0 {
-                row.multiply(old);
-            }
-        }
-        // All other pairs now commute with Z. The old pivot becomes the
-        // destabilizer paired with the measured ±Z in the new state.
-        let one = rng.gen();
-        self.rows[pair] = old;
-        self.rows[pivot] = Pauli {
-            x: 0,
-            z: mask,
-            phase: 2 * u8::from(one),
-        };
-        one
-    }
-
-    /// Draws reproducible joint computational-basis samples. Bit 0 is wire q0.
-    /// Measurements within a shot share a scratch tableau to preserve correlations.
+    /// Draw reproducible joint computational-basis samples. Bit 0 is wire q0.
+    ///
+    /// # Panics
+    /// For registers wider than 128 qubits, use [`Self::sample_wide`].
     pub fn sample(&self, shots: u32, seed: u64) -> Vec<u128> {
-        let mut rng = StdRng::seed_from_u64(seed);
-        let mut scratch = self.clone();
-        let mut samples = Vec::with_capacity(shots as usize);
-        for _ in 0..shots {
-            scratch.rows.copy_from_slice(&self.rows);
-            let mut outcome = 0;
-            for wire in 0..self.rows.len() / 2 {
-                let mask = 1 << wire;
-                if scratch.measure(mask, &mut rng) {
-                    outcome |= mask;
-                }
-            }
-            samples.push(outcome);
-        }
-        samples
+        assert!(
+            self.rows.len() / 2 <= u128::BITS as usize,
+            "use sample_wide for registers wider than 128 wires"
+        );
+        self.amplitude_view()
+            .sample_indices(seed)
+            .take(shots as usize)
+            .map(|bits| u128::try_from(bits).expect("wire count fits in u128"))
+            .collect()
+    }
+
+    /// Draw reproducible joint samples with every outcome bit preserved.
+    pub fn sample_wide(&self, shots: u32, seed: u64) -> Vec<BasisIndex> {
+        self.amplitude_view().sample_wide(shots, seed)
     }
 }

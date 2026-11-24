@@ -84,13 +84,31 @@ impl Iterator for OtherQubitStateIterator {
 impl QuantumState {
     /// Creates a new `QuantumState` in the |0...0⟩ state.
     pub fn new(num_qubits: usize) -> Self {
-        let dim = 1 << num_qubits;
-        let mut state_vector = DVector::from_element(dim, Complex::new(0.0, 0.0));
-        state_vector[0] = Complex::new(1.0, 0.0);
-        Self {
+        Self::try_new(num_qubits).expect("dense state allocation failed")
+    }
+
+    fn dimension(num_qubits: usize) -> Result<usize, &'static str> {
+        let error = "The dense state vector exceeds the addressable memory on this platform.";
+        let len = 1_usize
+            .checked_shl(num_qubits.try_into().map_err(|_| error)?)
+            .ok_or(error)?;
+        std::alloc::Layout::array::<Complex<f32>>(len).map_err(|_| error)?;
+        Ok(len)
+    }
+
+    /// Initializes a dense zero state if its amplitude buffer can be allocated.
+    pub fn try_new(num_qubits: usize) -> Result<Self, &'static str> {
+        let dim = Self::dimension(num_qubits)?;
+        let mut amplitudes = Vec::new();
+        amplitudes
+            .try_reserve_exact(dim)
+            .map_err(|_| "Unable to allocate the dense state vector.")?;
+        amplitudes.resize(dim, Complex::default());
+        amplitudes[0] = Complex::new(1.0, 0.0);
+        Ok(Self {
             num_qubits,
-            state_vector,
-        }
+            state_vector: DVector::from_vec(amplitudes),
+        })
     }
 
     /// Creates a new `QuantumState` from a given state vector.
@@ -126,7 +144,7 @@ impl QuantumState {
         num_qubits: usize,
         state_vector: &[Complex<f32>],
     ) -> Result<(), &'static str> {
-        let expected_dim = 1 << num_qubits;
+        let expected_dim = Self::dimension(num_qubits)?;
         if state_vector.len() != expected_dim {
             return Err("Invalid state vector dimension.");
         }
@@ -421,6 +439,17 @@ impl Simulator {
 mod tests {
     use super::*;
     use crate::core::types::Gate;
+
+    #[test]
+    fn dense_run_reports_unaddressable_dimensions() {
+        for width in [usize::BITS as usize - 2, usize::BITS as usize] {
+            let circuit = Circuit::new(width);
+            let result = circuit.run(&Default::default());
+            assert!(result.diagnostics[0].message.contains("addressable memory"));
+            assert!(result.final_state_vector.is_none());
+            assert!(QuantumState::from_vector(width, &[]).is_err());
+        }
+    }
 
     #[test]
     fn owned_state_reuses_storage_and_checks_the_input() {

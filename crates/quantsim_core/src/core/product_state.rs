@@ -1,8 +1,9 @@
-//! Computational-basis readout of separable circuit prefixes on 1–128 wires.
+//! Computational-basis readout of separable circuit prefixes.
 use super::circuit::{Circuit, ValidationError};
-use super::compact::{gate_parameter, MAX_COMPACT_QUBITS};
+use super::compact::gate_parameter;
 use super::gates::registry::GateRegistry;
 use super::types::{Gate, GateMatrix, Operation, QubitPrep};
+use crate::BasisIndex;
 use num_complex::Complex64;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
@@ -165,19 +166,27 @@ impl Circuit {
     /// An unrecognized or entangling operation returns its zero-based authored location.
     pub fn run_product_prefix(&self, step_count: usize) -> Result<ProductState, ValidationError> {
         self.validate_compact_input("Product-state")?;
-        let mut state = ProductState {
-            wires: (0..self.num_qubits)
-                .map(|wire| {
-                    Wire::new(
-                        self.initial_preps
-                            .get(wire)
-                            .copied()
-                            .flatten()
-                            .unwrap_or(QubitPrep::Zero),
-                    )
-                })
-                .collect(),
-        };
+        let mut wires = Vec::new();
+        wires
+            .try_reserve_exact(self.num_qubits)
+            .map_err(|_| ValidationError {
+                step: 0,
+                op_index: 0,
+                message: format!(
+                    "Could not reserve memory for {} product-state wires.",
+                    self.num_qubits
+                ),
+            })?;
+        wires.extend((0..self.num_qubits).map(|q| {
+            Wire::new(
+                self.initial_preps
+                    .get(q)
+                    .copied()
+                    .flatten()
+                    .unwrap_or(QubitPrep::Zero),
+            )
+        }));
+        let mut state = ProductState { wires };
         self.visit_compact_operations(step_count, "Product-state", |op| {
             state.apply(op, &self.registry)
         })?;
@@ -239,19 +248,27 @@ impl ProductState {
         self.wires.get(wire).map(|w| w.probability_one() as f32)
     }
 
-    /// Returns a single computational-basis amplitude, including the phase of
-    /// the authored gates. Index bit 0 selects q0. Queries use O(wires) time
-    /// and constant additional space, even for a 128-wire register.
+    /// Computational-basis amplitude including gate phase. Bit 0 selects q0;
+    /// in a register wider than 128 wires, the higher bits of this index are zero.
     pub fn amplitude(&self, index: u128) -> Option<Complex64> {
-        if self.wires.len() < MAX_COMPACT_QUBITS && index >> self.wires.len() != 0 {
+        if self.wires.len() < u128::BITS as usize && index >> self.wires.len() != 0 {
             return None;
         }
-        let mut amplitude = Complex64::ONE;
-        for (wire, state) in self.wires.iter().enumerate() {
-            let bit = ((index >> wire) & 1) as usize;
-            amplitude *= state.amplitudes[bit];
-        }
-        Some(amplitude)
+        Some(self.amplitude_from_bits(|q| q < u128::BITS as usize && index & (1u128 << q) != 0))
+    }
+
+    /// Computational-basis amplitude at an arbitrary-width index.
+    pub fn amplitude_wide(&self, index: &BasisIndex) -> Option<Complex64> {
+        (index.bits() <= self.wires.len() as u64)
+            .then(|| self.amplitude_from_bits(|q| index.bit(q as u64)))
+    }
+
+    fn amplitude_from_bits(&self, bit: impl Fn(usize) -> bool) -> Complex64 {
+        self.wires
+            .iter()
+            .enumerate()
+            .map(|(q, wire)| wire.amplitudes[usize::from(bit(q))])
+            .product()
     }
 
     /// Unit phase of the first occupied basis amplitude. Removing each factor's
@@ -268,35 +285,72 @@ impl ProductState {
         phase / phase.norm()
     }
 
-    /// The first occupied basis index and the spacing of the lowest varying
-    /// bit. A single occupied index uses spacing 1.
+    /// First occupied basis index and stride, for registers up to 128 wires.
+    /// For wider registers use [`Self::basis_slice_wide`].
     pub fn basis_slice(&self) -> (u128, u128) {
-        let mut first = 0;
-        let mut stride = None;
-        for (wire, state) in self.wires.iter().enumerate() {
-            let [zero, one] = state.amplitudes;
-            let bit = 1u128 << wire;
-            if zero == Complex64::ZERO {
-                first |= bit;
-            } else if one != Complex64::ZERO {
-                stride.get_or_insert(bit);
-            }
-        }
-        (first, stride.unwrap_or(1))
+        assert!(
+            self.wires.len() <= u128::BITS as usize,
+            "use basis_slice_wide for this register"
+        );
+        let mut first = 0u128;
+        let stride_bit = self.basis_support(|q| first |= 1u128 << q);
+        (first, 1u128 << stride_bit)
     }
 
-    /// Draws reproducible joint measurements. Bit 0 is wire q0.
+    /// The first occupied basis index and the spacing of the lowest varying
+    /// bit. A single occupied index uses spacing 1.
+    pub fn basis_slice_wide(&self) -> (BasisIndex, BasisIndex) {
+        let mut first = BasisIndex::default();
+        let stride_bit = self.basis_support(|q| first.set_bit(q as u64, true));
+        (first, BasisIndex::from(1u8) << stride_bit)
+    }
+
+    fn basis_support(&self, mut set_first: impl FnMut(usize)) -> usize {
+        let mut lowest_varying = None;
+        for (q, wire) in self.wires.iter().enumerate() {
+            let [zero, one] = wire.amplitudes;
+            if zero == Complex64::ZERO {
+                set_first(q);
+            } else if one != Complex64::ZERO {
+                lowest_varying.get_or_insert(q);
+            }
+        }
+        lowest_varying.unwrap_or(0)
+    }
+
+    /// Reproducible joint measurements packed into u128, for registers up to 128 wires.
+    /// For wider registers use [`Self::sample_wide`].
     pub fn sample(&self, shots: u32, seed: u64) -> Vec<u128> {
+        assert!(
+            self.wires.len() <= u128::BITS as usize,
+            "use sample_wide for this register"
+        );
+        self.sample_bits(shots, seed, |bits, q| *bits |= 1u128 << q)
+    }
+
+    /// Reproducible joint measurements containing all physical wires. Bit 0 is q0.
+    pub fn sample_wide(&self, shots: u32, seed: u64) -> Vec<BasisIndex> {
+        self.sample_bits(shots, seed, |bits: &mut BasisIndex, q| {
+            bits.set_bit(q as u64, true)
+        })
+    }
+
+    fn sample_bits<T: Default + Clone>(
+        &self,
+        shots: u32,
+        seed: u64,
+        mut set: impl FnMut(&mut T, usize),
+    ) -> Vec<T> {
         let mut rng = StdRng::seed_from_u64(seed);
-        let mut samples = vec![0; shots as usize];
-        for (wire, state) in self.wires.iter().enumerate() {
-            let p = state.probability_one();
+        let mut samples = vec![T::default(); shots as usize];
+        for (q, wire) in self.wires.iter().enumerate() {
+            let p = wire.probability_one();
             if p == 0.0 {
                 continue;
             }
             for bits in &mut samples {
                 if p == 1.0 || rng.gen::<f64>() < p {
-                    *bits |= 1u128 << wire;
+                    set(bits, q);
                 }
             }
         }

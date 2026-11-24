@@ -59,6 +59,7 @@ Switch to **3D stack** below the grid and follow A0 upward. Select its site on l
         *   [Method 2: Using the JSON Editor](#method-2-using-the-json-editor)
         *   [Example: Bell State Circuit (from Template)](#example-bell-state-circuit-from-template)
     *   [Simulating a Quantum Circuit](#simulating-a-quantum-circuit)
+        *   [Wide circuits and RAM estimates](#wide-circuits-and-ram-estimates)
         *   [Results View](#results-view)
         *   [Time Scrubber](#time-scrubber)
     *   [Loading and Saving Circuits](#loading-and-saving-circuits)
@@ -342,6 +343,28 @@ Once your circuit is defined, you can simulate it within the `quantsim` EGUI:
 1.  **Run Simulation**: Click the "Run ▶" button, typically located in the circuit controls section above the circuit grid.
 2.  **View Results**: After the simulation completes, a "Results" window will pop up (or become visible).
 
+#### Wide circuits and RAM estimates
+
+The editor can now use more than 128 wires, and an entangled group can grow beyond eight wires when memory permits. A Clifford circuit such as GHZ uses a compact stabilizer table. A basis-input QFT can keep each wire independent. When other gates require a group of wires to evolve together, each additional wire in that group doubles its amplitude storage. The simulator can split a wire off again when it becomes independent.
+
+Click **Est. peak RAM** beside **Run** to set **Warn above** in MiB. The default is 64 MiB in the browser and 128 MiB on desktop. The estimate covers the main simulation buffers for the full circuit. It can be conservative when groups later split. **Run** stays available above the warning level.
+
+These three circuits all used 30 wires in Chrome. The figures are the pre-run estimates shown in the editor.
+
+| Circuit | Estimated peak RAM | Browser check |
+| --- | ---: | --- |
+| Hadamard on q0 followed by a chain of 29 CNOTs | ≤197 KiB | Read the estimate at step 0 |
+| Controlled quarter-phase gates joining 16 wires | ≤3 MiB | Set the warning to 1 MiB and completed all 16 steps with one click |
+| Controlled quarter-phase gates joining all 30 wires | ≤32.1 GiB | Previewed at step 0 only |
+
+To try a wider register, paste this Bell circuit into **JSON**, select **Apply Changes**, then **Run**.
+
+```json
+{"num_qubits":256,"steps":[[{"id":"H","qubits":[0]}],[{"id":"CX","qubits":[0,255]}]]}
+```
+
+In Chrome, q0 and q255 each read 50%. Of 1,024 shots, 515 were all zeros and 509 had only q0 and q255 set. All 254 intervening wires stayed at zero. For a step-by-step example, the 50-wire QFT template shows the Fourier waveform, and the 53-site Sycamore template lights up the active couplers on its 2×4 patch. That patch's readouts match a dense eight-wire reference at every step.
+
 #### Results View
 
 The "Results" window displays the outcome of your simulation:
@@ -349,8 +372,8 @@ The "Results" window displays the outcome of your simulation:
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
 *   **Amplitude waveform** plots the real and imaginary parts at up to 64 basis indices. The axis gives the actual amplitude scale. The automatic window follows the first occupied index and the lowest varying bit as the circuit evolves. Small registers show every index. Use **Range** to inspect another part of a large register. All simulators use the first occupied index as a positive real phase reference for the graph.
 *   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
-*   For **22–128 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
-*   Wide circuits start from per-wire preparations. The stabilizer simulator handles entangled circuits built from H, SqrtZ, CX, X, Y, and Z across all 128 wires. The product-state simulator handles basis-input Fourier transforms. For circuits that need both controlled phases and entanglement, the grouped simulator can track up to eight wires together in one state vector. Several independent groups can coexist. When a wire separates from its group, the simulator can store it independently again. Select a wire in the 3D inspector to see its group for that step. If a gate would require a larger group and the other simulators cannot run it, the circuit editor identifies the gate. Earlier steps remain available.
+*   For **22 or more wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
+*   Select a wire in the 3D inspector to see which other wires share its group at that step.
 
 
 #### Time Scrubber

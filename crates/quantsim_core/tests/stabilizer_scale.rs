@@ -78,6 +78,20 @@ fn push(circuit: &mut Circuit, gate: Gate, wires: &[u32]) {
 
 #[test]
 fn wide_stabilizers_preserve_correlations_with_bounded_heap() {
+    // A shape that belongs to a different backend must be rejected before
+    // reserving the wide tableau. The 2048-wire identity would exceed 512 KiB.
+    let mut unsupported = Circuit::new(2048);
+    push(&mut unsupported, Gate::SYC, &[2046, 2047]);
+    let baseline = HEAP.live.load(Relaxed);
+    HEAP.peak.store(baseline, Relaxed);
+    let error = unsupported.run_stabilizer_prefix(1).unwrap_err();
+    let rejected_peak = HEAP.peak.load(Relaxed) - baseline;
+    assert!(error.message.contains("SYC"), "{}", error.message);
+    assert!(
+        rejected_peak < 8 * 1024,
+        "preflight heap: {rejected_peak} bytes"
+    );
+
     let mut ghz = Circuit::new(WIRES);
     push(&mut ghz, Gate::H, &[0]);
     for wire in 1..WIRES as u32 {

@@ -4,7 +4,7 @@ use egui::{
 use quantsim_core::circuit::QubitLayout;
 use quantsim_ui::{
     messages::Message,
-    state::{ui_state::LayoutView, CircuitState},
+    state::ui_state::LayoutView,
     QCSimApp,
 };
 use serde_json::json;
@@ -88,8 +88,8 @@ fn empty_timeline_has_only_the_initial_slice() {
 }
 
 #[test]
-fn maximum_editor_dimensions_paint_without_running_the_circuit() {
-    assert_stack_opens_without_running(CircuitState::MAX_QUBITS, 1000);
+fn wide_editor_dimensions_paint_without_running_the_circuit() {
+    assert_stack_opens_without_running(256, 1000);
 }
 
 fn import_stack(circuit: serde_json::Value) -> QCSimApp {

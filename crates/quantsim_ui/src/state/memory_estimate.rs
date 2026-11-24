@@ -1,21 +1,25 @@
 use super::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS, WAVEFORM_POINTS};
 use super::{AppState, CircuitState};
 use nalgebra::Complex;
-use quantsim_core::grouped::MAX_GROUP_QUBITS;
+use quantsim_core::circuit::Circuit;
 use quantsim_core::types::{GateMatrix, Operation};
+use quantsim_core::BasisIndex;
 use std::mem::size_of;
+
+mod groups;
 
 const AMPLITUDE: u128 = size_of::<Complex<f32>>() as u128;
 const INDEX: u128 = size_of::<usize>() as u128;
-const PACKED_SHOT: u128 = size_of::<u128>() as u128;
-const SAMPLE_ROW: u128 = size_of::<(u128, u32)>() as u128;
+const COMPLEX64: u128 = size_of::<Complex<f64>>() as u128;
+const SATURATED: u128 = u64::MAX as u128;
 
 /// A conservative allowance for the major buffers of a full UI Run.
-/// Use wide byte counts on wasm32 as well, and only inspect sizes of existing allocations.
+/// Work in wide byte counts on wasm32 too. `Some(u64::MAX)` also represents
+/// estimates beyond the displayable byte count. `None` means unknown.
 pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
     let circuit = &state.circuit_state.circuit;
     let readout = &state.simulation_state;
-    if !(1..=CircuitState::MAX_QUBITS).contains(&circuit.num_qubits) {
+    if circuit.num_qubits == 0 {
         return None;
     }
 
@@ -27,10 +31,16 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
         bytes += wave.points.capacity() as u128 * wave_point;
     }
     if let Some(samples) = &readout.compact_samples {
-        bytes += samples.rows.capacity() as u128 * SAMPLE_ROW;
-        // The old compact state remains available for graph navigation until
-        // the next run finishes, even if the circuit has since been resized.
-        bytes += compact_state_bytes(readout.wire_one_probabilities.len());
+        let wires = readout.wire_one_probabilities.len();
+        bytes += samples.rows.capacity() as u128
+            * (size_of::<(BasisIndex, u32)>() as u128 + digits(wires));
+        // The previous state still exists while the next run is being built, including
+        // after a gate edit. Use its stored factors rather than the new circuit's links.
+        bytes += match readout.retained_group_amplitudes() {
+            Some(amplitudes) => amplitudes as u128 * COMPLEX64 + wires as u128 * 128,
+            None if readout.retained_stabilizer() => tableau_bytes(wires, 1),
+            None => wires as u128 * 64, // One product-state amplitude pair plus metadata.
+        };
     }
     bytes += (circuit.num_qubits as u128 + readout.wire_one_probabilities.capacity() as u128)
         * size_of::<f64>() as u128;
@@ -43,17 +53,8 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
     }
 
     if circuit.num_qubits > CircuitState::MAX_DENSE_QUBITS {
-        // Two tableaus, each with two rows per wire. Allow for X/Z masks and padded phase.
-        bytes += 4 * circuit.num_qubits as u128 * 3 * PACKED_SHOT;
-        bytes += compact_state_bytes(circuit.num_qubits);
-        // Merging factors, applying a gate and sampling each use at most a
-        // few group-sized buffers. Gate matrices are at most 8 by 8.
-        bytes += (1_u128 << MAX_GROUP_QUBITS) * 4 * wave_point;
-        bytes += 8 * 8 * (AMPLITUDE + wave_point);
-        // Packed shots and temporary counts, including vector growth during grouping.
-        bytes += u128::from(COMPACT_SHOTS) * (PACKED_SHOT + 2 * SAMPLE_ROW);
-        bytes += MAX_SAMPLE_ROWS as u128 * SAMPLE_ROW;
-        return u64::try_from(bytes).ok();
+        bytes += wide_run_bytes(circuit);
+        return Some(bytes.min(SATURATED) as u64);
     }
 
     // The dense readout can list every outcome. Allow for both old and new
@@ -76,16 +77,59 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
         };
         bytes += gate_bytes(rows as u128, entries as u128);
     }
-    u64::try_from(bytes).ok()
+    Some(bytes.min(SATURATED) as u64)
 }
 
-fn compact_state_bytes(wires: usize) -> u128 {
-    // Packing the wires into maximum-width groups bounds the total number
-    // of amplitudes, since two groups cost at most as much as their product.
-    let groups = wires.div_ceil(MAX_GROUP_QUBITS) as u128;
-    let amplitudes = groups * (1_u128 << MAX_GROUP_QUBITS);
-    // Include factor metadata, wire indices and singleton state.
-    amplitudes * size_of::<Complex<f64>>() as u128 + wires as u128 * 128
+// Two times the packed limb count allows for Vec capacity growth in a BigUint.
+fn digits(wires: usize) -> u128 {
+    2 * wires.div_ceil(64).max(2) as u128 * 8
+}
+
+fn tableau_bytes(wires: usize, rows_per_wire: u128) -> u128 {
+    let row = 2 * (size_of::<BasisIndex>() as u128 + digits(wires)) + INDEX;
+    (wires as u128)
+        .saturating_mul(rows_per_wire * row)
+        .min(SATURATED)
+}
+
+fn wide_run_bytes(circuit: &Circuit) -> u128 {
+    let wires = circuit.num_qubits;
+    let packed = size_of::<BasisIndex>() as u128 + digits(wires);
+    let row = size_of::<(BasisIndex, u32)>() as u128 + digits(wires);
+    let shots = u128::from(COMPACT_SHOTS);
+    // Packed outcomes, growing counts, temporary grouped sample draws, and displayed rows.
+    let samples = shots * (packed + 2 * row + 32) + MAX_SAMPLE_ROWS as u128 * row;
+    let authored: u128 = circuit
+        .steps
+        .iter()
+        .map(|ops| {
+            ops.capacity() as u128 * size_of::<Operation>() as u128
+                + ops
+                    .iter()
+                    .filter_map(|op| op.matrix.as_ref())
+                    .map(|m| match m {
+                        GateMatrix::BigEndian(m) => m.data.as_vec().capacity() as u128 * AMPLITUDE,
+                        GateMatrix::LittleEndian(m) => {
+                            m.nnz() as u128 * (AMPLITUDE + INDEX) + (m.nrows() as u128 + 1) * INDEX
+                        }
+                    })
+                    .sum::<u128>()
+        })
+        .sum();
+    // Unsupported gate definitions are rejected before the tableau is allocated.
+    let evolution = if circuit
+        .validate_stabilizer_prefix(circuit.steps.len())
+        .is_ok()
+    {
+        // Two rows per wire plus elimination/sampling scratch and the amplitude index.
+        tableau_bytes(wires, 4) + wires as u128 * (packed + INDEX)
+    } else {
+        let amplitudes = groups::amplitude_bound(circuit);
+        // Merges and rank-one splits can overlap the input and output vectors.
+        // Two full sets of the final upper-bound partition cover these overlaps.
+        2 * amplitudes * COMPLEX64 + wires as u128 * 128 + 8 * 8 * (AMPLITUDE + COMPLEX64)
+    };
+    authored + evolution + samples
 }
 
 fn gate_bytes(rows: u128, entries: u128) -> u128 {
@@ -140,15 +184,74 @@ mod tests {
     #[test]
     fn compact_estimate_scales_with_wires_and_samples_including_on_wasm32() {
         let mut state = AppState::new();
-        for qubits in [22, 50, 64, 65, 128] {
+        for qubits in [22, 50, 64, 65, 128, 129, 256] {
             state.circuit_state.circuit.num_qubits = qubits;
             let peak = estimated_peak_bytes(&state).unwrap();
             assert!((13_192..1024 * 1024).contains(&peak));
         }
-        for qubits in [0, 129, usize::MAX] {
-            state.circuit_state.circuit.num_qubits = qubits;
-            assert_eq!(estimated_peak_bytes(&state), None);
+        state.circuit_state.circuit.num_qubits = 0;
+        assert_eq!(estimated_peak_bytes(&state), None);
+        #[cfg(target_pointer_width = "64")]
+        {
+            state.circuit_state.circuit.num_qubits = usize::MAX;
+            assert_eq!(estimated_peak_bytes(&state), Some(u64::MAX));
         }
+    }
+
+    #[test]
+    fn same_width_estimate_follows_the_clifford_or_grouped_execution_path() {
+        let mut state = AppState::new();
+        let mut circuit = Circuit::new(35);
+        circuit
+            .steps
+            .push(vec![Operation::new(Gate::H, vec![0], vec![])]);
+        for wire in 1..35 {
+            circuit
+                .steps
+                .push(vec![Operation::new(Gate::CX, vec![wire - 1, wire], vec![])]);
+        }
+        state.circuit_state.circuit = circuit;
+        assert!(estimated_peak_bytes(&state).unwrap() < 1024 * 1024);
+        // A non-Clifford phase requires replay via the grouped simulator. The
+        // GHZ factor now grows across the same 35 wires instead of using a tableau.
+        let circuit = &mut state.circuit_state.circuit;
+        circuit
+            .steps
+            .push(vec![Operation::new(Gate::ZPow, vec![0], vec![0.25])]);
+        assert!(estimated_peak_bytes(&state).unwrap() >= (1u64 << 35) * 16);
+    }
+
+    #[test]
+    fn sparse_groups_follow_swaps_and_qft_basis_controls() {
+        let op = |gate, wires: &[u32]| Operation::new(gate, wires.to_vec(), vec![]);
+        let mut circuit = Circuit::new(256);
+        circuit.initial_preps[0] = Some(quantsim_core::types::QubitPrep::Plus);
+        circuit.steps = vec![
+            vec![op(Gate::CX, &[0, 200])],
+            vec![op(Gate::SWAP, &[200, 201])],
+            vec![op(Gate::CX, &[201, 202])],
+        ];
+        assert_eq!(groups::amplitude_bound(&circuit), 253 * 2 + 8);
+        let qft = quantsim_core::circuits::load_template("fourier_wave_50").unwrap();
+        assert_eq!(groups::amplitude_bound(&qft), 2 * 50);
+    }
+
+    #[test]
+    fn disconnected_phase_pairs_do_not_grow_into_one_factor_and_huge_estimates_saturate() {
+        use quantsim_core::types::QubitPrep;
+        let mut state = AppState::new();
+        let mut circuit = Circuit::new(80);
+        circuit.initial_preps.fill(Some(QubitPrep::Plus));
+        let phase = |a, b| Operation::new(Gate::CZPow, vec![a, b], vec![0.25]);
+        circuit
+            .steps
+            .push((0..80).step_by(2).map(|i| phase(i, i + 1)).collect());
+        assert_eq!(groups::amplitude_bound(&circuit), 40 * 4);
+        circuit
+            .steps
+            .push((1..79).step_by(2).map(|i| phase(i, i + 1)).collect());
+        state.circuit_state.circuit = circuit;
+        assert_eq!(estimated_peak_bytes(&state), Some(u64::MAX));
     }
 
     #[test]
@@ -159,10 +262,10 @@ mod tests {
             r#"{"num_qubits":64,"steps":[[{"id":"H","qubits":[0]},{"id":"H","qubits":[63]}],[{"id":"CZPow","qubits":[0,63],"params":[0.25]}]]}"#.into(),
         ));
         let before = estimated_peak_bytes(&app.state).unwrap();
-        assert!(u128::from(before) >= compact_state_bytes(64));
+        assert!(before > 0);
         app.handle_message(Message::RunSimulation);
         assert!(app.state.ui_state.error_message.is_none());
         let after = estimated_peak_bytes(&app.state).unwrap();
-        assert!(u128::from(after - before) >= compact_state_bytes(64));
+        assert!(after >= before + 64 * size_of::<Complex<f64>>() as u64);
     }
 }

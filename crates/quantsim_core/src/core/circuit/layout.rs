@@ -5,16 +5,24 @@ use std::collections::HashSet;
 /// These annotations describe the drawing independently of the simulated gates.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QubitLayout {
-    pub positions: Vec<[i16; 2]>,
+    pub positions: Vec<[i64; 2]>,
     #[serde(default)]
     pub links: Vec<[usize; 2]>,
 }
 
 impl QubitLayout {
+    /// Sites in wire order, with no assumed physical connections.
+    pub fn wire_order(count: usize) -> Self {
+        Self {
+            positions: (0..count).map(|wire| [wire as i64, 0]).collect(),
+            links: Vec::new(),
+        }
+    }
+
     pub fn line(count: usize) -> Self {
         Self {
-            positions: (0..count).map(|wire| [wire as i16, 0]).collect(),
             links: (1..count).map(|wire| [wire - 1, wire]).collect(),
+            ..Self::wire_order(count)
         }
     }
 
@@ -24,7 +32,7 @@ impl QubitLayout {
         let mut links = Vec::new();
         for wire in 0..count {
             let column = wire % columns;
-            positions.push([column as i16, (wire / columns) as i16]);
+            positions.push([column as i64, (wire / columns) as i64]);
             if column > 0 {
                 links.push([wire - 1, wire]);
             }
@@ -46,8 +54,8 @@ impl QubitLayout {
             .map(|wire| {
                 let angle = std::f64::consts::TAU * wire as f64 / count as f64;
                 [
-                    (radius * angle.sin()).round() as i16,
-                    (-radius * angle.cos()).round() as i16,
+                    (radius * angle.sin()).round() as i64,
+                    (-radius * angle.cos()).round() as i64,
                 ]
             })
             .collect();
@@ -97,8 +105,8 @@ impl QubitLayout {
             return;
         }
         let occupied: HashSet<_> = self.positions.iter().copied().collect();
-        let free_sites = (0..=i16::MAX)
-            .flat_map(|y| (0..=i16::MAX).map(move |x| [x, y]))
+        let free_sites = (0..=i64::MAX)
+            .map(|x| [x, 0])
             .filter(|position| !occupied.contains(position));
         self.positions
             .extend(free_sites.take(count - self.positions.len()));
@@ -128,6 +136,17 @@ mod tests {
         let grid = QubitLayout::grid(5);
         assert_eq!(grid.positions, [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1]]);
         assert_eq!(grid.links, [[0, 1], [1, 2], [0, 3], [3, 4], [1, 4]]);
+    }
+
+    #[test]
+    fn wide_presets_and_added_sites_keep_distinct_coordinates() {
+        let count = 65_537;
+        let mut line = QubitLayout::line(count);
+        line.validate(count).unwrap();
+        assert_eq!(line.positions[count - 1], [65_536, 0]);
+        line.resize(count + 2);
+        assert_eq!(&line.positions[count..], &[[65_537, 0], [65_538, 0]]);
+        QubitLayout::ring(count).validate(count).unwrap();
     }
 
     #[test]
@@ -186,14 +205,14 @@ mod tests {
     #[test]
     fn resizing_retains_wire_identity_and_adds_unconnected_sites() {
         let mut layout = QubitLayout {
-            positions: vec![[1, 0], [i16::MAX, 0], [-1, 0]],
+            positions: vec![[1, 0], [i64::MAX, 0], [-1, 0]],
             links: vec![[0, 1], [1, 2]],
         };
         layout.resize(2);
-        assert_eq!(layout.positions, [[1, 0], [i16::MAX, 0]]);
+        assert_eq!(layout.positions, [[1, 0], [i64::MAX, 0]]);
         assert_eq!(layout.links, [[0, 1]]);
         layout.resize(4);
-        assert_eq!(layout.positions, [[1, 0], [i16::MAX, 0], [0, 0], [2, 0]]);
+        assert_eq!(layout.positions, [[1, 0], [i64::MAX, 0], [0, 0], [2, 0]]);
         assert_eq!(layout.links, [[0, 1]]);
         layout.validate(4).unwrap();
     }

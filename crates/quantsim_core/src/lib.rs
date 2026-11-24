@@ -162,7 +162,8 @@ pub mod circuits;
 // Re-export the core modules for easier access.
 /// Re-export of the `CircuitBuilder` for easy access.
 pub use crate::core::builder::CircuitBuilder;
-pub use crate::core::MAX_COMPACT_QUBITS;
+/// Arbitrary-width computational-basis index or joint outcome, with q0 at bit zero.
+pub use num_bigint::BigUint as BasisIndex;
 /// Re-export of the `circuit` module.
 pub use crate::core::circuit;
 /// Re-export of the `engine` module.

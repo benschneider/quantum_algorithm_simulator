@@ -1,5 +1,5 @@
-//! A tensor product of small state vectors. A multi-wire gate joins only
-//! the independent factors it acts on, after checking the required width.
+//! A tensor product of independent state vectors. A multi-wire gate reserves
+//! space for the combined state before joining the factors it acts on.
 use super::circuit::{Circuit, ValidationError};
 use super::compact::gate_parameter;
 use super::engine::OtherQubitStateIterator;
@@ -8,12 +8,28 @@ use super::product_state::{z_eigenvalue, Wire};
 use super::types::{Gate, GateMatrix, Operation, QubitPrep};
 use num_complex::Complex64;
 use smallvec::SmallVec;
+use std::alloc::Layout;
 
 mod readout;
 mod split;
 
-/// Maximum number of wires in any one dense factor.
-pub const MAX_GROUP_QUBITS: usize = 8;
+/// Reserve the exponential allocation before changing the source factors.
+/// Vec requires an addressable allocation of at most isize::MAX bytes.
+fn reserve_group(width: usize) -> Result<(usize, Vec<Complex64>), String> {
+    let (len, layout) = u32::try_from(width)
+        .ok()
+        .and_then(|shift| 1usize.checked_shl(shift))
+        .and_then(|len| Layout::array::<Complex64>(len).ok().map(|layout| (len, layout)))
+        .ok_or_else(|| format!(
+            "A {width}-qubit group needs 2^{width} complex amplitudes, exceeding the addressable allocation size of this build. Use fewer jointly entangled qubits."
+        ))?;
+    let mut amplitudes = Vec::new();
+    amplitudes.try_reserve_exact(len).map_err(|_| format!(
+        "Could not reserve {} bytes for a {width}-qubit group. Reduce the number of jointly entangled qubits or use a host with more memory.",
+        layout.size()
+    ))?;
+    Ok((len, amplitudes))
+}
 
 #[derive(Debug, Clone)]
 enum FactorState {
@@ -24,7 +40,7 @@ enum FactorState {
 #[derive(Debug, Clone)]
 struct Factor {
     // wires[i] is the physical wire for bit i of this factor's amplitude index.
-    wires: Vec<u32>,
+    wires: SmallVec<[u32; 1]>,
     state: FactorState,
 }
 
@@ -102,25 +118,37 @@ pub struct GroupedState {
 }
 
 impl Circuit {
-    /// Executes up to `step_count` columns using bounded, independent factors.
-    /// A gate requiring a factor wider than the limit returns its authored
-    /// location. Separable single wires can leave a factor after a gate.
+    /// Executes up to `step_count` columns using independent factors. A gate
+    /// whose group cannot be allocated returns its authored location.
+    /// Separable single wires can leave a factor after a gate.
     pub fn run_grouped_prefix(&self, step_count: usize) -> Result<GroupedState, ValidationError> {
         self.validate_compact_input("Grouped")?;
+        let mut factors = Vec::new();
+        factors
+            .try_reserve_exact(self.num_qubits)
+            .map_err(|_| ValidationError {
+                step: 0,
+                op_index: 0,
+                message: format!(
+                    "Could not reserve memory for {} independent qubits.",
+                    self.num_qubits
+                ),
+            })?;
+        for i in 0..self.num_qubits {
+            let prep = self
+                .initial_preps
+                .get(i)
+                .copied()
+                .flatten()
+                .unwrap_or(QubitPrep::Zero);
+            factors.push(Factor {
+                wires: SmallVec::from_buf([i as u32]),
+                state: FactorState::Single(Wire::new(prep)),
+            });
+        }
         let mut state = GroupedState {
             num_qubits: self.num_qubits,
-            factors: (0..self.num_qubits)
-                .map(|i| Factor {
-                    wires: vec![i as u32],
-                    state: FactorState::Single(Wire::new(
-                        self.initial_preps
-                            .get(i)
-                            .copied()
-                            .flatten()
-                            .unwrap_or(QubitPrep::Zero),
-                    )),
-                })
-                .collect(),
+            factors,
         };
         self.visit_compact_operations(step_count, "Grouped", |op| state.apply(op, &self.registry))?;
         Ok(state)
@@ -151,13 +179,13 @@ impl GroupedState {
             return Ok(indices[0]);
         }
         let width: usize = indices.iter().map(|&i| self.factors[i].wires.len()).sum();
-        if width > MAX_GROUP_QUBITS {
-            return Err(format!(
-                "Gate {gate} on {operands:?} would require a {width}-qubit group. The limit is {MAX_GROUP_QUBITS}."
-            ));
-        }
-        let mut wires = Vec::with_capacity(width);
-        let mut values = vec![Complex64::ONE; 1 << width];
+        let (len, mut values) = reserve_group(width)
+            .map_err(|reason| format!("Gate {gate} on {operands:?}: {reason}"))?;
+        let mut wires = SmallVec::new();
+        wires
+            .try_reserve_exact(width)
+            .map_err(|_| format!("Could not reserve wire indices for a {width}-qubit group."))?;
+        values.resize(len, Complex64::ONE);
         // Concatenate the local wire lists. Each source amplitude depends on
         // just its contiguous field of bits in the new factor.
         for &index in indices.iter().rev() {
@@ -227,7 +255,7 @@ impl GroupedState {
                     }
                 }
                 if active.len() > 1 {
-                    self.split_singletons(index);
+                    self.split_singletons(index)?;
                 }
             }
         }
@@ -309,7 +337,7 @@ impl GroupedState {
             FactorState::Group(_) => {
                 factor.apply_matrix(op, registry)?;
                 if op.qubits.len() > 1 {
-                    self.split_singletons(index);
+                    self.split_singletons(index)?;
                 }
                 Ok(())
             }
@@ -322,7 +350,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn phase_on_fixed_operand_and_identity_powers_fit_beside_a_full_group() {
+    fn unaddressable_factor_allocation_reports_its_width() {
+        // Exercise shift overflow, byte-size overflow, and an allocation of
+        // isize::MAX + 1 bytes on both 32- and 64-bit targets.
+        let bits = usize::BITS as usize;
+        for width in [bits, bits - 4, bits - 5] {
+            let error = reserve_group(width).unwrap_err();
+            assert!(error.contains(&format!("{width}-qubit group")));
+            assert!(error.contains("addressable allocation"));
+        }
+    }
+
+    #[test]
+    fn phase_on_fixed_operand_and_identity_powers_preserve_independent_factors() {
         let mut circuit = Circuit::new(9);
         circuit.initial_preps[..8].fill(Some(QubitPrep::Plus));
         for wire in 1..8 {
