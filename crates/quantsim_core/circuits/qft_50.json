@@ -1,11 +1,14 @@
 {
   "num_qubits": 50,
-  "initial_preps": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "One", null],
   "sections": [
-    {"start": 1, "end": 99, "label": "Forward QFT"},
-    {"start": 100, "end": 100, "label": "Reverse output wires"}
+    {"start": 1, "end": 1, "label": "Input", "description": "X flips q45 to one. The input is a single spike at basis index 2^45. Every other amplitude is zero."},
+    {"start": 2, "end": 100, "label": "Forward QFT", "description": "Hadamards spread the input over more basis states. Controlled phase gates set the relative phases of their amplitudes."},
+    {"start": 101, "end": 101, "label": "Reverse output wires", "description": "The swaps put the Fourier output in basis-index order. Across indices 0–63, the imaginary trace shows two sine cycles and the real trace follows a cosine."}
   ],
   "steps": [
+    [
+      {"id": "X", "name": "Prepare the input spike on q45", "qubits": [45]}
+    ],
     [
       {"id": "H", "qubits": [49]}
     ],

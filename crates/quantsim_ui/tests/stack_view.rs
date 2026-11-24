@@ -89,7 +89,7 @@ fn empty_timeline_has_only_the_initial_slice() {
 
 #[test]
 fn maximum_editor_dimensions_paint_without_running_the_circuit() {
-    assert_stack_opens_without_running(CircuitState::MAX_QUBITS, 100);
+    assert_stack_opens_without_running(CircuitState::MAX_QUBITS, 1000);
 }
 
 fn import_stack(circuit: serde_json::Value) -> QCSimApp {

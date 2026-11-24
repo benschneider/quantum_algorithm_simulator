@@ -36,7 +36,7 @@ pub(super) fn show(ui: &mut Ui, simulation: &mut SimulationState) {
             if wave.stride != 1 {
                 ui.small(format!("Stride {}", wave.stride));
             }
-            if wave.last_index >= WAVEFORM_POINTS as u64 || wave.first != 0 || wave.stride != 1 {
+            if wave.last_index >= WAVEFORM_POINTS as u128 || wave.first != 0 || wave.stride != 1 {
                 return window_controls(ui, wave);
             }
             None
@@ -56,8 +56,8 @@ pub(super) fn show(ui: &mut Ui, simulation: &mut SimulationState) {
 
 // The state only supplies points whose indices fit in the register. Keep the
 // exact basis index out of floating-point plot space, including on wasm32.
-fn sample_index(wave: &Waveform, offset: usize) -> u64 {
-    wave.first + wave.stride * offset as u64
+fn sample_index(wave: &Waveform, offset: usize) -> u128 {
+    wave.first + wave.stride * offset as u128
 }
 
 fn plot(ui: &mut Ui, wave: &Waveform, real: Color32, imaginary: Color32) -> PlotResponse<()> {
@@ -178,14 +178,14 @@ fn plot(ui: &mut Ui, wave: &Waveform, real: Color32, imaginary: Color32) -> Plot
 }
 
 enum Selection {
-    Window(u64, u64),
+    Window(u128, u128),
     Follow,
 }
 
 fn window_controls(ui: &mut Ui, wave: &Waveform) -> Option<Selection> {
     let mut choice = None;
     let previous =
-        wave.first - (wave.first / wave.stride).min(WAVEFORM_POINTS as u64) * wave.stride;
+        wave.first - (wave.first / wave.stride).min(WAVEFORM_POINTS as u128) * wave.stride;
     if ui
         .add_enabled(previous != wave.first, egui::Button::new("‹").small())
         .on_hover_text("Previous window")
@@ -195,7 +195,7 @@ fn window_controls(ui: &mut Ui, wave: &Waveform) -> Option<Selection> {
     }
     let next = wave
         .stride
-        .checked_mul(WAVEFORM_POINTS as u64)
+        .checked_mul(WAVEFORM_POINTS as u128)
         .and_then(|span| wave.first.checked_add(span))
         .filter(|i| *i <= wave.last_index);
     if ui
@@ -224,9 +224,9 @@ fn window_controls(ui: &mut Ui, wave: &Waveform) -> Option<Selection> {
             });
             let range = first
                 .trim()
-                .parse::<u64>()
+                .parse::<u128>()
                 .ok()
-                .zip(stride.trim().parse::<u64>().ok())
+                .zip(stride.trim().parse::<u128>().ok())
                 .filter(|(f, s)| *f <= wave.last_index && *s > 0);
             ui.data_mut(|d| d.insert_temp(id, (first, stride)));
             ui.horizontal(|ui| {
@@ -260,14 +260,20 @@ mod tests {
     use nalgebra::Complex;
 
     #[test]
-    fn typed_window_can_be_applied_and_paged_at_the_last_64_bit_index() {
-        let mut circuit = quantsim_core::circuit::Circuit::new(64);
+    fn typed_window_can_be_applied_and_paged_at_the_last_basis_index() {
+        for (wires, last_index) in [(64, u128::from(u64::MAX)), (128, u128::MAX)] {
+            check_window_controls(wires, last_index);
+        }
+    }
+
+    fn check_window_controls(wires: usize, last_index: u128) {
+        let mut circuit = quantsim_core::circuit::Circuit::new(wires);
         circuit
             .initial_preps
             .fill(Some(quantsim_core::types::QubitPrep::Plus));
         let state = circuit.run_stabilizer_prefix(0).unwrap();
-        let mut sim = SimulationState::from_stabilizer(&state, 64);
-        let first = u64::MAX - 2 * WAVEFORM_POINTS as u64;
+        let mut sim = SimulationState::from_stabilizer(&state, wires);
+        let first = last_index - 2 * WAVEFORM_POINTS as u128;
         sim.set_waveform_window(123, 17);
 
         let ctx = egui::Context::default();
@@ -331,7 +337,7 @@ mod tests {
         click(&mut sim, "Apply");
         let wave = sim.waveform().unwrap();
         assert_eq!((wave.first, wave.stride), (first, 2));
-        for (button, expected) in [("›", u64::MAX), ("‹", first)] {
+        for (button, expected) in [("›", last_index), ("‹", first)] {
             click(&mut sim, button);
             assert_eq!(sim.waveform().unwrap().first, expected);
         }
@@ -342,12 +348,20 @@ mod tests {
     }
 
     #[test]
-    fn tiny_fourier_mode_remains_visible_and_hover_preserves_the_64_bit_index() {
-        let peak = 2.0_f64.powi(-25);
+    fn tiny_fourier_mode_remains_visible_and_hover_preserves_the_full_basis_index() {
+        for (last_index, peak) in [
+            (u128::from(u64::MAX), 2.0_f64.powi(-25)),
+            (u128::MAX, 2.0_f64.powi(-64)),
+        ] {
+            check_fourier_hover(last_index, peak);
+        }
+    }
+
+    fn check_fourier_hover(last_index: u128, peak: f64) {
         let wave = Waveform {
-            first: u64::MAX - 63,
+            first: last_index - 63,
             stride: 1,
-            last_index: u64::MAX,
+            last_index,
             points: (0..64)
                 .map(|i| Complex::from_polar(peak, std::f64::consts::TAU * i as f64 / 32.0))
                 .collect(),
@@ -393,14 +407,14 @@ mod tests {
             })
             .collect();
         assert!(
-            labels.iter().any(|label| label.contains("3.0e-8")),
+            labels.contains(&format!("{peak:.1e}").as_str()),
             "{labels:?}"
         );
         assert!(
-            labels.contains(&"Index 18446744073709551560")
-                && labels.contains(&"Imaginary +2.98023e-8"),
+            labels.contains(&format!("Index {}", last_index - 55).as_str())
+                && labels.contains(&format!("Imaginary {peak:+.5e}").as_str()),
             "{labels:?}"
         );
-        assert_eq!(sample_index(&wave, 63), u64::MAX);
+        assert_eq!(sample_index(&wave, 63), last_index);
     }
 }

@@ -1,11 +1,14 @@
 use super::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS, WAVEFORM_POINTS};
 use super::{AppState, CircuitState};
 use nalgebra::Complex;
+use quantsim_core::grouped::MAX_GROUP_QUBITS;
 use quantsim_core::types::{GateMatrix, Operation};
 use std::mem::size_of;
 
 const AMPLITUDE: u128 = size_of::<Complex<f32>>() as u128;
 const INDEX: u128 = size_of::<usize>() as u128;
+const PACKED_SHOT: u128 = size_of::<u128>() as u128;
+const SAMPLE_ROW: u128 = size_of::<(u128, u32)>() as u128;
 
 /// A conservative allowance for the major buffers of a full UI Run.
 /// Use wide byte counts on wasm32 as well, and only inspect sizes of existing allocations.
@@ -24,9 +27,10 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
         bytes += wave.points.capacity() as u128 * wave_point;
     }
     if let Some(samples) = &readout.compact_samples {
-        bytes += samples.rows.capacity() as u128 * size_of::<(u64, u32)>() as u128;
-        // Retained product factors or packed Pauli rows used for graph navigation.
-        bytes += readout.wire_one_probabilities.len() as u128 * 64;
+        bytes += samples.rows.capacity() as u128 * SAMPLE_ROW;
+        // The old compact state remains available for graph navigation until
+        // the next run finishes, even if the circuit has since been resized.
+        bytes += compact_state_bytes(readout.wire_one_probabilities.len());
     }
     bytes += (circuit.num_qubits as u128 + readout.wire_one_probabilities.capacity() as u128)
         * size_of::<f64>() as u128;
@@ -39,15 +43,16 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
     }
 
     if circuit.num_qubits > CircuitState::MAX_DENSE_QUBITS {
-        // Stabilizer sampling keeps two tableaus with two rows per wire. The
-        // 32-byte row allowance also covers the smaller product-state path,
-        // which replays the circuit after the failed tableau is dropped.
-        bytes += 4 * circuit.num_qubits as u128 * 32;
-        // New amplitude lookup while the backend is live.
-        bytes += circuit.num_qubits as u128 * 64;
+        // Two tableaus, each with two rows per wire. Allow for X/Z masks and padded phase.
+        bytes += 4 * circuit.num_qubits as u128 * 3 * PACKED_SHOT;
+        bytes += compact_state_bytes(circuit.num_qubits);
+        // Merging factors, applying a gate and sampling each use at most a
+        // few group-sized buffers. Gate matrices are at most 8 by 8.
+        bytes += (1_u128 << MAX_GROUP_QUBITS) * 4 * wave_point;
+        bytes += 8 * 8 * (AMPLITUDE + wave_point);
         // Packed shots and temporary counts, including vector growth during grouping.
-        bytes += u128::from(COMPACT_SHOTS) * 32;
-        bytes += MAX_SAMPLE_ROWS as u128 * size_of::<(u64, u32)>() as u128;
+        bytes += u128::from(COMPACT_SHOTS) * (PACKED_SHOT + 2 * SAMPLE_ROW);
+        bytes += MAX_SAMPLE_ROWS as u128 * SAMPLE_ROW;
         return u64::try_from(bytes).ok();
     }
 
@@ -72,6 +77,15 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
         bytes += gate_bytes(rows as u128, entries as u128);
     }
     u64::try_from(bytes).ok()
+}
+
+fn compact_state_bytes(wires: usize) -> u128 {
+    // Packing the wires into maximum-width groups bounds the total number
+    // of amplitudes, since two groups cost at most as much as their product.
+    let groups = wires.div_ceil(MAX_GROUP_QUBITS) as u128;
+    let amplitudes = groups * (1_u128 << MAX_GROUP_QUBITS);
+    // Include factor metadata, wire indices and singleton state.
+    amplitudes * size_of::<Complex<f64>>() as u128 + wires as u128 * 128
 }
 
 fn gate_bytes(rows: u128, entries: u128) -> u128 {
@@ -126,14 +140,29 @@ mod tests {
     #[test]
     fn compact_estimate_scales_with_wires_and_samples_including_on_wasm32() {
         let mut state = AppState::new();
-        for qubits in [22, 50, 64] {
+        for qubits in [22, 50, 64, 65, 128] {
             state.circuit_state.circuit.num_qubits = qubits;
             let peak = estimated_peak_bytes(&state).unwrap();
             assert!((13_192..1024 * 1024).contains(&peak));
         }
-        for qubits in [0, 65, usize::MAX] {
+        for qubits in [0, 129, usize::MAX] {
             state.circuit_state.circuit.num_qubits = qubits;
             assert_eq!(estimated_peak_bytes(&state), None);
         }
+    }
+
+    #[test]
+    fn wide_estimate_includes_group_storage_on_first_run_and_rerun() {
+        let mut app = QCSimApp::default();
+        // A controlled quarter turn on two |+⟩ wires needs the grouped readout.
+        app.handle_message(Message::UpdateCircuitFromJson(
+            r#"{"num_qubits":64,"steps":[[{"id":"H","qubits":[0]},{"id":"H","qubits":[63]}],[{"id":"CZPow","qubits":[0,63],"params":[0.25]}]]}"#.into(),
+        ));
+        let before = estimated_peak_bytes(&app.state).unwrap();
+        assert!(u128::from(before) >= compact_state_bytes(64));
+        app.handle_message(Message::RunSimulation);
+        assert!(app.state.ui_state.error_message.is_none());
+        let after = estimated_peak_bytes(&app.state).unwrap();
+        assert!(u128::from(after - before) >= compact_state_bytes(64));
     }
 }

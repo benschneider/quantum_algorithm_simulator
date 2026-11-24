@@ -95,31 +95,33 @@ fn compact_readout(circuit: &Circuit, step_count: usize) -> Result<SimulationSta
         Ok(state) => return Ok(SimulationState::from_stabilizer(&state, circuit.num_qubits)),
         Err(error) => error,
     };
-    // Replay the authored gates with their phases intact.
-    match circuit.run_product_prefix(step_count) {
-        Ok(state) => Ok(SimulationState::from_product(state, circuit.num_qubits)),
-        Err(product_error) => {
-            // Report the first gate beyond the longest supported prefix.
-            let error = if (stabilizer_error.step, stabilizer_error.op_index)
-                > (product_error.step, product_error.op_index)
-            {
-                stabilizer_error
-            } else {
-                product_error
-            };
-            // Input diagnostics share (0, 0) with the first authored gate.
-            if error.step == 0 && error.op_index == 0 && circuit.run_stabilizer_prefix(0).is_err() {
-                return Err(error.message);
-            }
-            Err(format!(
-                "Step {}, gate {}: {}",
-                error.step + 1,
-                error.op_index + 1,
-                error.message
-            ))
-        }
+    let product_error = match circuit.run_product_prefix(step_count) {
+        Ok(state) => return Ok(SimulationState::from_product(state, circuit.num_qubits)),
+        Err(error) => error,
+    };
+    let grouped_error = match circuit.run_grouped_prefix(step_count) {
+        Ok(state) => return Ok(SimulationState::from_grouped(state, circuit.num_qubits)),
+        Err(error) => error,
+    };
+    // Prefer the grouped diagnostic on ties; it explains the group-size limit.
+    let error = [stabilizer_error, product_error, grouped_error]
+        .into_iter()
+        .max_by_key(|e| (e.step, e.op_index))
+        .expect("three backend diagnostics");
+    // Input diagnostics share (0, 0) with the first authored gate.
+    if error.step == 0 && error.op_index == 0 && circuit.run_stabilizer_prefix(0).is_err() {
+        return Err(error.message);
     }
+    Err(format!(
+        "Step {}, gate {}: {}",
+        error.step + 1,
+        error.op_index + 1,
+        error.message
+    ))
 }
+
+#[cfg(test)]
+mod grouped_tests;
 
 #[cfg(test)]
 mod tests {
@@ -139,7 +141,7 @@ mod tests {
             let readout = &app.state.simulation_state;
             let samples = readout.compact_samples.as_ref().unwrap();
             assert_eq!(samples.distinct, 2);
-            let ones = (1_u64 << entangled_wires) - 1;
+            let ones = (1_u128 << entangled_wires) - 1;
             assert!(samples.rows.iter().any(|&(bits, _)| bits == 0));
             assert!(samples.rows.iter().any(|&(bits, _)| bits == ones));
             assert_eq!(samples.rows.iter().map(|r| r.1).sum::<u32>(), COMPACT_SHOTS);
@@ -156,25 +158,53 @@ mod tests {
     }
 
     #[test]
-    fn wide_uniform_shows_bounded_rows_and_an_unsupported_later_gate_leaves_earlier_steps_readable()
-    {
+    fn a_clifford_prefix_beyond_group_capacity_reports_the_first_unsupported_gate() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::LoadTemplate("ghz_50.json".into()));
+        let last = app.state.circuit_state.num_timesteps;
+        app.handle_message(Message::ChangeTimesteps(last + 1));
+        app.handle_message(Message::PlaceGate(Gate::ZPow, 0, last));
+        app.handle_message(Message::SelectGateForEditing(0, last));
+        app.handle_message(Message::UpdateGateAngle(0.25));
+        app.handle_message(Message::RunSimulation);
+        let error = app.state.ui_state.error_message.as_ref().unwrap();
+        assert!(
+            error.contains(&format!("Step {}, gate 1", last + 1)),
+            "{error}"
+        );
+        assert!(error.contains("ZPow"), "{error}");
+    }
+
+    #[test]
+    fn exceeding_group_capacity_preserves_readable_prefixes_and_bounded_rows() {
+        use quantsim_core::grouped::MAX_GROUP_QUBITS;
         let independent: Vec<_> = (0..50).map(|q| json!({"id":"H","qubits":[q]})).collect();
+        let mut columns = vec![independent];
+        for wire in 1..=MAX_GROUP_QUBITS {
+            columns.push(vec![json!({"id":"CZPow","qubits":[0,wire],"params":[0.3]})]);
+        }
         let mut app = QCSimApp::default();
         app.handle_message(Message::UpdateCircuitFromJson(
-            json!({"num_qubits":50,"steps":[independent,[{"id":"CZPow","qubits":[0,1],"params":[0.3]}]]}).to_string(),
+            json!({"num_qubits":50,"steps":columns}).to_string(),
         ));
         app.handle_message(Message::RunSimulation);
         let error = app.state.ui_state.error_message.as_ref().unwrap();
         assert!(
-            error.contains("Step 2, gate 1") && error.contains("CZPow"),
+            error.contains(&format!("Step {}, gate 1", MAX_GROUP_QUBITS + 1))
+                && error.contains("CZPow")
+                && error.contains(&format!("{}-qubit group", MAX_GROUP_QUBITS + 1))
+                && error.contains(&format!("limit is {MAX_GROUP_QUBITS}")),
             "{error}"
         );
         assert!(!app.state.simulation_state.has_readout());
 
-        app.handle_message(Message::SelectTimestep(1));
+        app.handle_message(Message::SelectTimestep(MAX_GROUP_QUBITS));
         assert!(app.state.ui_state.error_message.is_none());
         let readout = &app.state.simulation_state;
-        assert!(readout.wire_one_probabilities.iter().all(|&p| p == 0.5));
+        assert!(readout
+            .wire_one_probabilities
+            .iter()
+            .all(|&p| (p - 0.5).abs() < 1e-6));
         let samples = readout.compact_samples.as_ref().unwrap();
         assert!(samples.distinct > MAX_SAMPLE_ROWS && samples.distinct <= COMPACT_SHOTS as usize);
         assert_eq!(samples.rows.len(), MAX_SAMPLE_ROWS);
@@ -188,7 +218,42 @@ mod tests {
     }
 
     #[test]
-    fn wide_fourier_phase_edit_updates_samples_and_reports_a_later_entangling_gate() {
+    fn wide_fourier_template_prepares_a_delta_then_shows_two_periods() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::LoadTemplate("qft_50.json".into()));
+        for (step, input) in [(0, 0), (1, 1u128 << 45)] {
+            app.handle_message(Message::SelectTimestep(step));
+            assert_eq!(app.state.ui_state.error_message, None);
+            let readout = &app.state.simulation_state;
+            assert_eq!(
+                readout.compact_samples.as_ref().unwrap().rows,
+                [(input, COMPACT_SHOTS)]
+            );
+            let wave = readout.waveform().unwrap();
+            assert_eq!((wave.first, wave.stride), (input, 1));
+            assert_eq!(wave.points[0], nalgebra::Complex::ONE);
+            assert!(wave.points[1..]
+                .iter()
+                .all(|&z| z == nalgebra::Complex::ZERO));
+        }
+        app.handle_message(Message::RunSimulation);
+        assert_eq!(app.state.ui_state.error_message, None);
+        assert_eq!(app.state.ui_state.current_timestep, 101);
+        let wave = app.state.simulation_state.waveform().unwrap();
+        assert_eq!((wave.first, wave.stride, wave.points.len()), (0, 1, 64));
+        let amplitude = 2.0_f64.powi(-25);
+        for (index, point) in wave.points.iter().enumerate() {
+            let angle = std::f64::consts::TAU * index as f64 / 32.0;
+            let expected = nalgebra::Complex::from_polar(amplitude, angle);
+            assert!(
+                (*point - expected).norm() < amplitude * 1e-6,
+                "index {index}"
+            );
+        }
+    }
+
+    #[test]
+    fn wide_fourier_phase_edit_flows_into_an_entangling_gate() {
         let mut app = QCSimApp::default();
         app.handle_message(Message::LoadTemplate("qft_50.json".into()));
         let end = app.state.circuit_state.num_timesteps;
@@ -197,9 +262,10 @@ mod tests {
         app.handle_message(Message::RunSimulation);
         assert_eq!(app.state.ui_state.error_message, None);
         let readout = &app.state.simulation_state;
-        assert!((readout.wire_one_probabilities[0] - 0.5).abs() < 1e-6);
+        let expected = (std::f64::consts::PI / 32.0).sin().powi(2);
+        assert!((readout.wire_one_probabilities[0] - expected).abs() < 1e-6);
 
-        app.handle_message(Message::SelectGateForEditing(48, 1));
+        app.handle_message(Message::SelectGateForEditing(45, 5));
         app.handle_message(Message::UpdateGateAngle(1.0 / 3.0));
         assert!(!app.state.simulation_state.has_readout());
         app.handle_message(Message::SelectTimestep(end + 2));
@@ -216,15 +282,11 @@ mod tests {
 
         app.handle_message(Message::PlaceMultiQubitGate(Gate::CX, vec![49, 0], end + 1));
         app.handle_message(Message::RunSimulation);
-        let error = app.state.ui_state.error_message.as_ref().unwrap();
-        assert!(
-            error.contains(&format!("Step {}, gate 1", end + 2)) && error.contains("CX"),
-            "{error}"
-        );
-        assert!(!app.state.simulation_state.has_readout());
+        assert_eq!(app.state.ui_state.error_message, None);
+        assert!((app.state.simulation_state.wire_one_probabilities[0] - 0.5).abs() < 1e-6);
         app.handle_message(Message::SelectTimestep(end + 1));
         assert_eq!(app.state.ui_state.error_message, None);
-        assert!(app.state.simulation_state.compact_samples.is_some());
+        assert!((app.state.simulation_state.wire_one_probabilities[0] - 0.25).abs() < 1e-6);
     }
 
     #[test]

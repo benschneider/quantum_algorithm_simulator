@@ -1,4 +1,5 @@
 use quantsim_core::core::engine::QuantumState;
+use quantsim_core::grouped::GroupedState;
 use quantsim_core::product_state::ProductState;
 use quantsim_core::stabilizer::{StabilizerAmplitudes, StabilizerState};
 use std::cmp::Reverse;
@@ -10,6 +11,7 @@ pub(crate) use waveform::{Waveform, WAVEFORM_POINTS};
 #[derive(Debug)]
 enum CompactAmplitudes {
     Product(ProductState),
+    Grouped(GroupedState),
     Stabilizer(StabilizerAmplitudes),
 }
 
@@ -20,7 +22,7 @@ pub(crate) const MAX_SAMPLE_ROWS: usize = 16;
 #[derive(Debug)]
 pub(crate) struct CompactSamples {
     /// Most frequent sampled bitstrings, with q0 in the least significant bit.
-    pub(crate) rows: Vec<(u64, u32)>,
+    pub(crate) rows: Vec<(u128, u32)>,
     pub(crate) distinct: usize,
 }
 
@@ -31,8 +33,8 @@ pub struct SimulationState {
     pub(crate) compact_samples: Option<CompactSamples>,
     compact_amplitudes: Option<CompactAmplitudes>,
     waveform: Option<Waveform>,
-    auto_window: (u64, u64),
-    manual_window: Option<(u64, u64)>,
+    auto_window: (u128, u128),
+    manual_window: Option<(u128, u128)>,
     /// Marginals in wire order (q0 first), including every basis probability.
     pub(crate) wire_one_probabilities: Vec<f64>,
     /// Basis indices shown in the joint-state table and chart.
@@ -67,31 +69,43 @@ impl SimulationState {
     }
 
     pub(crate) fn from_stabilizer(state: &StabilizerState, wires: usize) -> Self {
-        let mut readout = Self::from_samples(
+        Self::from_samples(
             (0..wires).map(|wire| state.probability_one(wire)),
             state.sample(COMPACT_SHOTS, SAMPLE_SEED),
-        );
-        let amplitudes = state.amplitude_view();
-        readout.auto_window = amplitudes.basis_slice();
-        readout.compact_amplitudes = Some(CompactAmplitudes::Stabilizer(amplitudes));
-        readout.refresh_waveform();
-        readout
+        )
+        .with_amplitudes(CompactAmplitudes::Stabilizer(state.amplitude_view()))
     }
 
     pub(crate) fn from_product(state: ProductState, wires: usize) -> Self {
-        let mut readout = Self::from_samples(
+        Self::from_samples(
             (0..wires).map(|wire| state.probability_one(wire)),
             state.sample(COMPACT_SHOTS, SAMPLE_SEED),
-        );
-        readout.auto_window = state.basis_slice();
-        readout.compact_amplitudes = Some(CompactAmplitudes::Product(state));
-        readout.refresh_waveform();
-        readout
+        )
+        .with_amplitudes(CompactAmplitudes::Product(state))
+    }
+
+    pub(crate) fn from_grouped(state: GroupedState, wires: usize) -> Self {
+        Self::from_samples(
+            (0..wires).map(|wire| state.probability_one(wire)),
+            state.sample(COMPACT_SHOTS, SAMPLE_SEED),
+        )
+        .with_amplitudes(CompactAmplitudes::Grouped(state))
+    }
+
+    fn with_amplitudes(mut self, amplitudes: CompactAmplitudes) -> Self {
+        self.auto_window = match &amplitudes {
+            CompactAmplitudes::Stabilizer(view) => view.basis_slice(),
+            CompactAmplitudes::Product(state) => state.basis_slice(),
+            CompactAmplitudes::Grouped(state) => state.basis_slice(),
+        };
+        self.compact_amplitudes = Some(amplitudes);
+        self.refresh_waveform();
+        self
     }
 
     fn from_samples(
         probabilities: impl Iterator<Item = Option<f32>>,
-        mut outcomes: Vec<u64>,
+        mut outcomes: Vec<u128>,
     ) -> Self {
         let wire_one_probabilities = probabilities
             .map(|p| f64::from(p.expect("validated circuit wire")))
@@ -132,7 +146,7 @@ impl SimulationState {
             .enumerate()
         {
             if amp.re != 0.0 || amp.im != 0.0 {
-                let index = index as u64;
+                let index = index as u128;
                 varying_bits |= *first_nonzero.get_or_insert(index) ^ index;
             }
             if amp.re.abs() > 1e-6 || amp.im.abs() > 1e-6 {
@@ -162,7 +176,9 @@ impl SimulationState {
         self.quantum_state = Some(quantum_state);
         self.auto_window = (
             first_nonzero.unwrap_or(0),
-            1u64.checked_shl(varying_bits.trailing_zeros()).unwrap_or(1),
+            1u128
+                .checked_shl(varying_bits.trailing_zeros())
+                .unwrap_or(1),
         );
         self.refresh_waveform();
     }

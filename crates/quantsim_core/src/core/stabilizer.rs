@@ -1,4 +1,4 @@
-//! Exact computational-basis readout of Clifford circuits on 1–64 wires.
+//! Exact computational-basis readout of Clifford circuits on 1–128 wires.
 //! Uses the [Aaronson–Gottesman tableau](https://arxiv.org/abs/quant-ph/0406196).
 
 mod tableau;
@@ -27,7 +27,7 @@ impl Circuit {
     /// let circuit = builder.build();
     /// let state = circuit.run_stabilizer_prefix(circuit.steps.len()).unwrap();
     /// assert_eq!(state.probability_one(49), Some(0.5));
-    /// let ones = (1_u64 << 50) - 1;
+    /// let ones = (1_u128 << 50) - 1;
     /// assert!(state.sample(32, 42).iter().all(|&bits| bits == 0 || bits == ones));
     /// ```
     pub fn run_stabilizer_prefix(
@@ -148,12 +148,12 @@ mod tests {
             .message
             .contains("explicit initial state"));
 
-        for width in [0, 65] {
+        for width in [0, 129] {
             assert!(Circuit::new(width)
                 .run_stabilizer_prefix(0)
                 .unwrap_err()
                 .message
-                .contains("1–64"));
+                .contains("1–128"));
         }
     }
 }

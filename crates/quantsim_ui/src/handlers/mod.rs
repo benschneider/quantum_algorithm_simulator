@@ -28,6 +28,7 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
             | Message::ChangeQubits(_)
             | Message::ChangeTimesteps(_)
             | Message::CircuitDimensionsChanged { .. }
+            | Message::InsertQft { .. }
             | Message::PlaceGate(..)
             | Message::PlaceMultiQubitGate(..)
             | Message::MoveGate(..)
@@ -74,7 +75,8 @@ pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec
         | Message::CloseCustomGateEditor => {
             gate_palette_handler::handle_gate_palette_message(state, message, messages)
         }
-        Message::PlaceGate(_, _, _)
+        Message::InsertQft { .. }
+        | Message::PlaceGate(_, _, _)
         | Message::PlaceMultiQubitGate(_, _, _)
         | Message::MoveGate(_, _, _, _)
         | Message::DeleteGate(_, _)

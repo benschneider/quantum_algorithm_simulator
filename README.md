@@ -274,6 +274,8 @@ Quantum circuits in `quantsim` are defined visually by selecting gates from a pa
     *   To deselect a gate, click on it again in the palette, or click on an empty area of the circuit grid.
     *   The circuit grid allows you to visually construct your quantum circuit step-by-step.
 
+Choose **Insert QFT…** in the Gate Palette to add a forward Fourier transform to your own circuit. Select the first wire, the number of consecutive wires, and the step after which to insert it. Use step 0 to insert at the beginning. Later gates move to the right. The **QFT** section contains ordinary editable gates and acts on the input you have already prepared.
+
 Click a wire label at the left of the grid to annotate it as **Data** or **Ancilla**. Select **Unlabeled** to clear the role. Circuit JSON saves these annotations in `qubit_roles`, starting at q0.
 
 **Qubit layout** below the circuit shows where the wires sit and which gates act at the selected timestep. Select a site to highlight its neighbors. Open **Edit layout** to choose **Line**, **Grid** or **Ring**, or enter your own site coordinates and choose which pairs to link. The four repetition-code templates place each parity ancilla between the two data qubits it checks.
@@ -347,11 +349,13 @@ The "Results" window displays the outcome of your simulation:
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
 *   **Amplitude waveform** plots the real and imaginary parts at up to 64 basis indices. The axis gives the actual amplitude scale. The automatic window follows the first occupied index and the lowest varying bit as the circuit evolves. Small registers show every index. Use **Range** to inspect another part of a large register. All simulators use the first occupied index as a positive real phase reference for the graph.
 *   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
-*   For **22–64 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
-*   Wide circuits start from per-wire preparations. The stabilizer simulator supports entangled circuits built from H, SqrtZ, CX, X, Y, and Z. The product-state simulator also handles editable basis-input Fourier transforms, including controlled phase rotations and wire swaps. If neither simulator can verify the selected gates, the circuit editor identifies the gate where execution stopped. Earlier steps remain available.
+*   For **22–128 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
+*   Wide circuits start from per-wire preparations. The stabilizer simulator handles entangled circuits built from H, SqrtZ, CX, X, Y, and Z across all 128 wires. The product-state simulator handles basis-input Fourier transforms. For circuits that need both controlled phases and entanglement, the grouped simulator can track up to eight wires together in one state vector. Several independent groups can coexist. If a gate would require a larger group and the other simulators cannot run it, the circuit editor identifies the gate. Earlier steps remain available.
 
 
 #### Time Scrubber
+
+The **Timesteps** field accepts 1 to 1,000 steps. The scrubber covers the full length of the loaded circuit.
 
 Use **Next step** and **Previous step** to follow the circuit at your own pace. **Play** holds the first step of each section with a description for eight seconds and advances other steps every 0.6 seconds. The **Timestep** slider and numbered columns jump directly to a step. Step 0 shows the initial state. Clicking a section label jumps to its last step. You can revisit any step without collapsing the simulated state.
 
@@ -372,7 +376,7 @@ For a step-by-step reading of the examples, open **Help → Tutorial → Templat
 *   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
 *   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.
 *   **QFT** and **QFT4** apply the forward Fourier transform to `01` and `1011`. The output probabilities are uniform. The complex amplitudes show how the phases advance.
-*   **qft 50** applies a 50-qubit Fourier transform to an input with q48 set to one. The template guide shows how to turn an edited phase into a measurable change on q0.
+*   **qft 50** starts with an X gate on q45 to prepare a single input spike. Select **Input** to inspect it, then **Run** to see the Fourier transform. Its imaginary amplitude follows a sine wave with 32 basis indices per period. The template guide shows how to turn an edited phase into a measurable change on q0.
 *   **fourier wave 50** builds one Fourier mode in ten labeled steps. The first five spread the amplitude over all 50 qubits. The next five change only the phases. Watch the imaginary amplitude resolve into a sine wave while the measurement probabilities stay fixed.
 *   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
 *   **Plaquette z check** uses one central ancilla to read the joint Z parity of four neighboring data qubits over four CNOT steps.

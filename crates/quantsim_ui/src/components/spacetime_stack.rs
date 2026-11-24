@@ -103,8 +103,8 @@ fn time_divisions(end: usize, intervals: usize) -> impl Iterator<Item = usize> {
     (0..=intervals).map(move |i| ((end as u128 * i as u128) / intervals as u128) as usize)
 }
 
-// The editor supports 100 columns. For larger imported circuits keep the full time
-// extent and include the current slice and its immediate neighbors at full resolution.
+// Sample long timelines across their full extent and include the current slice
+// and its immediate neighbors at full resolution.
 fn visible_steps(end: usize, active: usize) -> Vec<usize> {
     const LIMIT: usize = 100;
     if end <= LIMIT {

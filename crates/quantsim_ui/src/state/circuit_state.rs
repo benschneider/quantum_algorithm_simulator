@@ -21,7 +21,7 @@ pub struct CircuitState {
 
 impl CircuitState {
     pub const MAX_DENSE_QUBITS: usize = 21;
-    pub const MAX_QUBITS: usize = 64;
+    pub const MAX_QUBITS: usize = quantsim_core::MAX_COMPACT_QUBITS;
 
     /// Only the dense simulator and its amplitude editor enumerate basis states.
     pub(crate) fn dense_amplitude_count(num_qubits: usize) -> Option<usize> {

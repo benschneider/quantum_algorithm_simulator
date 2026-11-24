@@ -142,7 +142,7 @@ fn show_joint_samples(ui: &mut egui::Ui, samples: &CompactSamples, width: usize)
         });
 }
 
-fn grouped_bits(outcome: u64, width: usize) -> String {
+fn grouped_bits(outcome: u128, width: usize) -> String {
     let mut bits = format!("{outcome:0width$b}");
     // Group from q0 so each full group corresponds to eight consecutive wires.
     let mut boundary = width;
@@ -240,7 +240,13 @@ mod tests {
     use quantsim_core::core::types::Gate;
 
     #[test]
-    fn narrow_compact_results_show_sample_counts_and_wrap_all_64_bits() {
+    fn narrow_compact_results_show_sample_counts_and_wrap_all_outcome_bits() {
+        for width in [64, 128] {
+            check_narrow_sample_table(width);
+        }
+    }
+
+    fn check_narrow_sample_table(width: usize) {
         use crate::state::SimulationState;
         use quantsim_core::{
             circuit::{Circuit, CircuitSection},
@@ -248,8 +254,8 @@ mod tests {
         };
 
         let description = "The high bit stays set while Hadamard gates spread the amplitude evenly across the low twelve bits.";
-        let mut circuit = Circuit::new(64);
-        let mut column = vec![Operation::new(Gate::X, vec![63], vec![])];
+        let mut circuit = Circuit::new(width);
+        let mut column = vec![Operation::new(Gate::X, vec![(width - 1) as u32], vec![])];
         column.extend((0..12).map(|wire| Operation::new(Gate::H, vec![wire], vec![])));
         circuit.steps.push(column);
         circuit
@@ -267,7 +273,7 @@ mod tests {
         let mut app = QCSimApp::default();
         app.state.circuit_state.circuit = circuit;
         app.state.ui_state.current_timestep = 1;
-        app.state.simulation_state = SimulationState::from_stabilizer(&state, 64);
+        app.state.simulation_state = SimulationState::from_stabilizer(&state, width);
 
         let ctx = egui::Context::default();
         let mut render = || {
@@ -312,7 +318,7 @@ mod tests {
         assert!(caption.visual_bounding_rect().right() <= 360.0);
         assert!(label("Amplitude waveform").pos.y < label("Joint samples").pos.y);
         assert!(label("Joint samples").pos.y < label("Wire readout").pos.y);
-        label("Outcome (q63 … q0)");
+        label(&format!("Outcome (q{} … q0)", width - 1));
         label(&format!(
             "1024 shots · 16 most frequent of {} observed outcomes",
             samples.distinct
@@ -324,9 +330,12 @@ mod tests {
             samples.distinct - 16
         ));
         for &(bits, _) in &samples.rows {
-            let text = label(&grouped_bits(bits, 64));
+            let text = label(&grouped_bits(bits, width));
             assert!(text.galley.text().starts_with("10000000 "));
-            assert_eq!(text.galley.text().replace(' ', ""), format!("{bits:064b}"));
+            assert_eq!(
+                text.galley.text().replace(' ', ""),
+                format!("{bits:0width$b}")
+            );
             assert!(text.galley.rows.len() > 1);
             assert!(text.visual_bounding_rect().right() <= 360.0);
         }

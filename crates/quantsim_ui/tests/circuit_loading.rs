@@ -77,7 +77,7 @@ fn rejected_json_keeps_the_last_working_circuit_and_results() {
 
     for invalid in [
         "{",
-        r#"{"num_qubits":128,"steps":[]}"#,
+        r#"{"num_qubits":129,"steps":[]}"#,
         r#"{"num_qubits":2,"steps":[],"initial_state":[[1,0]]}"#,
     ] {
         app.handle_message(Message::UpdateCircuitFromJson(invalid.into()));
@@ -151,7 +151,7 @@ fn width_changes_preserve_explicit_input_and_validate_both_dimension_messages() 
     app.handle_message(Message::UpdateCircuitFromJson(
         r#"{"num_qubits":1,"initial_state":[[0,0],[1,0]],"steps":[[]]}"#.into(),
     ));
-    for width in [0, 50, 65] {
+    for width in [0, 50, 129] {
         app.handle_message(Message::ChangeQubits(width));
         assert!(app.state.ui_state.error_message.is_some());
         assert_eq!(app.state.circuit_state.num_qubits, 1);
@@ -167,7 +167,7 @@ fn width_changes_preserve_explicit_input_and_validate_both_dimension_messages() 
         );
     }
     app.handle_message(Message::CircuitDimensionsChanged {
-        num_qubits: 65,
+        num_qubits: 129,
         num_timesteps: 8,
     });
     assert_eq!(app.state.circuit_state.num_timesteps, 1);
@@ -180,10 +180,10 @@ fn width_changes_preserve_explicit_input_and_validate_both_dimension_messages() 
         0
     );
     app.handle_message(Message::CircuitDimensionsChanged {
-        num_qubits: 64,
+        num_qubits: 128,
         num_timesteps: 2,
     });
-    assert_eq!(app.state.initial_state_editor_state.num_qubits, 64);
+    assert_eq!(app.state.initial_state_editor_state.num_qubits, 128);
     assert_eq!(
         app.state.initial_state_editor_state.state_vector.capacity(),
         0

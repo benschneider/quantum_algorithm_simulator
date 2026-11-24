@@ -26,6 +26,11 @@ pub enum Message {
     OpenGateEditor(Gate),
 
     // Circuit Grid Messages
+    InsertQft {
+        after_step: usize,
+        first_wire: usize,
+        width: usize,
+    },
     PlaceGate(Gate, usize, usize),
     PlaceMultiQubitGate(Gate, Vec<usize>, usize),
     MoveGate(usize, usize, usize, usize),

@@ -6,11 +6,11 @@ pub(crate) const WAVEFORM_POINTS: usize = 64;
 /// Point j is the amplitude of |first + j * stride⟩. Only this window is materialized.
 #[derive(Debug)]
 pub(crate) struct Waveform {
-    pub first: u64,
-    pub stride: u64,
-    pub last_index: u64,
+    pub first: u128,
+    pub stride: u128,
+    pub last_index: u128,
     pub points: Vec<Complex<f64>>,
-    pub phase_reference: Option<u64>,
+    pub phase_reference: Option<u128>,
 }
 
 #[cfg(test)]
@@ -54,11 +54,11 @@ mod tests {
             }
             let wave = readout.waveform().unwrap();
             assert_eq!((wave.first, wave.stride, wave.points.len()), (0, 1, 64));
-            let occupied_indices = 1_u64 << active_wires;
+            let occupied_indices = 1_u128 << active_wires;
             let magnitude = 1.0 / (occupied_indices as f64).sqrt();
             for (index, amp) in wave.points.iter().enumerate() {
                 let angle = std::f64::consts::TAU * (index & phase_bits) as f64 / 32.0;
-                let expected = if (index as u64) < occupied_indices {
+                let expected = if (index as u128) < occupied_indices {
                     Complex::from_polar(magnitude, angle)
                 } else {
                     Complex::ZERO
@@ -100,24 +100,26 @@ mod tests {
     }
 
     #[test]
-    fn a_manual_window_survives_scrubbing_and_handles_the_last_64_bit_index() {
-        let mut app = QCSimApp::default();
-        app.handle_message(Message::ChangeQubits(64));
-        app.handle_message(Message::SelectTimestep(0));
-        app.state
-            .simulation_state
-            .set_waveform_window(1, u64::MAX - 1);
-        let wave = app.state.simulation_state.waveform().unwrap();
-        assert_eq!(wave.points, [Complex::ZERO; 2]);
-        assert_eq!(wave.first + wave.stride, u64::MAX);
-        app.handle_message(Message::SelectTimestep(1));
-        let wave = app.state.simulation_state.waveform().unwrap();
-        assert_eq!(
-            (wave.first, wave.stride, wave.last_index),
-            (1, u64::MAX - 1, u64::MAX)
-        );
-        app.state.simulation_state.reset_waveform_window();
-        assert_eq!(app.state.simulation_state.waveform().unwrap().first, 0);
+    fn a_manual_window_survives_scrubbing_and_handles_the_last_basis_index() {
+        for (wires, last_index) in [(64, u128::from(u64::MAX)), (128, u128::MAX)] {
+            let mut app = QCSimApp::default();
+            app.handle_message(Message::ChangeQubits(wires));
+            app.handle_message(Message::SelectTimestep(0));
+            app.state
+                .simulation_state
+                .set_waveform_window(1, last_index - 1);
+            let wave = app.state.simulation_state.waveform().unwrap();
+            assert_eq!(wave.points, [Complex::ZERO; 2]);
+            assert_eq!(wave.first + wave.stride, last_index);
+            app.handle_message(Message::SelectTimestep(1));
+            let wave = app.state.simulation_state.waveform().unwrap();
+            assert_eq!(
+                (wave.first, wave.stride, wave.last_index),
+                (1, last_index - 1, last_index)
+            );
+            app.state.simulation_state.reset_waveform_window();
+            assert_eq!(app.state.simulation_state.waveform().unwrap().first, 0);
+        }
     }
 }
 
@@ -126,7 +128,7 @@ impl SimulationState {
         self.waveform.as_ref()
     }
 
-    pub(crate) fn set_waveform_window(&mut self, first: u64, stride: u64) {
+    pub(crate) fn set_waveform_window(&mut self, first: u128, stride: u128) {
         self.manual_window = Some((first, stride.max(1)));
         self.refresh_waveform();
     }
@@ -145,35 +147,40 @@ impl SimulationState {
 
     pub(super) fn refresh_waveform(&mut self) {
         let wires = self.wire_one_probabilities.len();
-        if !(1..=64).contains(&wires) {
+        if !(1..=quantsim_core::MAX_COMPACT_QUBITS).contains(&wires) {
             self.waveform = None;
             return;
         }
-        let last_index = u64::MAX >> (64 - wires);
-        let default_window = if last_index < WAVEFORM_POINTS as u64 {
+        let last_index = u128::MAX >> (u128::BITS as usize - wires);
+        let default_window = if last_index < WAVEFORM_POINTS as u128 {
             (0, 1)
         } else {
             self.auto_window
         };
         let (first, stride) = self.manual_window.unwrap_or(default_window);
         let first = first.min(last_index);
-        // Divide before adding one so the inclusive 64-wire domain fits in a u64.
-        let count = ((last_index - first) / stride).min(WAVEFORM_POINTS as u64 - 1) + 1;
+        // Bound the inclusive count before adding one, even for the full 128-wire domain.
+        let count = ((last_index - first) / stride).min(WAVEFORM_POINTS as u128 - 1) + 1;
         let indices = (0..count).map(|j| first + j * stride);
         let (points, phase_reference) = match &self.compact_amplitudes {
-            Some(CompactAmplitudes::Product(state)) => {
-                let phase = state.reference_phase().conj();
+            Some(view) => {
+                let phase = match view {
+                    CompactAmplitudes::Stabilizer(_) => Complex::ONE,
+                    CompactAmplitudes::Product(state) => state.reference_phase().conj(),
+                    CompactAmplitudes::Grouped(state) => state.reference_phase().conj(),
+                };
                 let points = indices
-                    .map(|k| state.amplitude(k).expect("index within register") * phase)
+                    .map(|k| {
+                        let amplitude = match view {
+                            CompactAmplitudes::Stabilizer(state) => state.amplitude(k),
+                            CompactAmplitudes::Product(state) => state.amplitude(k),
+                            CompactAmplitudes::Grouped(state) => state.amplitude(k),
+                        };
+                        amplitude.expect("index within register") * phase
+                    })
                     .collect();
                 (points, Some(self.auto_window.0))
             }
-            Some(CompactAmplitudes::Stabilizer(view)) => (
-                indices
-                    .map(|k| view.amplitude(k).expect("index within register"))
-                    .collect(),
-                Some(view.reference_index()),
-            ),
             None => {
                 let state = self.quantum_state.as_ref().expect("dense readout state");
                 let first = self.auto_window.0;

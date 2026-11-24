@@ -17,10 +17,12 @@ Open **File > Load Template**. Click a numbered column to read all wires after t
 
 ## Read a Fourier transform
 
+To try the transform on your own input, choose **Gates → Insert QFT…** and select the first wire, the width, and the step after input preparation. Click the new **QFT** section heading to see its output, or select individual columns to follow the gates.
+
 - **fourier wave 50** — Choose **Next step** to read each caption above **Results → Amplitude waveform**. Steps 1–4 spread the flat real amplitudes across the first 2, 4, 32 and 64 positions. Step 5 spreads them over all 2^50 positions. The graph still shows 64 at a time. In steps 6–10, five phase gates turn progressively smaller blocks of amplitudes. At the last step, the imaginary trace peaks at index 8, crosses zero at 16 and reaches its trough at 24. The real trace follows a cosine. Together the 64 points show two periods of a single Fourier mode.
 - **QFT** — Step 1 prepares `01`. At step 3, the populated rows `01` and `11` have the same probability and their amplitudes differ by a quarter turn in phase. At step 5, read the four amplitudes in basis order. They are `0.5`, `0.5i`, `−0.5` and `−0.5i`. A probability chart alone would show four equal bars.
 - **QFT4** — Step 1 prepares `1011`, or 11. At step 13, all 16 rows have probability 6.25%. Follow the first two amplitudes. The first is `0.25` and the next is about `−0.0957 − 0.2310i`. Each successive row advances by 11/16 of a turn. [Fourier transform definition](https://quantum.cloud.ibm.com/docs/en/api/qiskit/qiskit.circuit.library.QFTGate)
-- **qft 50** — Only q48 starts at one. Run the full 100-step transform. The waveform repeats every four indices, and every wire reads one with 50% probability. To reveal a phase in the wire readout, add an H on q49 at step 99. The final swap carries that wire to q0. With the original phase, q0 still reads 50%. Change the step 2 CZPow exponent from `0.5` to `0.3333333` and run again. Now q0 reads 25%.
+- **qft 50** — Select **Input** at step 1. An X gate on q45 prepares a single spike at basis index 2^45. Choose **Play** to follow the transform or **Run** to jump to step 101. The imaginary trace peaks at indices 8 and 40 and reaches its troughs at 24 and 56. Each wire reads one with 50% probability. To reveal a phase in the wire readout, add an H on q49 at step 100. The final swap carries that wire to q0, which now reads one about 0.96% of the time. At step 6, change the CZPow between q45 and q49 from `0.0625` to `0.3333333` and run again. Now q0 reads one with 25% probability.
 
 ## Follow a state from sender to receiver
 

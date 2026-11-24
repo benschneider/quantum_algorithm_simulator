@@ -58,6 +58,7 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
         .iter()
         .position(|role| *role == Some(quantsim_core::circuit::QubitRole::Ancilla));
     ui.section_editor = None;
+    ui.qft_draft = None;
     ui.selected_gate = None;
     ui.placement_mode = PlacementMode::Idle;
     if ui.selected_gate_for_editing.take().is_some() {

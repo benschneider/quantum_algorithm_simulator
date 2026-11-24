@@ -4,6 +4,13 @@ use quantsim_core::{
 };
 
 #[derive(Debug)]
+pub(crate) struct QftDraft {
+    pub first_wire: usize,
+    pub width: usize,
+    pub after_step: usize,
+}
+
+#[derive(Debug)]
 pub struct SectionDraft {
     pub original_start: Option<usize>,
     pub section: CircuitSection,
@@ -150,6 +157,7 @@ pub struct UIState {
     pub stack_camera: StackCamera,
     pub layout_draft: Option<QubitLayout>,
     pub section_editor: Option<SectionDraft>,
+    pub(crate) qft_draft: Option<QftDraft>,
     pub gate_editor_matrix: DMatrix<Complex<f32>>,
     pub is_unitary: bool,
     pub unitarity_error: f32,
@@ -186,6 +194,7 @@ impl Default for UIState {
             stack_camera: StackCamera::default(),
             layout_draft: None,
             section_editor: None,
+            qft_draft: None,
             gate_editor_matrix: DMatrix::from_element(0, 0, Complex::new(0.0, 0.0)),
             is_unitary: true,
             unitarity_error: 0.0,

@@ -7,8 +7,8 @@ pub use amplitudes::StabilizerAmplitudes;
 /// In particular Y = iXZ. This convention keeps the phase of a row product explicit.
 #[derive(Clone, Copy, Debug, Default)]
 struct Pauli {
-    x: u64,
-    z: u64,
+    x: u128,
+    z: u128,
     phase: u8,
 }
 
@@ -22,7 +22,7 @@ impl Pauli {
     }
 }
 
-/// A pure stabilizer state on at most 64 wires. Each row stores two packed Pauli
+/// A pure stabilizer state on at most 128 wires. Each row stores two packed Pauli
 /// masks. The first half are destabilizers paired with the stabilizers in the
 /// second half, as in the Aaronson–Gottesman tableau.
 #[derive(Clone, Debug)]
@@ -32,7 +32,7 @@ pub struct StabilizerState {
 
 impl StabilizerState {
     pub(super) fn zero(num_qubits: usize) -> Self {
-        debug_assert!((1..=64).contains(&num_qubits));
+        debug_assert!((1..=crate::MAX_COMPACT_QUBITS).contains(&num_qubits));
         let mut rows = Vec::with_capacity(2 * num_qubits);
         for wire in 0..num_qubits {
             rows.push(Pauli {
@@ -83,7 +83,7 @@ impl StabilizerState {
         self.conjugate_pauli(0, 1 << wire);
     }
 
-    fn conjugate_pauli(&mut self, x: u64, z: u64) {
+    fn conjugate_pauli(&mut self, x: u128, z: u128) {
         for row in &mut self.rows {
             if ((row.x & z) ^ (row.z & x)).count_ones() & 1 != 0 {
                 row.phase ^= 2;
@@ -119,13 +119,13 @@ impl StabilizerState {
     }
 
     // A stabilizer with X on the measured wire anticommutes with Z, making its result random.
-    fn pivot(&self, mask: u64) -> Option<usize> {
+    fn pivot(&self, mask: u128) -> Option<usize> {
         self.rows[self.rows.len() / 2..]
             .iter()
             .position(|row| row.x & mask != 0)
     }
 
-    fn deterministic_one(&self, mask: u64) -> bool {
+    fn deterministic_one(&self, mask: u128) -> bool {
         // With no anticommuting stabilizer, ±Z belongs to the group. The paired
         // destabilizers tell us which stabilizers multiply to it.
         let (destabilizers, stabilizers) = self.rows.split_at(self.rows.len() / 2);
@@ -140,7 +140,7 @@ impl StabilizerState {
         product.phase == 2
     }
 
-    fn measure(&mut self, mask: u64, rng: &mut StdRng) -> bool {
+    fn measure(&mut self, mask: u128, rng: &mut StdRng) -> bool {
         let Some(pair) = self.pivot(mask) else {
             return self.deterministic_one(mask);
         };
@@ -165,7 +165,7 @@ impl StabilizerState {
 
     /// Draws reproducible joint computational-basis samples. Bit 0 is wire q0.
     /// Measurements within a shot share a scratch tableau to preserve correlations.
-    pub fn sample(&self, shots: u32, seed: u64) -> Vec<u64> {
+    pub fn sample(&self, shots: u32, seed: u64) -> Vec<u128> {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut scratch = self.clone();
         let mut samples = Vec::with_capacity(shots as usize);

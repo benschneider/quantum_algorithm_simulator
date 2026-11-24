@@ -41,7 +41,7 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         gate_palette::gate_palette(state, ui, messages);
                     });
-                    if messages.len() != before {
+                    if messages.len() != before || state.ui_state.qft_draft.is_some() {
                         ui.close();
                     }
                 });
@@ -94,4 +94,5 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
             }
         }
     });
+    gate_palette::show_qft_builder(ctx, state, messages);
 }

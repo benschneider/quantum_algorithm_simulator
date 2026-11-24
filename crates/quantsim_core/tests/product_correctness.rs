@@ -19,6 +19,7 @@ fn changing_a_phase_on_the_full_50_wire_qft_changes_the_interference() {
     // Check phases across the entire register on another basis input.
     let input = 0x2a9d_7210_9357b_u64;
     let mut probe = qft.clone();
+    probe.steps[0].clear(); // Supply the probe input directly.
     for (wire, prep) in probe.initial_preps.iter_mut().enumerate() {
         *prep = (input & (1 << wire) != 0).then_some(QubitPrep::One);
     }
@@ -34,12 +35,13 @@ fn changing_a_phase_on_the_full_50_wire_qft_changes_the_interference() {
     // The tutorial adds H on q49 before the last SWAP sends its readout to q0.
     let before_swap = qft.steps.len() - 2;
     qft.steps[before_swap].push(one(Gate::H, 49));
-    for (power, expected) in [(0.5, 0.5), (1.0 / 3.0, 0.25), (0.0, 0.0)] {
-        let phase = qft
-            .steps
+    let original = qft.run_product_prefix(qft.steps.len()).unwrap();
+    let expected = (std::f64::consts::PI / 32.0).sin().powi(2);
+    assert!((f64::from(original.probability_one(0).unwrap()) - expected).abs() < 1e-6);
+    for (power, expected) in [(1.0 / 3.0, 0.25), (0.0, 0.0)] {
+        let phase = qft.steps[5]
             .iter_mut()
-            .flatten()
-            .find(|op| op.id == Gate::CZPow && op.qubits.as_slice() == [48, 49])
+            .find(|op| op.id == Gate::CZPow && op.qubits.as_slice() == [45, 49])
             .unwrap();
         phase.params[0] = Param::Scalar(power);
         let result = qft.run_product_prefix(qft.steps.len()).unwrap();
@@ -135,8 +137,10 @@ fn controlled_x_on_an_x_eigenstate_retains_its_kickback_phase() {
 
 #[test]
 fn invalid_inputs_and_overridden_gates_cannot_yield_a_product_readout() {
-    for width in [0, 65] {
-        assert!(Circuit::new(width).run_product_prefix(0).is_err());
+    for width in [0, 129] {
+        let circuit = Circuit::new(width);
+        assert!(circuit.run_product_prefix(0).is_err());
+        assert!(circuit.run_grouped_prefix(0).is_err());
     }
     let mut circuit = Circuit::new(2);
     circuit.initial_state = Some(vec![0.0.into(), 1.0.into(), 0.0.into(), 0.0.into()]);
@@ -174,22 +178,23 @@ fn invalid_inputs_and_overridden_gates_cannot_yield_a_product_readout() {
 
 #[test]
 fn packed_samples_preserve_the_top_bit_and_independent_biased_outcomes() {
-    let mut circuit = Circuit::new(64);
-    circuit.initial_preps[63] = Some(QubitPrep::One);
+    let mut circuit = Circuit::new(128);
+    circuit.initial_preps[127] = Some(QubitPrep::One);
     circuit.initial_preps[7] = Some(QubitPrep::Plus);
     circuit.initial_preps[0] = Some(QubitPrep::Plus);
     circuit.steps = vec![
-        vec![Operation::new(Gate::CZPow, vec![63, 0], vec![1.0 / 3.0])],
+        vec![Operation::new(Gate::CZPow, vec![127, 0], vec![1.0 / 3.0])],
         vec![one(Gate::H, 0)],
     ];
     let product = circuit.run_product_prefix(2).unwrap();
-    assert_eq!(product.probability_one(64), None);
+    assert_eq!(product.probability_one(127), Some(1.0));
+    assert_eq!(product.probability_one(128), None);
     let samples = product.sample(4096, 42);
     assert_eq!(samples.len(), 4096);
     assert_eq!(samples, product.sample(4096, 42));
     let mut counts = [0u32; 4];
     for sample in samples {
-        assert_eq!(sample & !0x81, 1u64 << 63);
+        assert_eq!(sample & !0x81, 1u128 << 127);
         let low_bits = (sample & 1) | ((sample >> 6) & 2);
         counts[low_bits as usize] += 1;
     }

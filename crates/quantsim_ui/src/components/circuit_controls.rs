@@ -36,7 +36,7 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         if ui
             .add(
                 DragValue::new(&mut num_timesteps)
-                    .range(1..=100)
+                    .range(1..=1000)
                     .clamp_existing_to_range(false),
             )
             .changed()

@@ -16,8 +16,20 @@ pub struct CircuitGrid {
     pub num_steps: usize,
     /// A flattened vector of all cells in the grid. The cells are stored
     /// in row-major order, but also contain their own `Rect` for flexible
-    /// rendering.
+    /// rendering. The interactive view retains only visible cells.
     pub cells: Vec<GridCell>,
+}
+
+impl CircuitGrid {
+    pub(crate) fn qubit_cell_rect(&self, row: usize, col: usize) -> Option<Rect> {
+        if row >= self.num_qubits || col >= self.num_steps {
+            return None;
+        }
+        let width = self.grid_rect.width() / self.num_steps as f32;
+        let height = self.grid_rect.height() / (self.num_qubits + 1) as f32;
+        let corner = self.grid_rect.min + egui::vec2(col as f32 * width, (row + 1) as f32 * height);
+        Some(Rect::from_min_size(corner, egui::vec2(width, height)).shrink(2.0))
+    }
 }
 
 /// Represents a single cell on the circuit grid.
@@ -35,6 +47,20 @@ pub enum GridCell {
     Gate(GateCell),
     /// An empty cell, representing a point where a gate could be placed.
     Empty { rect: Rect, row: usize, col: usize },
+}
+
+impl GridCell {
+    /// Widget position in the full grid, including cells outside the scroll viewport.
+    pub(crate) fn widget_index(&self, sections: usize, qubits: usize, steps: usize) -> usize {
+        match self {
+            Self::Section { index, .. } => *index,
+            Self::QubitLabel { row, .. } => sections + row,
+            Self::Timestep { step, .. } => sections + qubits + step - 1,
+            Self::Gate(GateCell { row, col, .. }) | Self::Empty { row, col, .. } => {
+                sections + qubits + steps + row * steps + col
+            }
+        }
+    }
 }
 
 /// Represents a quantum gate on the circuit grid.
@@ -126,6 +152,23 @@ pub fn generate_circuit_grid(
     num_timesteps: usize,
     current_timestep: usize,
 ) -> CircuitGrid {
+    generate_grid_in_view(
+        circuit,
+        ui,
+        num_timesteps,
+        current_timestep,
+        Rect::EVERYTHING,
+    )
+}
+
+// Reserve the full scrollable canvas, but build widgets only for the visible rows and columns.
+pub(crate) fn generate_grid_in_view(
+    circuit: &Circuit,
+    ui: &mut egui::Ui,
+    num_timesteps: usize,
+    current_timestep: usize,
+    viewport: Rect,
+) -> CircuitGrid {
     let num_qubits = circuit.num_qubits;
     let num_steps = num_timesteps;
 
@@ -152,6 +195,20 @@ pub fn generate_circuit_grid(
         canvas_rect.min + egui::vec2(label_width, section_height),
         canvas_rect.max,
     );
+    let columns = visible_indices(
+        viewport.left(),
+        viewport.right(),
+        grid_rect.left(),
+        cell_width,
+        num_steps,
+    );
+    let rows = visible_indices(
+        viewport.top(),
+        viewport.bottom(),
+        grid_rect.top() + cell_height,
+        cell_height,
+        num_qubits,
+    );
 
     let mut cells = Vec::new();
     for (index, section) in circuit.sections.iter().enumerate() {
@@ -165,33 +222,40 @@ pub fn generate_circuit_grid(
                 grid_rect.top(),
             ),
         );
-        cells.push(GridCell::Section {
-            rect: rect.shrink(2.0),
-            index,
-        });
+        if viewport.intersects(rect) {
+            cells.push(GridCell::Section {
+                rect: rect.shrink(2.0),
+                index,
+            });
+        }
     }
 
-    for row in 0..num_qubits {
+    for row in rows.clone() {
         let label_pos = egui::pos2(
             canvas_rect.left(),
             grid_rect.top() + (row + 1) as f32 * cell_height,
         );
-        cells.push(GridCell::QubitLabel {
-            rect: Rect::from_min_size(label_pos, egui::vec2(label_width, cell_height)).shrink(2.0),
-            row,
-        });
+        let rect = Rect::from_min_size(label_pos, egui::vec2(label_width, cell_height));
+        if viewport.intersects(rect) {
+            cells.push(GridCell::QubitLabel {
+                rect: rect.shrink(2.0),
+                row,
+            });
+        }
     }
 
     let mut column_maps = Vec::new();
-    for col in 0..num_steps {
+    for col in columns.clone() {
         let rect = Rect::from_min_size(
             grid_rect.min + egui::vec2(col as f32 * cell_width, 0.0),
             egui::vec2(cell_width, cell_height),
         );
-        cells.push(GridCell::Timestep {
-            rect: rect.shrink(2.0),
-            step: col + 1,
-        });
+        if viewport.intersects(rect) {
+            cells.push(GridCell::Timestep {
+                rect: rect.shrink(2.0),
+                step: col + 1,
+            });
+        }
         let mut multi_gate_map = HashMap::new();
         let mut multi_gate_counter = 0;
         for op in &circuit.steps[col] {
@@ -205,8 +269,8 @@ pub fn generate_circuit_grid(
         column_maps.push((multi_gate_map, multi_gate_counter));
     }
 
-    for row in 0..num_qubits {
-        for (col, (column_map, group_count)) in column_maps.iter().enumerate() {
+    for row in rows {
+        for (col, (column_map, group_count)) in columns.clone().zip(&column_maps) {
             let gate_rect = egui::Rect::from_min_size(
                 grid_rect.min + egui::vec2(col as f32 * cell_width, (row + 1) as f32 * cell_height),
                 egui::vec2(cell_width, cell_height),
@@ -286,7 +350,7 @@ pub fn generate_circuit_grid(
     }
 
     // Draw lines for time steps
-    for col in 0..=num_steps {
+    for col in columns.start..=columns.end {
         let x = grid_rect.min.x + col as f32 * cell_width;
         let start_pos = egui::pos2(x, grid_rect.min.y);
         let end_pos = egui::pos2(x, grid_rect.max.y);
@@ -319,5 +383,58 @@ pub fn generate_circuit_grid(
         num_qubits,
         num_steps,
         cells,
+    }
+}
+
+fn visible_indices(
+    min: f32,
+    max: f32,
+    origin: f32,
+    size: f32,
+    count: usize,
+) -> std::ops::Range<usize> {
+    let start = ((min - origin) / size).floor() as usize;
+    let end = ((max - origin) / size).ceil() as usize;
+    start.min(count)..end.min(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quantsim_core::core::types::Operation;
+
+    #[test]
+    fn scrolled_view_builds_only_visible_cells_with_original_coordinates() {
+        let mut circuit = Circuit::new(128);
+        circuit.steps.resize_with(1000, Vec::new);
+        circuit.steps[999].push(Operation::new(Gate::X, vec![127], vec![]));
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800.0, 600.0),
+            )),
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let origin = ui.next_widget_position();
+                let viewport = Rect::from_min_max(
+                    origin + egui::vec2(108.0 + 997.0 * 48.0, 126.0 * 30.0),
+                    origin + egui::vec2(108.0 + 1000.0 * 48.0, 129.0 * 30.0),
+                );
+                let grid = generate_grid_in_view(&circuit, ui, 1000, 1000, viewport);
+                assert_eq!(
+                    grid.grid_rect.size(),
+                    egui::vec2(1000.0 * 48.0, 129.0 * 30.0)
+                );
+                assert_eq!(grid.cells.len(), 9);
+                let Some(GridCell::Gate(gate)) = grid.cells.last() else {
+                    panic!("Missing final gate");
+                };
+                assert_eq!((gate.row, gate.col, &gate.id), (127, 999, &Gate::X));
+                assert_eq!(grid.qubit_cell_rect(127, 999), Some(gate.rect));
+            });
+        });
     }
 }

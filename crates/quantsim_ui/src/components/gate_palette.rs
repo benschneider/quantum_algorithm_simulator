@@ -5,6 +5,9 @@ use std::collections::BTreeMap;
 use quantsim_core::core::types::Gate;
 use quantsim_core::core::gates::registry::GateMeta;
 
+mod qft_builder;
+pub(crate) use qft_builder::show as show_qft_builder;
+
 /// The `gate_palette` module is responsible for rendering the gate palette,
 /// which displays a list of available gates that can be added to the circuit.
 ///
@@ -43,6 +46,7 @@ pub fn gate_palette(state: &mut AppState, ui: &mut egui::Ui, messages: &mut Vec<
     }
 
     ui.heading("Gate Palette");
+    qft_builder::button(ui, state);
 
     for (category, gates) in categories {
         ui.collapsing(category.clone(), |ui| {

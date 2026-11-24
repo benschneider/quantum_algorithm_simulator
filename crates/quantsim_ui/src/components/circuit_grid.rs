@@ -41,11 +41,12 @@ pub fn circuit_grid(
     current_timestep: usize,
 ) {
     let circuit = &state.circuit_state.circuit;
-    let grid = circuit_grid::generate_circuit_grid(
+    let grid = circuit_grid::generate_grid_in_view(
         circuit,
         ui,
         state.circuit_state.num_timesteps,
         current_timestep,
+        ui.clip_rect(),
     );
 
     let response = ui.interact(grid.rect, ui.id(), egui::Sense::click());
@@ -74,7 +75,12 @@ pub fn circuit_grid(
         ui.visuals().weak_text_color(),
     );
 
+    let mut next_widget = 0;
     for cell in &grid.cells {
+        // Preserve focus and pointer identity as cells enter and leave the viewport.
+        let index = cell.widget_index(circuit.sections.len(), grid.num_qubits, grid.num_steps);
+        ui.skip_ahead_auto_ids(index - next_widget);
+        next_widget = index + 1;
         match cell {
             GridCell::QubitLabel { rect, row } => {
                 let current = circuit.qubit_roles[*row];
@@ -131,7 +137,7 @@ pub fn circuit_grid(
             GridCell::Gate(gate) => {
                 let button = egui::Button::new(RichText::new(&gate.label).color(gate.text_color))
                     .fill(gate.color);
-                let response = ui.put(gate.rect, button).on_hover_text(format!(
+                let response = ui.place(gate.rect, button).on_hover_text(format!(
                     "{}\n{}\nQubits: {:?}\nParams: {:?}",
                     gate.full_name, gate.description, gate.qubits, gate.params
                 ));
@@ -152,7 +158,7 @@ pub fn circuit_grid(
             }
             GridCell::Empty { rect, row, col } => {
                 let is_placing = matches!(state.ui_state.placement_mode, PlacementMode::Placing);
-                let response = ui.put(*rect, egui::Button::new("").sense(egui::Sense::click()));
+                let response = ui.place(*rect, egui::Button::new("").sense(egui::Sense::click()));
 
                 if is_placing && response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -256,18 +262,11 @@ pub fn circuit_grid(
             let (gate_color, text_color) = placement_preview_colors(ui);
             let font_id = egui::FontId::proportional(14.0);
 
+            // Keep a pending connection anchored on its first wire even if the
+            // user scrolls that wire out of view before choosing its target.
             let placed_qubit_rects: Vec<_> = qubits
                 .iter()
-                .filter_map(|placed_row| {
-                    grid.cells.iter().find_map(|c| match c {
-                        GridCell::Empty {
-                            rect,
-                            row,
-                            col: cell_col,
-                        } if row == placed_row && *cell_col == *col => Some(*rect),
-                        _ => None,
-                    })
-                })
+                .filter_map(|&row| grid.qubit_cell_rect(row, *col))
                 .collect();
 
             // Draw ghost gates for already placed qubits

@@ -36,7 +36,7 @@ fn check_prefixes(circuit: &Circuit, label: &str) {
         let mut counts = vec![0; expected.len()];
         for sample in samples {
             assert!(
-                sample < expected.len() as u64,
+                sample < expected.len() as u128,
                 "{label}, step {step}, sample {sample}"
             );
             counts[sample as usize] += 1;
@@ -119,10 +119,31 @@ fn sampling_is_seeded_and_preserves_the_state() {
 }
 
 #[test]
+fn ghz128_has_only_two_joint_outcomes_across_the_full_register() {
+    let mut circuit = Circuit::new(128);
+    circuit.steps.push(vec![op(Gate::H, &[0])]);
+    for target in 1..128 {
+        circuit.steps.push(vec![op(Gate::CX, &[0, target])]);
+    }
+    let state = circuit.run_stabilizer_prefix(circuit.steps.len()).unwrap();
+    assert!((0..128).all(|q| state.probability_one(q) == Some(0.5)));
+    assert_eq!(state.probability_one(128), None);
+    let samples = state.sample(32, 42);
+    assert!(samples.iter().all(|&bits| bits == 0 || bits == u128::MAX));
+    assert!(samples.contains(&0) && samples.contains(&u128::MAX));
+    let amplitudes = state.amplitude_view();
+    let half = std::f64::consts::FRAC_1_SQRT_2;
+    for index in [0, u128::MAX] {
+        assert!((amplitudes.amplitude(index).unwrap() - half).norm() < 1e-15);
+    }
+    assert_eq!(amplitudes.amplitude(1 << 127).unwrap().norm_sqr(), 0.0);
+}
+
+#[test]
 fn four_bell_states_and_superdense_decoding_across_50_wires() {
     use Gate::{CX, H, X, Z};
 
-    let high_bit = 1u64 << 49;
+    let high_bit = 1u128 << 49;
     for (phase, parity) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut bell = Circuit::new(50);
         bell.steps = vec![vec![op(H, &[0])], vec![op(CX, &[0, 49])]];
@@ -160,7 +181,7 @@ fn four_bell_states_and_superdense_decoding_across_50_wires() {
         bell.steps
             .extend([vec![op(CX, &[0, 49])], vec![op(H, &[0])]]);
         let decoded = bell.run_stabilizer_prefix(bell.steps.len()).unwrap();
-        let message = u64::from(phase) | (u64::from(parity) << 49);
+        let message = u128::from(phase) | (u128::from(parity) << 49);
         assert_eq!(
             decoded.sample(16, 42),
             [message; 16],

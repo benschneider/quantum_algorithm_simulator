@@ -21,6 +21,9 @@ pub mod circuit;
 /// Contains the `Simulator` for running quantum circuit simulations.
 pub mod engine;
 mod compact;
+pub use compact::MAX_COMPACT_QUBITS;
+/// Compact simulation of independent groups of entangled wires.
+pub mod grouped;
 /// Product-state simulation of separable circuit prefixes.
 pub mod product_state;
 /// Packed stabilizer simulation of Clifford circuit prefixes.

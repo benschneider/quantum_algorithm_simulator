@@ -268,8 +268,13 @@ impl GateRegistry {
         controlled_matrix.view_mut((n, n), (n, n)).copy_from(&target_gate);
 
         GateKind::Unitary {
-            eval: Box::new(move |_: &[_], _: &[u32]| {
-                GateMatrix::BigEndian(controlled_matrix.clone())
+            eval: Box::new(move |_: &[_], qubits: &[u32]| {
+                let mut matrix = controlled_matrix.clone();
+                if matches!(qubits, [control, target] if control > target) {
+                    matrix.swap_rows(1, 2);
+                    matrix.swap_columns(1, 2);
+                }
+                GateMatrix::BigEndian(matrix)
             }),
             is_parametric: false,
         }

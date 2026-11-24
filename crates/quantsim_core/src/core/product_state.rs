@@ -1,13 +1,14 @@
-//! Computational-basis readout of separable circuit prefixes on 1–64 wires.
+//! Computational-basis readout of separable circuit prefixes on 1–128 wires.
 use super::circuit::{Circuit, ValidationError};
+use super::compact::{gate_parameter, MAX_COMPACT_QUBITS};
 use super::gates::registry::GateRegistry;
-use super::types::{Gate, GateMatrix, Operation, Param, QubitPrep};
+use super::types::{Gate, GateMatrix, Operation, QubitPrep};
 use num_complex::Complex64;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 #[derive(Debug, Clone, Copy)]
-struct Wire {
-    amplitudes: [Complex64; 2],
+pub(super) struct Wire {
+    pub(super) amplitudes: [Complex64; 2],
     // Only use amplitude identities to admit a controlled gate when the wire
     // is known by construction to be a Pauli eigenstate. A general rotation
     // can leave a tiny component that floating-point arithmetic rounds away.
@@ -15,7 +16,7 @@ struct Wire {
 }
 
 impl Wire {
-    fn new(prep: QubitPrep) -> Self {
+    pub(super) fn new(prep: QubitPrep) -> Self {
         let half = std::f64::consts::FRAC_1_SQRT_2;
         let pair = match prep {
             QubitPrep::Zero => [1.0, 0.0],
@@ -29,7 +30,7 @@ impl Wire {
         }
     }
 
-    fn basis_bit(&self) -> Option<bool> {
+    pub(super) fn basis_bit(&self) -> Option<bool> {
         if !self.pauli_eigenstate {
             return None;
         }
@@ -44,7 +45,7 @@ impl Wire {
     }
 
     // Returns the sign bit of the eigenvalue of X, when known.
-    fn x_minus(&self) -> Option<bool> {
+    pub(super) fn x_minus(&self) -> Option<bool> {
         if !self.pauli_eigenstate {
             return None;
         }
@@ -58,22 +59,19 @@ impl Wire {
         }
     }
 
-    fn z_phase(&mut self, exponent: f64) {
-        let phase = match exponent % 2.0 {
-            0.0 => return,
-            1.0 | -1.0 => -Complex64::ONE,
-            0.5 | -1.5 => Complex64::I,
-            -0.5 | 1.5 => -Complex64::I,
-            turns => {
-                // A definite basis bit stays definite even when |1> gains phase.
-                self.pauli_eigenstate = self.basis_bit().is_some();
-                Complex64::from_polar(1.0, std::f64::consts::PI * turns)
-            }
-        };
+    pub(super) fn z_phase(&mut self, exponent: f64) {
+        self.multiply_one_phase(z_eigenvalue(exponent), exponent % 0.5 == 0.0);
+    }
+
+    pub(super) fn multiply_one_phase(&mut self, phase: Complex64, is_clifford: bool) {
+        if !is_clifford {
+            // A definite basis bit stays definite even when |1> gains phase.
+            self.pauli_eigenstate = self.basis_bit().is_some();
+        }
         self.amplitudes[1] *= phase;
     }
 
-    fn apply_single(
+    pub(super) fn apply_single(
         &mut self,
         op: &Operation,
         registry: &GateRegistry,
@@ -133,6 +131,16 @@ impl Wire {
     }
 }
 
+pub(super) fn z_eigenvalue(exponent: f64) -> Complex64 {
+    match exponent % 2.0 {
+        0.0 => Complex64::ONE,
+        1.0 | -1.0 => -Complex64::ONE,
+        0.5 | -1.5 => Complex64::I,
+        -0.5 | 1.5 => -Complex64::I,
+        turns => Complex64::from_polar(1.0, std::f64::consts::PI * turns),
+    }
+}
+
 /// A pure product state. Each wire retains its relative phase through later gates.
 #[derive(Debug, Clone)]
 pub struct ProductState {
@@ -170,20 +178,7 @@ impl Circuit {
 
 impl ProductState {
     fn apply(&mut self, op: &Operation, registry: &GateRegistry) -> Result<(), String> {
-        let meta = registry
-            .get_meta(&op.id)
-            .ok_or_else(|| format!("Unknown gate {}.", op.id))?;
-        let arity = meta.arity.as_usize();
-        if op.qubits.len() != arity {
-            return Err(format!("Gate {} requires {arity} qubits.", op.id));
-        }
-        if op.params.iter().any(|Param::Scalar(v)| !v.is_finite()) {
-            return Err(format!("Gate {} requires finite parameters.", op.id));
-        }
-        let param = op
-            .params
-            .first()
-            .map_or(0.0, |Param::Scalar(v)| f64::from(*v));
+        let param = gate_parameter(op, registry)?;
         let entanglement_error = || {
             format!(
                 "Gate {} on {:?} can create entanglement between these wires.",
@@ -237,9 +232,9 @@ impl ProductState {
 
     /// Returns a single computational-basis amplitude, including the phase of
     /// the authored gates. Index bit 0 selects q0. Queries use O(wires) time
-    /// and constant additional space, even for a 64-wire register.
-    pub fn amplitude(&self, index: u64) -> Option<Complex64> {
-        if self.wires.len() < 64 && index >> self.wires.len() != 0 {
+    /// and constant additional space, even for a 128-wire register.
+    pub fn amplitude(&self, index: u128) -> Option<Complex64> {
+        if self.wires.len() < MAX_COMPACT_QUBITS && index >> self.wires.len() != 0 {
             return None;
         }
         let mut amplitude = Complex64::ONE;
@@ -266,12 +261,12 @@ impl ProductState {
 
     /// The first occupied basis index and the spacing of the lowest varying
     /// bit. A single occupied index uses spacing 1.
-    pub fn basis_slice(&self) -> (u64, u64) {
+    pub fn basis_slice(&self) -> (u128, u128) {
         let mut first = 0;
         let mut stride = None;
         for (wire, state) in self.wires.iter().enumerate() {
             let [zero, one] = state.amplitudes;
-            let bit = 1u64 << wire;
+            let bit = 1u128 << wire;
             if zero == Complex64::ZERO {
                 first |= bit;
             } else if one != Complex64::ZERO {
@@ -282,7 +277,7 @@ impl ProductState {
     }
 
     /// Draws reproducible joint measurements. Bit 0 is wire q0.
-    pub fn sample(&self, shots: u32, seed: u64) -> Vec<u64> {
+    pub fn sample(&self, shots: u32, seed: u64) -> Vec<u128> {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut samples = vec![0; shots as usize];
         for (wire, state) in self.wires.iter().enumerate() {
@@ -292,7 +287,7 @@ impl ProductState {
             }
             for bits in &mut samples {
                 if p == 1.0 || rng.gen::<f64>() < p {
-                    *bits |= 1u64 << wire;
+                    *bits |= 1u128 << wire;
                 }
             }
         }

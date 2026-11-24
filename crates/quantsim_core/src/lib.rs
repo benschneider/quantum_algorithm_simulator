@@ -162,10 +162,12 @@ pub mod circuits;
 // Re-export the core modules for easier access.
 /// Re-export of the `CircuitBuilder` for easy access.
 pub use crate::core::builder::CircuitBuilder;
+pub use crate::core::MAX_COMPACT_QUBITS;
 /// Re-export of the `circuit` module.
 pub use crate::core::circuit;
 /// Re-export of the `engine` module.
 pub use crate::core::engine;
+pub use crate::core::grouped;
 pub use crate::core::product_state;
 pub use crate::core::stabilizer;
 /// Re-export of the `gates` module.

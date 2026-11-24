@@ -123,8 +123,9 @@ mod tests {
         }
 
         app.handle_message(Message::UpdateCircuitFromJson(
-            r#"{"num_qubits":22,"steps":[[{"id":"H","qubits":[0]},{"id":"H","qubits":[1]}],[{"id":"CZPow","qubits":[0,1],"params":[0.5]}],[]]}"#.into(),
+            r#"{"num_qubits":22,"steps":[[{"id":"H","qubits":[0]}],[],[]]}"#.into(),
         ));
+        app.handle_message(Message::PlaceGate(Gate::Custom, 0, 1));
         app.handle_message(Message::TogglePlayback(0.0));
         assert!(advance(&mut app.state, 1.0).is_some());
         assert_eq!(advance(&mut app.state, 2.0), None);
@@ -135,7 +136,7 @@ mod tests {
             .error_message
             .as_ref()
             .unwrap()
-            .contains("CZPow"));
+            .contains("explicit matrix"));
         app.handle_message(Message::TogglePlayback(3.0));
         assert_eq!(app.state.ui_state.current_timestep, 0);
         assert!(app.state.ui_state.error_message.is_none());

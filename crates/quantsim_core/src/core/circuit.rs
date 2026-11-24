@@ -4,8 +4,10 @@
 //! circuit, and the associated components for running simulations and handling
 //! results.
 
+mod fourier;
 mod layout;
 mod sections;
+pub use fourier::forward_qft_steps;
 pub use layout::QubitLayout;
 pub use sections::CircuitSection;
 

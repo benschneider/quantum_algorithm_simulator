@@ -43,68 +43,73 @@ fn all_indexed_amplitudes_match_dense_up_to_the_reference_phase() {
                     .unwrap()
                     .amplitude_view();
                 let reference = state.iter().position(|z| z.norm() > 1e-5).unwrap();
-                assert_eq!(view.reference_index(), reference as u64);
+                assert_eq!(view.reference_index(), reference as u128);
                 let phase = state[reference].conj() / state[reference].norm();
                 let (origin, stride) = view.basis_slice();
-                assert_eq!(origin, reference as u64);
+                assert_eq!(origin, reference as u128);
                 for (index, z) in state.iter().enumerate() {
                     let expected = *z * phase;
                     let expected = Complex64::new(expected.re as f64, expected.im as f64);
-                    let actual = view.amplitude(index as u64).unwrap();
+                    let actual = view.amplitude(index as u128).unwrap();
                     assert!(
                         (actual - expected).norm() < 1e-5,
                         "step {step}, index {index}"
                     );
                     if actual != Complex64::ZERO {
-                        assert_eq!((index as u64 - origin) % stride, 0);
+                        assert_eq!((index as u128 - origin) % stride, 0);
                     }
                 }
-                assert_eq!(view.amplitude(1u64 << wires), None);
+                assert_eq!(view.amplitude(1u128 << wires), None);
             }
         }
     }
 }
 
 #[test]
-fn imaginary_ghz_and_a_high_bit_slice_are_addressable_on_64_wires() {
-    let mut circuit = Circuit::new(64);
-    circuit.initial_preps[3] = Some(QubitPrep::One);
-    circuit.steps.push(vec![gate(Gate::H, &[63])]);
-    let pole = circuit.run_stabilizer_prefix(0).unwrap().amplitude_view();
-    assert_eq!(pole.basis_slice(), (8, 1));
-    assert_eq!(pole.amplitude(8), Some(Complex64::ONE));
-    let pair = circuit.run_stabilizer_prefix(1).unwrap().amplitude_view();
-    assert_eq!(pair.basis_slice(), (8, 1u64 << 63));
+fn imaginary_ghz_and_a_high_bit_slice_are_addressable() {
     let half = std::f64::consts::FRAC_1_SQRT_2;
-    for q in 0..63 {
-        circuit.steps.push(vec![gate(Gate::CX, &[63, q])]);
+    for (wires, ones) in [(64, u128::from(u64::MAX)), (128, u128::MAX)] {
+        let high = wires as u32 - 1;
+        let mut circuit = Circuit::new(wires);
+        circuit.initial_preps[3] = Some(QubitPrep::One);
+        circuit.steps.push(vec![gate(Gate::H, &[high])]);
+        let pole = circuit.run_stabilizer_prefix(0).unwrap().amplitude_view();
+        assert_eq!(pole.basis_slice(), (8, 1));
+        assert_eq!(pole.amplitude(8), Some(Complex64::ONE));
+        let pair = circuit.run_stabilizer_prefix(1).unwrap().amplitude_view();
+        assert_eq!(pair.basis_slice(), (8, 1u128 << high));
+        for q in 0..high {
+            circuit.steps.push(vec![gate(Gate::CX, &[high, q])]);
+        }
+        circuit.steps.push(vec![gate(Gate::SqrtZ, &[high])]);
+        let view = circuit
+            .run_stabilizer_prefix(circuit.steps.len())
+            .unwrap()
+            .amplitude_view();
+        assert_eq!(view.basis_slice(), (8, 1));
+        assert!((view.amplitude(8).unwrap() - half).norm() < 1e-15);
+        assert!((view.amplitude(ones ^ 8).unwrap() - Complex64::I * half).norm() < 1e-15);
+        assert_eq!(view.amplitude(ones), Some(Complex64::ZERO));
     }
-    circuit.steps.push(vec![gate(Gate::SqrtZ, &[63])]);
-    let view = circuit
-        .run_stabilizer_prefix(circuit.steps.len())
-        .unwrap()
-        .amplitude_view();
-    assert_eq!(view.basis_slice(), (8, 1));
-    assert!((view.amplitude(8).unwrap() - half).norm() < 1e-15);
-    assert!((view.amplitude(!8).unwrap() - Complex64::I * half).norm() < 1e-15);
-    assert_eq!(view.amplitude(u64::MAX), Some(Complex64::ZERO));
 }
 
 #[test]
-fn full_rank_normalization_works_at_64_wires() {
-    let mut circuit = Circuit::new(64);
-    circuit.initial_preps.fill(Some(QubitPrep::Minus));
-    let view = circuit.run_stabilizer_prefix(0).unwrap().amplitude_view();
-    let magnitude = 2.0_f64.powi(-32);
-    for index in [0u64, 1, 1 << 63, u64::MAX] {
-        let sign = if index.count_ones() % 2 == 0 {
-            1.0
-        } else {
-            -1.0
-        };
-        assert_eq!(
-            view.amplitude(index),
-            Some(Complex64::from(sign * magnitude))
-        );
+fn full_rank_normalization_works_at_64_and_128_wires() {
+    for (wires, ones) in [(64, u128::from(u64::MAX)), (128, u128::MAX)] {
+        let mut circuit = Circuit::new(wires);
+        circuit.initial_preps.fill(Some(QubitPrep::Minus));
+        let view = circuit.run_stabilizer_prefix(0).unwrap().amplitude_view();
+        let magnitude = 2.0_f64.powi(-(wires as i32) / 2);
+        for index in [0, 1, 1 << (wires - 1), ones] {
+            let sign = if index.count_ones() % 2 == 0 {
+                1.0
+            } else {
+                -1.0
+            };
+            assert_eq!(
+                view.amplitude(index),
+                Some(Complex64::from(sign * magnitude))
+            );
+        }
     }
 }

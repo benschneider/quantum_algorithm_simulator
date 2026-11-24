@@ -101,7 +101,7 @@ fn wide_stabilizers_preserve_correlations_with_bounded_heap() {
     assert!(peak >= std::mem::size_of_val(samples.as_slice()));
     assert!(peak < 1024 * 1024, "peak additional heap: {peak} bytes");
     assert!(marginals.iter().all(|&p| p == 0.5));
-    let all_ones = (1u64 << WIRES) - 1;
+    let all_ones = (1u128 << WIRES) - 1;
     assert_eq!(samples.len(), SHOTS as usize);
     assert!(samples.iter().all(|&bits| bits == 0 || bits == all_ones));
     assert!(samples.contains(&0) && samples.contains(&all_ones));
@@ -151,5 +151,5 @@ fn wide_stabilizers_preserve_correlations_with_bounded_heap() {
     let state = top_bit.run_stabilizer_prefix(1).unwrap();
     assert_eq!(state.probability_one(63), Some(1.0));
     assert_eq!(state.probability_one(64), None);
-    assert_eq!(state.sample(1, SEED), vec![1u64 << 63]);
+    assert_eq!(state.sample(1, SEED), vec![1u128 << 63]);
 }
