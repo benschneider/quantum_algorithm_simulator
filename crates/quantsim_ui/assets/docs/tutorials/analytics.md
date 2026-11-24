@@ -8,6 +8,8 @@ Load **File > Load Template > grover algorithm**. For the target `100`, q2 must 
 
 In **Joint probabilities**, hover over the target bar to inspect its amplitude and phase. The bar height is the probability of the whole bit string.
 
-**Overview** shows the probability across the whole register at the selected step. Try **ghz 50** and press **Run**. Select either outer bar to see how many shots landed there. Together those two bars contain every shot because the circuit produces only all zeros or all ones.
+Select **Overview**. For this three-wire Grover circuit, the bars show exact probabilities. On larger registers each bar combines outcomes with the same leading bits, and the number of bars adjusts to the panel width.
 
-Try **qft 50** next. Its shots spread across the ranges, and the percentage axis adjusts so you can see the smaller bars. Switch to **Amplitude waveform** to see the changing phase up close. On wide circuits an empty range means none of the 1,024 shots landed there.
+Try **ghz 50** and press **Run ▶**. Above 21 wires the editor uses compact simulation. **Overview** and **Joint samples** use the same 1,024 shots, while **Wire readout** still gives each wire’s exact probability. Click either outer bar to see its count. All shots fall in those two bars because the circuit produces only all zeros or all ones.
+
+Run **qft 50** next. Its shots spread across the ranges. An empty bar means that range received zero shots in this run. Switch to **Amplitude waveform** to follow the changing phase across individual basis indices. **Range** lets you choose the first index and stride.

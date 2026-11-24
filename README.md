@@ -3,7 +3,7 @@
 [![Demo](https://img.shields.io/badge/demo-try%20now-2ea44f)](https://benschneider.github.io/quantum_algorithm_simulator/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](COPYRIGHT.md)
 ![Status](https://img.shields.io/badge/status-active-2ea44f)
-![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)
+![Rust](https://img.shields.io/badge/language-Rust-orange?logo=rust)
 ![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
 
@@ -17,7 +17,7 @@ Build a circuit gate by gate, place its qubits on a 2D map, and follow each wire
 
 - ▶️ **Live demo**: https://benschneider.github.io/quantum_algorithm_simulator/
 - [How many qubits can I simulate, and with what accuracy?](docs/benchmarks/README.md#what-the-qubit-counts-mean)
-- [What's new in 0.3.0, with screenshots](RELEASES.md)
+- [What’s new in 0.4.0 and earlier release notes](RELEASES.md)
 - 📄 **License**: [MIT OR Apache-2.0](COPYRIGHT.md)
 - 🧭 **Roadmap & tutorials**: see the in-app **Tutorial** (Help → Tutorial)
 
@@ -172,13 +172,13 @@ The application is composed of several distinct, interactive panels, each servin
 *   **Results Panel (`components::results_panel`)**:
     *   **Purpose**: Displays the results of the quantum simulation.
     *   **Contents**:
-        *   **Probabilities**: Shows the probability of measuring each qubit in the |0⟩ or |1⟩ state.
-        *   **Raw State Vector**: Displays the raw complex amplitudes of the state vector.
+        *   **Wire readout** shows each wire’s probability of measuring 1 at the selected step.
+        *   **Amplitude waveform** and **Overview** show the complex amplitudes in a selected range and the probability distribution across the register. The joint readout lists populated states through 21 wires and sampled outcomes on wider runs.
 
 *   **Top Panel (`ui::top_panel`)**:
     *   **Purpose**: Provides application-level controls.
     *   **Interaction**:
-        *   A "File" menu for loading and saving circuits.
+        *   **File → Load Template** opens bundled examples. Use the **JSON** tab to import or export a circuit.
         *   A "Run" button to trigger the simulation.
         *   Controls for changing the number of qubits and timesteps.
 
@@ -248,9 +248,9 @@ This modular approach keeps related data organized and prevents the main state o
 
 The `quantsim` simulator supports a rich set of features designed for flexibility and ease of use:
 
-*   **User-Defined Gates:** Users can define their own custom 1-qubit and 2-qubit gates by providing a unitary matrix, extending the simulator's built-in gate set.
+*   **User-defined gates** accept a 2×2 unitary matrix in the Custom gate editor.
 *   **State Persistence via JSON:** Circuits can be saved, loaded, and shared easily through a built-in JSON editor, which allows for direct viewing and modification of the circuit's data structure.
-*   **Custom Initial State:** The simulator is not limited to the zero state. Users can define an arbitrary initial quantum state vector for their simulations.
+*   **Custom input states** can be entered as amplitudes through 21 wires. Wider circuits support per-wire preparations and editable preparation gates.
 *   **Interactive Visualizations:** Features like the Bloch sphere visualization provide immediate feedback on the effect of single-qubit gates.
 
 ---
@@ -342,18 +342,15 @@ This JSON defines a 2-qubit circuit. The first step applies a Hadamard gate to q
 
 ### Simulating a Quantum Circuit
 
-Once your circuit is defined, you can simulate it within the `quantsim` EGUI:
-
-1.  **Run Simulation**: Click the "Run ▶" button, typically located in the circuit controls section above the circuit grid.
-2.  **View Results**: After the simulation completes, a "Results" window will pop up (or become visible).
+Choose **Run ▶** above the circuit grid to open **Results** at the final step. To inspect an intermediate state, click its numbered column. On narrow screens, Results opens below the circuit.
 
 #### Wide circuits and RAM estimates
 
-The editor can now use more than 128 wires, and an entangled group can grow beyond eight wires when memory permits. A Clifford circuit such as GHZ uses a compact stabilizer table. A basis-input QFT can keep each wire independent. When other gates require a group of wires to evolve together, each additional wire in that group doubles its amplitude storage. The simulator can split a wire off again when it becomes independent.
+The editor uses a dense state vector through 21 wires. For 22 or more it tries a stabilizer tableau, then independent single-wire states, then groups of entangled wires. This is why a 1,024-wire circuit made of four-wire groups can fit while a much smaller connected circuit can exhaust memory. Each additional wire in a dense group doubles that group’s amplitude storage. The simulator can split individual wires off again when it detects separability.
 
-Click **Est. peak RAM** beside **Run** to set **Warn above** in MiB. The default is 64 MiB in the browser and 128 MiB on desktop. The estimate covers the main simulation buffers for the full circuit. It can be conservative when groups later split. **Run** stays available above the warning level.
+Click **Est. peak RAM** beside **Run** to set **Warn above** in MiB. The default is 64 MiB in the browser and 128 MiB on desktop. The estimate covers the main simulation buffers for a full run and can be conservative when groups later split. Total browser or desktop process memory can be higher. **Run** stays available above the warning level.
 
-These three circuits all used 30 wires in Chrome. The figures are the pre-run estimates shown in the editor.
+A Chrome check on November 23, 2026 recorded these pre-run estimates for three 30-wire circuits. A retained readout from an earlier step can also affect the estimate for the next run.
 
 | Circuit | Estimated peak RAM | Browser check |
 | --- | ---: | --- |
@@ -361,11 +358,7 @@ These three circuits all used 30 wires in Chrome. The figures are the pre-run es
 | Controlled quarter-phase gates joining 16 wires | ≤3 MiB | Set the warning to 1 MiB and completed all 16 steps with one click |
 | Controlled quarter-phase gates joining all 30 wires | ≤32.1 GiB | Previewed at step 0 only |
 
-To try a wider register, paste this Bell circuit into **JSON**, select **Apply Changes**, then **Run**.
-
-```json
-{"num_qubits":256,"steps":[[{"id":"H","qubits":[0]}],[{"id":"CX","qubits":[0,255]}]]}
-```
+To try the wide Bell pair, choose **File → Load Template → bell 256**, then **Run**.
 
 In Chrome, q0 and q255 each read 50%. Of 1,024 shots, 515 were all zeros and 509 had only q0 and q255 set. All 254 intervening wires stayed at zero. For a step-by-step example, the 50-wire QFT template shows the Fourier waveform, and the 53-site Sycamore template lights up the active couplers on its 2×4 patch. That patch's readouts match a dense eight-wire reference at every step.
 
@@ -385,9 +378,9 @@ Local readouts could look close even at low fidelity because the dense wire prob
 
 On the eight-round version of this patch, profiling each cut and giving the middle cut more capacity raised whole-state fidelity from 0.299 to 0.675. The native example can replay the selected caps without repeating calibration. The 256-qubit eight-round ladder also recovered its input to within 10⁻¹² of unit probability at bond cap 256. [MPS policy comparison](docs/benchmarks/README.md#paired-gates-and-a-tensor-budget) · [256-qubit echo and memory cost](docs/benchmarks/README.md#recovering-the-256-qubit-input)
 
-For your current circuit, open **Est. peak RAM → Estimate MPS cap**. On a compatible two-row ladder, it reads the gate schedule and reports a sufficient uniform bond cap and a bound on retained tensor storage.
+For your current circuit, open **Est. peak RAM → Estimate MPS cap**. On a compatible two-row ladder, it reads the gate schedule and reports a sufficient bond cap and a bound on retained tensor storage. Factorization needs additional workspace. The editor’s **Run** button still uses the dense or compact methods described above.
 
-In **Settings → MPS ladder experiment**, **Auto** computes the cap from the built-in 256-qubit forward circuit. **Target return** chooses among measured caps for this seed and depth, and **Manual** lets you try one directly. The desktop **Run echo** button applies the selected cap locally. Use `cargo run --release --locked -p quantsim_ui` for a native release build. The web build offers cap inference and the recorded curve. [Curve, measurements and reproduction](docs/benchmarks/README.md#choosing-a-bond-cap)
+Open **File → Load Template → MPS ladder echo 256** or **Settings → MPS ladder experiment**. **Auto** computes the cap from the built-in 256-qubit forward circuit. **Target return** chooses among measured caps for this seed and depth, and **Manual** lets you try one directly. The desktop **Run echo** button applies the selected cap locally. Use `cargo run --release --locked -p quantsim_ui` for a native release build. The web build offers cap inference and the recorded curve. [Curve, measurements and reproduction](docs/benchmarks/README.md#choosing-a-bond-cap)
 
 #### Results View
 
@@ -395,10 +388,10 @@ The "Results" window displays the outcome of your simulation:
 
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
 *   **Amplitude waveform** plots the real and imaginary parts at up to 64 basis indices. The axis gives the actual amplitude scale. The automatic window follows the first occupied index and the lowest varying bit as the circuit evolves. Small registers show every index. Use **Range** to inspect another part of a large register. All simulators use the first occupied index as a positive real phase reference for the graph.
-*   Choose **Overview** to see how probability is distributed across the whole register at the selected step. It groups adjacent basis indices into up to 32 bars and combines them on narrower panels. Dense runs sum the simulated probabilities directly. Wide runs count all 1,024 joint samples, including outcomes outside the 16 displayed rows.
+*   Choose **Overview** to see how probability is distributed across the whole register at the selected step. It groups adjacent basis indices by their leading bits into up to 32 bars. Select a bar to read its range and probability. Dense runs sum the simulated probabilities directly. Wide runs count all 1,024 joint samples, including outcomes outside the 16 displayed rows.
 *   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
 *   For **22 or more wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
-*   Select a wire in the 3D inspector to see which other wires share its group at that step.
+*   When the grouped simulator is active, select a wire in the layout inspector to see which wires are stored together at that step.
 
 
 #### Time Scrubber
@@ -421,6 +414,9 @@ For a step-by-step reading of the examples, open **Help → Tutorial → Templat
 *   **Bell** and **GHZ** show how a controlled gate turns one wire's superposition into correlations between two or three data wires.
 *   **ghz 50** extends a Bell pair to 50 wires in seven steps. Compare steps 6 and 7 to see q49 join the correlated group.
 *   **bell 256** entangles q0 with q255 in two steps. Each endpoint reads 50%, and they agree in every joint shot.
+*   **MPS ladder echo 256** opens the benchmark’s 2×128 ladder in its own window. Compare the measured chance of returning to all zeros at bond caps 128 and 256. The desktop app can also run the echo at the selected cap.
+*   **phase echo 512** rotates and reverses the phase on 512 independent wires. Remove the inverse rotation on q0 at step 3 and run again. Only q0 changes, with a 14.64% chance of reading 1.
+*   **grouped blocks 1024** prepares 256 entangled four-wire blocks. The final CNOT connects the first two blocks. Remove it to see the largest group shrink from eight wires to four while each wire still reads 1 half the time.
 *   **sycamore echo 53** spreads a GHZ state from q23 across all 53 sites in seven layers of CNOTs. The Z gate on q33 at step 9 leaves all local probabilities at 50%. After reversing the CNOTs, the final Hadamard makes q23 read 1 with certainty. Remove that Z and run again to see q23 read 0. [Watch the 29-second demo](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
 *   **Bell test complex** uses two extra wires to select rotations of a Bell pair. Group the final rows by those setting bits to see how often the two data wires agree.
 *   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
@@ -442,11 +438,9 @@ Open the examples from **File → Load Template** and follow along under **Help 
 
 #### Initial State Editor
 
-You can set a custom initial state for your qubits:
+For up to 21 wires, open **Settings → Set Initial State...**, enter the real and imaginary amplitudes, and choose **Apply**. Their squared magnitudes must sum to one. **Reset to |0>** clears the custom vector.
 
-1.  **Access Editor**: Go to the "Settings" menu and select "Set Initial State...".
-332 | 2.  **Define Amplitudes**: In the "Set Initial State" window, you can enter the real and imaginary amplitudes for each basis state.
-333 | 3.  **Apply/Reset**: Use the "Apply" button to set the new initial state or "Reset to |0>" to revert to the default all-zero state.
+For 22 or more wires, use `initial_preps` in the **JSON** tab. For example, `"initial_preps": ["Plus", "One"]` prepares q0 in |+⟩ and q1 in |1⟩. Omitted wires start at zero. Each entry can be `"Zero"`, `"One"`, `"Plus"` or `"Minus"`.
 
 #### Gate Editor with Bloch Spheres
 
@@ -482,7 +476,6 @@ Based on initial concepts and roadmap documents, `quantsim` has potential for fu
 
 ### Advanced Quantum State Visualization
 *   **Multi-Level Bloch Sphere Visualization:** More sophisticated 3D rendering and dynamic updates.
-*   **Complex Amplitude and Phase Plots:** Visualizations showing complex amplitudes and phases of multi-qubit states.
 *   **Full Density Matrix Visualization:** Expert-level visualization for in-depth state analysis.
 
 ### Real-world Simulation Aspects

@@ -2,6 +2,7 @@ use crate::messages::Message;
 use crate::state::simulation_state::COMPACT_SHOTS;
 use crate::state::ui_state::{CentralPanelTab, LayoutView};
 use crate::QCSimApp;
+use quantsim_core::types::Gate;
 use quantsim_core::BasisIndex;
 
 #[test]
@@ -69,4 +70,61 @@ fn bell_256_pairs_only_the_endpoint_bits() {
         .rows
         .iter()
         .all(|(bits, _)| *bits == BasisIndex::ZERO || *bits == endpoints));
+}
+
+#[test]
+fn phase_echo_512_returns_to_zero_until_one_inverse_rotation_is_removed() {
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::LoadTemplate("phase_echo_512.json".into()));
+    app.handle_message(Message::RunSimulation);
+    assert_eq!(app.state.ui_state.error_message, None);
+    assert_eq!(app.state.ui_state.current_timestep, 4);
+    let readout = &app.state.simulation_state;
+    assert_eq!(readout.wire_one_probabilities.len(), 512);
+    assert!(readout.wire_one_probabilities.iter().all(|&p| p < 1e-6));
+    assert_eq!(
+        readout.compact_samples.as_ref().unwrap().rows,
+        [(BasisIndex::ZERO, COMPACT_SHOTS)]
+    );
+
+    app.handle_message(Message::DeleteGate(0, 2));
+    app.handle_message(Message::RunSimulation);
+    assert_eq!(app.state.ui_state.error_message, None);
+    let probabilities = &app.state.simulation_state.wire_one_probabilities;
+    let expected = std::f64::consts::FRAC_PI_8.sin().powi(2);
+    assert!((probabilities[0] - expected).abs() < 1e-6);
+    assert!(probabilities[1..].iter().all(|&p| p < 1e-6));
+}
+
+#[test]
+fn grouped_blocks_1024_bridge_changes_correlations_with_equal_wire_marginals() {
+    let mut app = QCSimApp::default();
+    app.handle_message(Message::LoadTemplate("grouped_blocks_1024.json".into()));
+    assert_eq!(app.state.circuit_state.num_timesteps, 5);
+    // An extra CNOT reads the q4/q5 disagreement probability directly on q4.
+    app.handle_message(Message::ChangeTimesteps(6));
+    app.handle_message(Message::PlaceMultiQubitGate(Gate::CX, vec![5, 4], 5));
+
+    for bridged in [true, false] {
+        if !bridged {
+            app.handle_message(Message::DeleteGate(3, 4));
+        }
+        app.handle_message(Message::SelectTimestep(5));
+        assert_eq!(app.state.ui_state.error_message, None);
+        let readout = &app.state.simulation_state;
+        assert_eq!(readout.wire_one_probabilities.len(), 1024);
+        for (wire, &p) in readout.wire_one_probabilities.iter().enumerate() {
+            assert!((p - 0.5).abs() < 1e-6, "q{wire}: {p}");
+            let size = if bridged && wire < 8 { 8 } else { 4 };
+            let group = readout.group_wires(wire).unwrap();
+            assert_eq!(group.len(), size);
+            assert!(group.iter().all(|&q| q as usize / size == wire / size));
+        }
+
+        app.handle_message(Message::RunSimulation);
+        assert_eq!(app.state.ui_state.error_message, None);
+        let disagreement = app.state.simulation_state.wire_one_probabilities[4];
+        let expected = if bridged { 0.5 } else { 0.0 };
+        assert!((disagreement - expected).abs() < 1e-6);
+    }
 }

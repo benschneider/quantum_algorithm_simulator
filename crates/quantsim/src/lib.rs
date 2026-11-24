@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! quantsim = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.3.0" }
+//! quantsim = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.0" }
 //! ```
 //!
 //! ## Re-exports

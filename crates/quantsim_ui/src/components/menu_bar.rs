@@ -21,12 +21,27 @@ pub fn menu_bar(state: &mut AppState, ui: &mut egui::Ui) -> Vec<Message> {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
         ui.menu_button("Load Template", |ui| {
-            for (name, _) in state.template_circuits.iter() {
-                let display_name = name.trim_end_matches(".json").replace('_', " ");
-                if ui.button(display_name).clicked() {
-                    messages.push(Message::LoadTemplate(name.to_string()));
-                }
+            if ui
+                .button("MPS ladder echo 256")
+                .on_hover_text(
+                    "Explore the measured bond caps, or run the echo in the desktop app.",
+                )
+                .clicked()
+            {
+                state.ui_state.mps_ladder.open = true;
+                ui.close();
             }
+            ui.separator();
+            egui::ScrollArea::vertical()
+                .max_height(ui.ctx().screen_rect().height() * 0.8)
+                .show(ui, |ui| {
+                    for (name, _) in &state.template_circuits {
+                        let display_name = name.trim_end_matches(".json").replace('_', " ");
+                        if ui.button(display_name).clicked() {
+                            messages.push(Message::LoadTemplate(name.clone()));
+                        }
+                    }
+                });
         });
     });
     ui.menu_button("View", |ui| {

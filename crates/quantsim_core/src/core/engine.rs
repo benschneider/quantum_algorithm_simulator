@@ -34,6 +34,8 @@ use rayon::prelude::*;
 use smallvec::SmallVec;
 
 const MIN_SUBSPACE_PROBABILITY: f32 = 1e-12;
+const INPUT_NORM_TOLERANCE: f64 = 1e-6;
+const EVOLVED_NORM_TOLERANCE: f64 = 1e-5;
 
 /// Represents the state of a quantum system.
 #[derive(Debug, Clone)]
@@ -121,7 +123,7 @@ impl QuantumState {
         num_qubits: usize,
         state_vector: &[Complex<f32>],
     ) -> Result<Self, &'static str> {
-        Self::validate_vector(num_qubits, state_vector)?;
+        Self::validate_vector(num_qubits, state_vector, INPUT_NORM_TOLERANCE)?;
         Ok(Self {
             num_qubits,
             state_vector: DVector::from_vec(state_vector.to_vec()),
@@ -133,7 +135,24 @@ impl QuantumState {
         num_qubits: usize,
         state_vector: Vec<Complex<f32>>,
     ) -> Result<Self, &'static str> {
-        Self::validate_vector(num_qubits, &state_vector)?;
+        Self::take_vector(num_qubits, state_vector, INPUT_NORM_TOLERANCE)
+    }
+
+    /// Takes the engine's output for readout. Repeated f32 unitary operations
+    /// can accumulate a few parts per million of squared-norm drift.
+    pub fn from_evolved_vector(
+        num_qubits: usize,
+        state_vector: Vec<Complex<f32>>,
+    ) -> Result<Self, &'static str> {
+        Self::take_vector(num_qubits, state_vector, EVOLVED_NORM_TOLERANCE)
+    }
+
+    fn take_vector(
+        num_qubits: usize,
+        state_vector: Vec<Complex<f32>>,
+        norm_tolerance: f64,
+    ) -> Result<Self, &'static str> {
+        Self::validate_vector(num_qubits, &state_vector, norm_tolerance)?;
         Ok(Self {
             num_qubits,
             state_vector: DVector::from_vec(state_vector),
@@ -143,14 +162,18 @@ impl QuantumState {
     fn validate_vector(
         num_qubits: usize,
         state_vector: &[Complex<f32>],
+        norm_tolerance: f64,
     ) -> Result<(), &'static str> {
         let expected_dim = Self::dimension(num_qubits)?;
         if state_vector.len() != expected_dim {
             return Err("Invalid state vector dimension.");
         }
 
-        let norm_sq: f32 = state_vector.par_iter().map(|c| c.norm_sqr()).sum();
-        if (norm_sq - 1.0).abs() > 1e-6 {
+        let norm_sq: f64 = state_vector
+            .par_iter()
+            .map(|c| Complex::new(f64::from(c.re), f64::from(c.im)).norm_sqr())
+            .sum();
+        if !norm_sq.is_finite() || (norm_sq - 1.0).abs() > norm_tolerance {
             return Err("State vector is not normalized.");
         }
 
@@ -462,6 +485,19 @@ mod tests {
         for invalid in [vec![], vec![Complex::default(); 2]] {
             let expected = QuantumState::from_vector(1, &invalid).unwrap_err();
             assert_eq!(QuantumState::from_owned_vector(1, invalid).unwrap_err(), expected);
+        }
+    }
+
+    #[test]
+    fn evolved_readout_accepts_small_norm_drift_and_preserves_amplitudes() {
+        let drift = vec![Complex::new(0.999998, 0.0), Complex::default()];
+        assert!(QuantumState::from_owned_vector(1, drift.clone()).is_err());
+        let output = QuantumState::from_evolved_vector(1, drift.clone()).unwrap();
+        assert_eq!(output.state_vector.as_slice(), drift.as_slice());
+        for amplitude in [0.9, f32::NAN, f32::INFINITY] {
+            let invalid = vec![Complex::new(amplitude, 0.0), Complex::default()];
+            assert!(QuantumState::from_evolved_vector(1, invalid.clone()).is_err());
+            assert!(QuantumState::from_vector(1, &invalid).is_err());
         }
     }
 

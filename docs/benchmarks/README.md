@@ -2,7 +2,7 @@
 
 ## What the qubit counts mean
 
-The editor stores the full state through **21 qubits**. Above 21 it tries compact methods, and the input state and gates determine which ones can run. The following results come from native benchmarks on a 32 GB Apple M1 Max. The matrix product state (MPS) backend runs a separate ladder experiment, available through the native examples and **Settings → MPS ladder experiment** on desktop.
+The editor stores the full state through **21 qubits**. Above 21 it tries compact methods, and the input state and gates determine which ones can run. The following measurements come from native benchmarks on a 32 GB Apple M1 Max. Open **Settings → MPS ladder experiment** to explore the recorded 256-qubit return curve in the browser or run the selected bond cap on desktop.
 
 | Benchmark result | Practical limit |
 |---|---|
@@ -41,10 +41,12 @@ The checked-in data came from an **Apple M1 Max** (10 cores, 32 GB unified memor
 
 ### Selection and numerical policy
 
-The library exposes the compact simulators as separate prefix methods, and `Circuit::run` uses the dense backend. The [UI dispatcher](../../crates/quantsim_ui/src/handlers/simulation_handler.rs#L70) takes the dense path through [21 wires](../../crates/quantsim_ui/src/state/circuit_state.rs#L23). Above 21 wires it tries tableau, product, then grouped, restarting each eligible attempt from the prepared input. Failure of the final compact backend returns an error. The MPS stays in the standalone example. Its original sweep tool contracts the full state for both overlap and its Z/ZZ readouts. [Sweep](../../crates/quantsim_core/examples/sycamore_mps/sweep.rs#L33) · [Readouts](../../crates/quantsim_core/examples/sycamore_mps/readouts.rs#L12) This benchmark calls the backends directly and can exercise the 24-wire native dense API beyond the UI threshold.
+The library exposes the compact simulators as separate prefix methods, and `Circuit::run` uses the dense backend. The editor takes the dense path through 21 wires. Above that it tries tableau, product, then grouped, restarting each attempt from the prepared input. The benchmark calls each backend directly, including the native dense API at 24 wires. [Editor dispatcher](../../crates/quantsim_ui/src/handlers/simulation_handler.rs#L70)
+
+The fixed MPS ladder has its own desktop **Run echo** control. Its all-zero return measures how well the circuit reverses. The original small-patch sweep contracts the full state to compare forward-state fidelity and Z/ZZ readouts against dense simulation. [Ladder implementation](../../crates/quantsim_core/src/mps_ladder.rs) · [Sweep](../../crates/quantsim_core/examples/sycamore_mps/sweep.rs#L33) · [Readouts](../../crates/quantsim_core/examples/sycamore_mps/readouts.rs#L12)
 
 - The tableau gate updates are integer-exact. Amplitude magnitude and derived probabilities use floating-point readout. Compact backends reject explicit input vectors and explicit gate matrices. Use wide indices for outcomes beyond 128 wires.
-- The dense local kernels suppress nonfinite outputs and amplitudes with squared magnitude at or below `1e-12`. That threshold is applied per output entry and can discard coherent signal. The full-register sparse multiplication branch bypasses that threshold. The audited dense import and evolved readout accept squared-norm deviations through `1e-6` and `1e-5`, respectively, using f64 accumulation and rejecting nonfinite norms. See [`QuantumState::validate_vector`](../../crates/quantsim_core/src/core/engine.rs#L162).
+- The dense local kernels suppress nonfinite outputs and amplitudes with squared magnitude at or below `1e-12`. That threshold is applied per output entry and can discard coherent signal. The full-register sparse multiplication branch bypasses that threshold. The audited dense import and evolved readout accept squared-norm deviations through `1e-6` and `1e-5`, respectively, using f64 accumulation and rejecting nonfinite norms. [Audited source patch](audited-source.patch)
 - Grouped splitting uses exact equality in the stored complex arithmetic. Floating-point residue can prevent a split and grow future memory use. One-wire normalization and grouped normalization do not restore precision lost in f32 matrix coefficients.
 - The MPS applies a QR residual cutoff of `max(pair_rows, pair_cols) × f64::EPSILON × ||R||_F`. At a binding cap it switches from the Gram problem to the augmented problem if the eigenvalue gap is at most `sqrt(EPSILON) × largest_eigenvalue`. The eigensolver receives `f64::EPSILON` and `200 × rank` as its iteration limit. Discarded squared residuals are summed over local updates. The sum has no direct interpretation as global infidelity.
 

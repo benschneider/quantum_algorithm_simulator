@@ -85,7 +85,7 @@ fn simulate(
     let state_vector = result
         .final_state_vector
         .ok_or("No state vector was produced.")?;
-    let state = QuantumState::from_owned_vector(circuit.num_qubits, state_vector)?;
+    let state = QuantumState::from_evolved_vector(circuit.num_qubits, state_vector)?;
     readout.set_readout(state, &result.final_probabilities, reset_page);
     Ok(())
 }

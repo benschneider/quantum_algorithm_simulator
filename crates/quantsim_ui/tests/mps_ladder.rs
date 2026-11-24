@@ -46,6 +46,27 @@ fn click(app: &mut QCSimApp, ctx: &egui::Context, label: &str) {
 }
 
 #[test]
+fn ladder_template_opens_the_benchmark_and_preserves_the_working_circuit() {
+    use quantsim_ui::messages::Message;
+
+    let mut app = QCSimApp::default();
+    app.state.ui_state.show_welcome_screen = false;
+    app.handle_message(Message::LoadTemplate("bell.json".into()));
+    app.handle_message(Message::RunSimulation);
+    let editor_json = app.state.ui_state.circuit_json_string.clone();
+    let ctx = egui::Context::default();
+    click(&mut app, &ctx, "File");
+    click(&mut app, &ctx, "Load Template");
+    click(&mut app, &ctx, "MPS ladder echo 256");
+    frame(&mut app, &ctx, Vec::new());
+    let output = frame(&mut app, &ctx, Vec::new());
+    assert!(labels(&output).any(|(text, _)| text == "Selected cap 256"));
+    assert!(labels(&output).any(|(text, _)| text == "Run echo"));
+    assert_eq!(app.state.ui_state.circuit_json_string, editor_json);
+    assert!(app.state.simulation_state.quantum_state.is_some());
+}
+
+#[test]
 fn mps_ladder_opens_with_auto_and_runs_the_manual_cap() {
     let rows: Vec<(usize, f64, u64)> = include_str!("../assets/benchmarks/mps-cap-curve.csv")
         .lines()

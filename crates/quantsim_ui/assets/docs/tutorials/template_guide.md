@@ -10,6 +10,12 @@ Open **File > Load Template**. Click a numbered column to read all wires after t
 - **bell 256** pairs the two ends of a 256-wire register. At step 2, read the leftmost and rightmost bits in **Joint samples**. They always match. All 254 bits between them stay zero.
 - **Bell test complex** — q0 and q1 share a Bell pair. Ancillas q2 and q3 control the rotations used to read it. At step 5, group the rows by their first two bits (q3 q2). Each setting has 25% total probability. Within setting `00`, the last two bits agree about 85% of the time. Within setting `11`, they agree about 15% of the time. To check a setting, add the probabilities of its two matching rows and divide by 0.25.
 
+## Try a wider circuit
+
+- **MPS ladder echo 256** opens a separate window for the benchmark’s 2×128 ladder. Eight rounds run forward and then in reverse. Under **Manual**, select cap 128 and read the measured chance of recovering all zeros (about 0.067%). Select cap 256 and it rises to about 100%. The browser shows the recorded measurements. On desktop, choose **Run echo** to repeat the run yourself.
+- **phase echo 512** puts every wire into superposition, applies a 45° phase, undoes it and returns every wire to 0. In the circuit grid, right-click the q0 gate under **Undo phase** (step 3) and press **Run**. In **Wire readout**, q0 now has a 14.64% chance of reading 1. The other 511 wires return to 0.
+- **grouped blocks 1024** prepares 256 independent four-wire groups. At **Rotate each block** (step 4), q4 and q5 always agree. At **Bridge two blocks** (step 5), the CNOT from q3 to q4 joins the first two groups into one eight-wire group. To measure how often q4 and q5 disagree, add a sixth step with a CNOT from q5 to q4. Run it and read q4. It shows 50%. Right-click the step 5 bridge to remove it and run again. Now q4 shows 0%.
+
 ## Turn a phase into an answer
 
 - **Deutsch algorithm** — q0 asks the question and q1 is the helper. Compare steps 2 and 3. The oracle for the balanced function `f(x) = x` changes amplitude signs while every row stays at 25%. At step 4, the final Hadamard turns that difference into a definite 1 on q0, the answer for a balanced function.

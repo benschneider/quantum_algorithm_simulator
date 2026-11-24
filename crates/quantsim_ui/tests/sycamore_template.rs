@@ -16,6 +16,20 @@ const MATCHINGS: [&[[u32; 2]]; 3] = [
 ];
 
 #[test]
+fn exported_sixteen_round_patch_reaches_dense_readout() {
+    let mut app = QCSimApp::default();
+    let patch = include_str!("../../quantsim_core/examples/sycamore_mps/patch.json");
+    app.handle_message(Message::UpdateCircuitFromJson(patch.into()));
+    assert_eq!(app.state.ui_state.error_message, None);
+    assert_eq!(app.state.circuit_state.circuit.sections.len(), 16);
+    app.handle_message(Message::RunSimulation);
+    assert_eq!(app.state.ui_state.error_message, None);
+    assert_eq!(app.state.ui_state.current_timestep, 32);
+    let output = app.state.simulation_state.quantum_state.as_ref().unwrap();
+    assert_eq!(output.state_vector.len(), 65_536);
+}
+
+#[test]
 fn sycamore_uses_the_53_site_chip_and_only_the_patch_couplers() {
     let circuit = circuits::load_template("sycamore_53").unwrap();
     let layout = circuit.layout.as_ref().unwrap();

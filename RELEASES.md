@@ -1,5 +1,18 @@
 # Quantum Algorithm Simulator releases
 
+## 0.4.0
+
+Install the desktop app from the `v0.4.0` Git tag. When this tag was cut, crates.io listed 0.2.2 for all three crates. [Desktop install command](crates/quantsim/README.md#quick-start)
+
+- **Wide circuits.** The editor uses compact representations above 21 wires. **Est. peak RAM** estimates the simulation buffers before a run. Users can set their own warning threshold and run above it. [Wide circuits and RAM estimates](README.md#wide-circuits-and-ram-estimates)
+- **Results.** Select **Overview** to see probability across the whole register, or **Amplitude waveform** to inspect phase over a range of indices. On wide circuits the overview counts all 1,024 shots. The per-wire probabilities come directly from the simulated state. [Results guide](README.md#results-view)
+- **MPS ladder.** The browser lets you compare recorded bond caps for the 256-qubit benchmark. Desktop users can run the same eight-round echo locally. [Bond caps, return probabilities and memory](docs/benchmarks/README.md#choosing-a-bond-cap)
+- **Dense readout.** The exported 16-round Sycamore patch now reaches step 32 in the editor. Its final readout accepts the small norm drift accumulated by single-precision gates. [16-round circuit JSON](crates/quantsim_core/examples/sycamore_mps/patch.json)
+
+### Templates for testing circuit width
+
+**File → Load Template** includes **MPS ladder echo 256**, **phase echo 512** and **grouped blocks 1024**. The first opens the benchmark alongside the current circuit. The other two are editable. Remove one inverse rotation in the 512-wire example to change a single readout. Remove the bridge in the 1,024-wire example to change a pair’s correlation while each wire still reads 1 half the time. [Try the wide circuits](crates/quantsim_ui/assets/docs/tutorials/template_guide.md#try-a-wider-circuit)
+
 ## 0.3.0
 
 Since 0.2.2, the simulator has gained two ways to explore the circuit you build on the gate grid. **2D layout** shows where the qubits sit and which sites are linked. **3D stack** places successive timesteps above that map. Rotate the stack and click a site to see the gate on that wire and its readout at that instant. [Open the simulator](https://benschneider.github.io/quantum_algorithm_simulator/)

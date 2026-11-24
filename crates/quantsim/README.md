@@ -11,11 +11,11 @@ A quantum circuit simulator ecosystem providing both a core simulation library a
 Install and run the interactive simulator:
 
 ```bash
-cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.3.0 --locked quantsim
+cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.4.0 --locked quantsim
 quantsim
 ```
 
-Run this checkout with `cargo run --manifest-path crates/quantsim/Cargo.toml`, or open the [live web demo](https://benschneider.github.io/quantum_algorithm_simulator/).
+To try the current checkout’s wide circuits and run the 256-qubit MPS ladder locally, use `cargo run --release --locked --manifest-path crates/quantsim/Cargo.toml` from the repository root. [Wide circuit walkthroughs](../quantsim_ui/assets/docs/tutorials/template_guide.md#try-a-wider-circuit) · [Live web demo](https://benschneider.github.io/quantum_algorithm_simulator/)
 
 ## Architecture
 
@@ -43,7 +43,7 @@ This crate serves as the main entry point for the quantsim ecosystem, which cons
 ### As a Binary Application
 
 ```bash
-cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.3.0 --locked quantsim
+cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.4.0 --locked quantsim
 ```
 
 This installs the interactive simulator that you can run with:
@@ -58,7 +58,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quantsim = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.3.0" }
+quantsim = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.0" }
 ```
 
 ## Usage
@@ -66,7 +66,7 @@ quantsim = { git = "https://github.com/benschneider/quantum_algorithm_simulator"
 ### Running the Interactive Simulator
 
 ```bash
-cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.3.0 --locked quantsim
+cargo install --git https://github.com/benschneider/quantum_algorithm_simulator --tag v0.4.0 --locked quantsim
 quantsim
 ```
 

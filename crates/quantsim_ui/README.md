@@ -1,7 +1,7 @@
 # quantsim_ui
 
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](../../COPYRIGHT.md)
-[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)]
+[![Rust](https://img.shields.io/badge/Rust-1.87.0-orange?logo=rust)](rust-toolchain)
 [![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)]
 
 A quantum circuit editor built with `egui` for the desktop and WebAssembly. Build gates on the timeline, inspect their physical positions in **2D layout**, or follow a wire through successive timesteps in **3D stack**.
@@ -25,7 +25,7 @@ Try the application online: https://benschneider.github.io/quantum_algorithm_sim
 
 ### Prerequisites
 
-- Rust 1.75+
+- Rust 1.87.0 and the `wasm32-unknown-unknown` target for the web build, as specified in the [UI toolchain](rust-toolchain)
 - Trunk (for WASM builds)
 
 ### Local Development
@@ -59,7 +59,7 @@ The application consists of several key panels:
 - **Gate Palette** (Left): Available quantum gates organized by category
 - **Circuit Grid** (Center): Main canvas for building circuits
 - **Qubit layout** sits below the grid. Choose **Edit layout** to arrange wires in a line, grid, ring or custom set of sites and links.
-- **Results** shows each wire’s probability of reading 1 and the joint state after the selected step.
+- **Results** shows each wire’s probability of reading 1 after the selected step. Choose **Amplitude waveform** to inspect individual amplitudes or **Overview** to see how probability is distributed across the register.
 - **Top Panel**: Application controls and menu
 
 ### Basic Workflow
@@ -78,9 +78,12 @@ The application consists of several key panels:
 - Real-time circuit validation
 
 #### Simulation
+
 - Step-by-step execution with time scrubbing
-- Probability and state vector visualization
-- Measurement sampling with configurable shots
+- Up to 21 wires, **Joint state** lists the populated basis states above the display threshold. For wider circuits, **Joint samples** summarizes 1,024 shots and **Wire readout** gives each wire’s probability directly from the simulated state.
+- Open the estimated peak RAM beside **Run** to set **Warn above** in MiB. The estimate covers simulation buffers. A warning still lets you run the circuit.
+
+In this checkout, **File → Load Template** includes two editable wide circuits, **phase echo 512** and **grouped blocks 1024**. **MPS ladder echo 256** opens a separate bond-cap experiment. Its browser view shows the recorded return curve, and its desktop **Run echo** button executes the selected cap. [Wide circuit walkthroughs](assets/docs/tutorials/template_guide.md#try-a-wider-circuit)
 
 #### Learning Tools
 - Interactive tutorials covering quantum concepts

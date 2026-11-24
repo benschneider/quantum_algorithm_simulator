@@ -1,7 +1,7 @@
 # quantsim_core
 
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](../../COPYRIGHT.md)
-[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?logo=rust)]
+![Rust](https://img.shields.io/badge/Rust-orange?logo=rust)
 
 A pure Rust library for quantum circuit simulation. This crate provides the core simulation engine for quantum computing, designed to be portable and reusable without any UI dependencies.
 
@@ -21,7 +21,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quantsim_core = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.3.0" }
+quantsim_core = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.0" }
 ```
 
 ### Basic Example
@@ -38,6 +38,8 @@ assert!((result.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 
 ### Compact circuit readout (current checkout)
 
+`Circuit::run` and `run_prefix` use a dense state vector. For a wide circuit, select one of the compact methods below. For example, the [512-wire phase echo](circuits/phase_echo_512.json) works with `run_product_prefix`, and the [1,024-wire entangled blocks](circuits/grouped_blocks_1024.json) work with `run_grouped_prefix`.
+
 `circuit.run_stabilizer_prefix(step_count)` accepts per-wire preparations and the built-in H, SqrtZ (S), CX, X, Y, and Z gates. Call `state.probability_one(wire)` for an exact wire probability or `state.sample_wide(shots, seed)` for full-width joint samples, with q0 at bit zero. For registers of up to 128 wires, `state.sample(shots, seed)` returns samples packed into `u128`. See the [50-wire GHZ example](src/core/stabilizer.rs).
 
 The native GHZ50 test measured **28,264 bytes of peak additional live heap** on Apple Silicon after circuit construction, including evolution, all 50 wire probabilities, sampling scratch space, and 1,024 returned samples. To reproduce from the workspace root, run `cargo test --manifest-path crates/quantsim_core/Cargo.toml --test stabilizer_scale -- --nocapture`.
@@ -50,7 +52,7 @@ For an individual complex amplitude, call `product.amplitude_wide(&index)`, `gro
 
 ### Matrix product state experiment on a 2×8 Sycamore patch
 
-This native example compares an eight-tensor MPS against the simulator’s single-precision dense engine and a double-precision dense reference. It checks all 65,536 complex amplitudes after every round. The optional JSON export opens in the circuit editor, where each labeled round contains a rotation step and a coupling step. For the full 16-round comparison, use the native example below. Accumulated single-precision norm drift can cause the editor to reject the final dense readout.
+This native example compares an eight-tensor MPS against the simulator’s single-precision dense engine and a double-precision dense reference. It checks all 65,536 complex amplitudes after every round. To try the same circuit in this checkout, paste the exported JSON into the editor’s **JSON** tab, select **Apply Changes**, then **Run ▶**. Each round contains a rotation step and a coupling step. The final dense readout is at step 32. [16-round patch JSON](examples/sycamore_mps/patch.json)
 
 Run from the repository root. The first argument sets the number of rounds and the optional second argument creates a new circuit file. Longer runs extend the same seeded circuit.
 
