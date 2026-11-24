@@ -1,14 +1,14 @@
-const release = "cae7425bfd5a14ecaac1";
+const release = "01a2e95278d60667b10e";
 const assets = {
   "assets/icon-1024.png": "sha256-WBeTuPxnoJf9N2ehTH46yLkJi6x3b7C6OSeGUuJtCYw=",
   "assets/icon-256.png": "sha256-yLJhxxdRkOZhIjIBx58yDAxs5YvG0jiGt1ADdqtvI84=",
   "assets/icon_ios_touch_192.png": "sha256-mlxZweOXmEpGx0vRh5G+2K9hM0rhGTAp+SIbXLGQHk8=",
   "assets/maskable_icon_x512.png": "sha256-lGLrobb68qx9uH7844jE0/rkR6r+b0OlAWOttveI0Fs=",
   "favicon-cb90114adb4e01ff.ico": "sha256-/rsfNouAIJL350SASJushWrZTH7rf102Rv5EW5ZPDv4=",
-  "index.html": "sha256-HOzPlBTQn03EEhKuymE9TEV9SHAVrEvIqZYsUy5oQPM=",
+  "index.html": "sha256-29GD39+PBHcixOJdZGunRGyVUa0k22mMo+wiO5NfTqw=",
   "manifest.json": "sha256-3r9D/QXU8yIfnGNMUWmcyd3/vCDfto0j1lcDfOVG15U=",
-  "quantsim_ui-39d98d168703d64a.js": "sha256-aPYjiJCXVQra/X3s1ZJMm4WVJYbdAfZxfYWNwaVHMVY=",
-  "quantsim_ui-39d98d168703d64a_bg.wasm": "sha256-9dJ3+gpgjE5bIVvaTKLMK70ioCzktvxq7bS2nDLpmpM="
+  "quantsim_ui-c6ad39fd7a9c989b.js": "sha256-dPHpt8P+NiRFFoQ8+HOG/1DhRJyKf4sR5ow4El+jJCU=",
+  "quantsim_ui-c6ad39fd7a9c989b_bg.wasm": "sha256-ZvH9MvY3y8g9nEGoD55se53YJ0xaa0YV+oyYHq+Ev18="
 };
 
 // The Trunk post-build hook supplies the release fingerprint and asset integrity hashes.

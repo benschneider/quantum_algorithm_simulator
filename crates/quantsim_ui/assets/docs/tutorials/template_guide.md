@@ -35,7 +35,14 @@ Click step 6. The receiver q2 still reads 1 half the time. The X correction at s
 
 Open **sycamore echo 53** and press **Play** to watch seven layers of CNOTs reach every site from q23. At step 8 the only joint outcomes are all zeros and all ones. At step 9 a Z gate on q33 changes their relative phase while the colors stay at 50%. The circuit then reverses the CNOT layers. The final Hadamard makes q23 read 1 every time. To compare, right-click the Z in step 9 of the circuit grid to remove it, then run again. Now q23 reads 0 every time. [Watch the 29-second demo](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
 
-In **sycamore 53**, the **Layout** tab opens the 3D stack of the 53-qubit chip. Choose **Next step** to prepare q21 in 1 and seven neighbors in superposition. Step 2 lights four outer row couplers in gold. Step 3 lights the two middle row couplers. At step 4, four vertical couplers carry the interaction between the rows. Select q33 in **Inspect** at step 3. It belongs to a four-qubit group. Advance to step 4 to see it become **Independent** as the 1 arrives. The other seven patch sites share one group. Step 5 turns the accumulated phases into measurable probabilities on the other seven sites. This teaching circuit uses the ideal SYC gate on ten of the chip’s 86 couplers. [Chip layout and ideal gate](https://quantumai.google/hardware/datasheet/weber.pdf)
+To follow one qubit through the 3D stack, open **File → Load Template → sycamore 53**. The five-step circuit uses a 2×4 patch on the 53-site chip. [Watch the 3D walkthrough](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4)
+
+- Drag inside **Layout → 3D stack** to orbit the chip. Time runs upward. Gold bonds show which couplers are active on each layer.
+- Choose **Next step** to prepare q21 in 1 and seven neighbors in superposition. Advance twice more. Four outer row couplers light up at step 2, then two middle row couplers at step 3.
+- At step 3, choose **q33** under **Inspect**. It belongs to a four-qubit group. Hover over q33 on the active layer to see its 50% probability of reading 1.
+- Advance to step 4. Four couplers connect the rows. The inspector now shows **Independent** for q33, and its probability of reading 1 has reached 100%. The other seven patch sites share one group.
+
+Step 5 turns the accumulated phases into measurable probabilities on those seven sites. To watch the circuit again, return to step 0 and press **Play** for one step every two seconds. The patch uses the ideal SYC gate on ten of the chip’s 86 couplers. [Chip layout and ideal gate](https://quantumai.google/hardware/datasheet/weber.pdf)
 
 ## Inspect a parity check
 
