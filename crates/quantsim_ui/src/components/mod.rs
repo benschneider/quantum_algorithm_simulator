@@ -11,4 +11,5 @@ pub mod menu_bar;
 mod qubit_layout;
 pub mod results_panel;
 mod section_editor;
+mod site_readout;
 mod spacetime_stack;

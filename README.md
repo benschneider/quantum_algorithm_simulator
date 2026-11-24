@@ -282,6 +282,8 @@ Click a wire label at the left of the grid to annotate it as **Data** or **Ancil
 
 **Qubit layout** below the circuit shows where the wires sit and which gates act at the selected timestep. Select a site to highlight its neighbors. Open **Edit layout** to choose **Line**, **Grid** or **Ring**, or enter your own site coordinates and choose which pairs to link. The four repetition-code templates place each parity ancilla between the two data qubits it checks.
 
+The **2D layout** fits the chip to the available space. Use **+** for a closer look and **Fit** to see the whole chip again. Site colors show **P(1)**, the probability of measuring 1 on that wire at the selected step. Blue marks 0%, teal marks 50%, and coral marks 100%. Hover over a site for its percentage. In the 3D stack the same colors apply to the selected time layer.
+
 Switch from **2D layout** to **3D stack** to follow a wire through time. Each layer is a timestep. Vertical trails join the same wire across layers, the selected layer shows the layout's physical links, and the gate markers show which wires interact at each step. Drag to orbit or use the view sliders. Select a site to inspect its wire at that step in **Results**. In **plaquette z check**, follow the central q4 through steps 2–5 to see its four CNOTs, one with each surrounding data wire.
 
 Brackets on the time axis show the first and last step of each named section. Selecting a layer highlights its section. On a crowded timeline, the axis shows labels around the selected step. Hover over a label or bracket to read its full name and range.
@@ -395,7 +397,7 @@ The "Results" window displays the outcome of your simulation:
 
 The **Timesteps** field accepts 1 to 1,000 steps. The scrubber covers the full length of the loaded circuit.
 
-Use **Next step** and **Previous step** to follow the circuit at your own pace. **Play** holds the first step of each section with a description for eight seconds and advances other steps every 0.6 seconds. The **Timestep** slider and numbered columns jump directly to a step. Step 0 shows the initial state. Clicking a section label jumps to its last step. You can revisit any step without collapsing the simulated state.
+Use **Next step** and **Previous step** to follow the circuit at your own pace. **Play** advances one step every two seconds, including at section boundaries. Choose **Pause** to study a step for longer. The **Timestep** slider and numbered columns jump directly to a step. Step 0 shows the initial state. Clicking a section label jumps to its last step. You can revisit any step without collapsing the simulated state.
 
 To annotate a circuit, open **Sections** beside the slider, choose **New section**, and enter a label and its first and last steps. Add an optional description of what to look for, then save. The label spans those columns, and Results shows the description beneath the step title. Open **Sections** again to edit or delete it. Wire roles and sections travel with the circuit JSON.
 
@@ -410,6 +412,8 @@ For a step-by-step reading of the examples, open **Help → Tutorial → Templat
 
 *   **Bell** and **GHZ** show how a controlled gate turns one wire's superposition into correlations between two or three data wires.
 *   **ghz 50** extends a Bell pair to 50 wires in seven steps. Compare steps 6 and 7 to see q49 join the correlated group.
+*   **bell 256** entangles q0 with q255 in two steps. Each endpoint reads 50%, and they agree in every joint shot.
+*   **sycamore echo 53** spreads a GHZ state from q23 across all 53 sites in seven layers of CNOTs. The Z gate on q33 at step 9 leaves all local probabilities at 50%. After reversing the CNOTs, the final Hadamard makes q23 read 1 with certainty. Remove that Z and run again to see q23 read 0. [Watch the 29-second demo](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
 *   **Bell test complex** uses two extra wires to select rotations of a Bell pair. Group the final rows by those setting bits to see how often the two data wires agree.
 *   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
 *   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.

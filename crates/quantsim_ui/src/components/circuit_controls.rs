@@ -68,7 +68,7 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
         };
         if ui
             .add_enabled(last_step > 0, egui::Button::new(playback_label))
-            .on_hover_text("Play or pause the circuit one timestep at a time")
+            .on_hover_text("Advance one timestep every two seconds, or pause playback")
             .clicked()
         {
             messages.push(Message::TogglePlayback(ui.input(|i| i.time)));

@@ -1,8 +1,7 @@
 use crate::{messages::Message, state::AppState};
 use std::time::Duration;
 
-const STEP_SECONDS: f64 = 0.6;
-const SECTION_READING_SECONDS: f64 = 8.0;
+const STEP_SECONDS: f64 = 2.0;
 
 pub(super) fn toggle(state: &mut AppState, now: f64) {
     if state.ui_state.next_playback_step_at.take().is_some() {
@@ -40,18 +39,9 @@ fn show_step(state: &mut AppState, step: usize, now: f64) {
         Message::SelectTimestep(step),
         &mut [],
     );
-    let circuit = &state.circuit_state.circuit;
-    let starts_description = circuit
-        .section_at(step)
-        .is_some_and(|section| section.start == step && !section.description.trim().is_empty());
-    let delay = if starts_description {
-        SECTION_READING_SECONDS
-    } else {
-        STEP_SECONDS
-    };
-    state.ui_state.next_playback_step_at = (step < circuit.steps.len()
+    state.ui_state.next_playback_step_at = (step < state.circuit_state.circuit.steps.len()
         && state.ui_state.error_message.is_none())
-    .then_some(now + delay);
+    .then_some(now + STEP_SECONDS);
 }
 
 #[cfg(test)]
@@ -61,19 +51,23 @@ mod tests {
     use quantsim_core::types::Gate;
 
     #[test]
-    fn playback_gives_reading_time_once_on_entering_a_described_section() {
+    fn playback_holds_every_step_for_two_seconds_including_section_starts() {
         let mut app = QCSimApp::default();
         app.handle_message(Message::UpdateCircuitFromJson(
             r#"{"num_qubits":1,"steps":[[],[],[]],"sections":[{"start":1,"end":2,"label":"Preparation","description":"Follow the first two columns."}]}"#.into(),
         ));
         app.handle_message(Message::SelectTimestep(0));
         app.handle_message(Message::TogglePlayback(0.0));
-        assert_eq!(advance(&mut app.state, 1.0), Some(Duration::from_secs(8)));
-        advance(&mut app.state, 8.9);
-        assert_eq!(app.state.ui_state.current_timestep, 1);
-        advance(&mut app.state, 9.0);
-        assert_eq!(app.state.ui_state.current_timestep, 2);
-        assert_eq!(advance(&mut app.state, 9.6), None);
+        for step in 0..3 {
+            let now = 2.0 * step as f64;
+            assert_eq!(advance(&mut app.state, now), Some(Duration::from_secs(2)));
+            assert_eq!(
+                advance(&mut app.state, now + 1.5),
+                Some(Duration::from_millis(500))
+            );
+            assert_eq!(app.state.ui_state.current_timestep, step);
+        }
+        assert_eq!(advance(&mut app.state, 6.0), None);
         assert_eq!(app.state.ui_state.current_timestep, 3);
     }
 
@@ -101,7 +95,8 @@ mod tests {
         assert_eq!(advance(&mut app.state, 12.0), None);
         app.handle_message(Message::TogglePlayback(13.0));
         assert_eq!(app.state.ui_state.current_timestep, 1);
-        assert_eq!(advance(&mut app.state, 14.0), None);
+        assert_eq!(advance(&mut app.state, 14.0), Some(Duration::from_secs(1)));
+        assert_eq!(advance(&mut app.state, 15.0), None);
         assert_eq!(app.state.ui_state.current_timestep, 2);
         assert!((app.state.simulation_state.wire_one_probabilities[1] - 0.5).abs() < 1e-6);
     }
@@ -127,8 +122,8 @@ mod tests {
         ));
         app.handle_message(Message::PlaceGate(Gate::Custom, 0, 1));
         app.handle_message(Message::TogglePlayback(0.0));
-        assert!(advance(&mut app.state, 1.0).is_some());
-        assert_eq!(advance(&mut app.state, 2.0), None);
+        assert!(advance(&mut app.state, 2.0).is_some());
+        assert_eq!(advance(&mut app.state, 4.0), None);
         assert_eq!(app.state.ui_state.current_timestep, 2);
         assert!(app
             .state
@@ -137,11 +132,11 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("explicit matrix"));
-        app.handle_message(Message::TogglePlayback(3.0));
+        app.handle_message(Message::TogglePlayback(5.0));
         assert_eq!(app.state.ui_state.current_timestep, 0);
         assert!(app.state.ui_state.error_message.is_none());
         app.state.ui_state.show_results_window = false;
-        assert_eq!(advance(&mut app.state, 4.0), None);
+        assert_eq!(advance(&mut app.state, 6.0), None);
         assert_eq!(app.state.ui_state.current_timestep, 0);
     }
 }

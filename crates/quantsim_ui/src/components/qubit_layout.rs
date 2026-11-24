@@ -1,3 +1,4 @@
+use super::site_readout::{probability_color, SiteReadout};
 use egui::{pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 use quantsim_core::{
     circuit::{Circuit, QubitLayout, QubitRole},
@@ -12,12 +13,23 @@ pub(super) fn draw_map(
     layout: &QubitLayout,
     timestep: usize,
     selected: &mut Option<usize>,
+    readout: SiteReadout<'_>,
 ) {
     if layout.positions.is_empty() {
         return;
     }
-    let width = ui.available_width();
-    let (size, centers) = map_geometry(&layout.positions, width);
+    // The enclosing workspace scrolls. Its clip height is stable as the user scrolls;
+    // available_height() inside the scroll area can be effectively unbounded.
+    let viewport = vec2(
+        ui.available_width().max(1.0),
+        (ui.clip_rect().height() - 155.0).max(120.0),
+    );
+    let has_ancillas = circuit.qubit_roles.contains(&Some(QubitRole::Ancilla));
+    let (natural_size, centers) = map_geometry(&layout.positions, viewport, has_ancillas);
+    let fit = fit_zoom(natural_size, viewport);
+    let zoom = map_zoom_controls(ui, fit);
+    let content = natural_size * zoom;
+    let size = vec2(content.x.max(viewport.x), content.y);
     let operations = timestep
         .checked_sub(1)
         .and_then(|column| circuit.steps.get(column))
@@ -29,13 +41,17 @@ pub(super) fn draw_map(
         Color32::from_rgb(114, 48, 155)
     };
 
-    egui::ScrollArea::new([size.x > width + 0.5, size.y > 310.0])
+    egui::ScrollArea::new([size.x > viewport.x + 0.5, size.y > viewport.y + 0.5])
         .id_salt("layout_map")
-        .max_height(310.0)
+        .max_height(viewport.y)
         .auto_shrink([false, true])
         .show(ui, |ui| {
             let (canvas, _) = ui.allocate_exact_size(size, Sense::hover());
-            let centers: Vec<_> = centers.iter().map(|offset| canvas.min + *offset).collect();
+            let origin = canvas.min + (size - content) * 0.5;
+            let centers: Vec<_> = centers
+                .iter()
+                .map(|offset| origin + *offset * zoom)
+                .collect();
             for &[a, b] in &layout.links {
                 let stroke = if *selected == Some(a) || *selected == Some(b) {
                     Stroke::new(3.0_f32, accent)
@@ -47,8 +63,8 @@ pub(super) fn draw_map(
             for (wire, &center) in centers.iter().enumerate() {
                 let role = circuit.qubit_roles[wire];
                 let name = site_name(circuit, wire);
-                let rect = Rect::from_center_size(center, Vec2::splat(38.0));
-                let hit = ui.interact(rect.expand(3.0), ui.id().with(wire), Sense::click());
+                let rect = Rect::from_center_size(center, Vec2::splat(38.0 * zoom));
+                let hit = ui.interact(rect.expand(3.0 * zoom), ui.id().with(wire), Sense::click());
                 let is_selected = *selected == Some(wire);
                 let description = match role {
                     Some(QubitRole::Ancilla) => format!("Ancilla {name} (q{wire})"),
@@ -75,15 +91,19 @@ pub(super) fn draw_map(
                     None => ui.visuals().text_color(),
                 };
                 let is_ancilla = role == Some(QubitRole::Ancilla);
-                let fill = if hit.hovered() {
-                    ui.visuals().widgets.hovered.bg_fill
-                } else {
-                    ui.visuals().extreme_bg_color
+                let probability = readout.probability(wire);
+                let fill = probability.map_or(ui.visuals().extreme_bg_color, |p| {
+                    probability_color(p, ui.visuals().dark_mode)
+                });
+                let label_color = match probability {
+                    Some(_) if ui.visuals().dark_mode => Color32::WHITE,
+                    Some(_) => Color32::from_rgb(19, 31, 42),
+                    None => ui.visuals().text_color(),
                 };
-                if is_selected || hit.has_focus() {
+                if is_selected || hit.has_focus() || hit.hovered() {
                     draw_site(
                         ui,
-                        rect.expand(4.0),
+                        rect.expand(4.0 * zoom),
                         is_ancilla,
                         Color32::TRANSPARENT,
                         Stroke::new(1.5_f32, color),
@@ -94,17 +114,17 @@ pub(super) fn draw_map(
                     center,
                     Align2::CENTER_CENTER,
                     &name,
-                    FontId::monospace(14.0),
-                    ui.visuals().text_color(),
+                    FontId::monospace((14.0 * zoom).max(1.0)),
+                    label_color,
                 );
                 if is_ancilla {
                     let label = ui.painter().layout_no_wrap(
                         format!("q{wire}"),
-                        FontId::monospace(12.0),
+                        FontId::monospace((12.0 * zoom).max(1.0)),
                         ui.visuals().text_color(),
                     );
-                    let rect =
-                        Align2::CENTER_TOP.anchor_size(center + vec2(0.0, 24.0), label.size());
+                    let rect = Align2::CENTER_TOP
+                        .anchor_size(center + vec2(0.0, 24.0 * zoom), label.size());
                     // Vertical links can run directly behind the wire ID on a lattice.
                     ui.painter().rect_filled(
                         rect.expand2(vec2(2.0, 0.0)),
@@ -119,10 +139,13 @@ pub(super) fn draw_map(
                     .iter()
                     .find(|op| op.qubits.contains(&(wire as u32)));
                 if let Some(op) = operation {
-                    draw_badge(ui, center, &gate_badge(op, wire));
+                    draw_badge(ui, center, &gate_badge(op, wire), zoom);
                 }
                 hit.on_hover_ui(|ui| {
                     ui.strong(description);
+                    if let Some(p) = probability {
+                        ui.label(format!("P(1) = {:.2}%", 100.0 * p));
+                    }
                     let [x, y] = layout.positions[wire];
                     ui.label(format!("Position ({x}, {y})"));
                     if let Some(op) = operation {
@@ -199,7 +222,7 @@ fn gate_badge(op: &Operation, wire: usize) -> String {
     op.id.to_string()
 }
 
-fn draw_badge(ui: &Ui, center: Pos2, label: &str) {
+fn draw_badge(ui: &Ui, center: Pos2, label: &str, zoom: f32) {
     let visuals = ui.visuals();
     let ink = if visuals.dark_mode {
         Color32::from_rgb(251, 201, 102)
@@ -207,8 +230,15 @@ fn draw_badge(ui: &Ui, center: Pos2, label: &str) {
         Color32::from_rgb(127, 69, 0)
     };
     let painter = ui.painter();
-    let text = painter.layout_no_wrap(label.to_owned(), FontId::monospace(12.0), ink);
-    let rect = Rect::from_center_size(center - vec2(0.0, 35.0), text.size() + vec2(8.0, 3.0));
+    let text = painter.layout_no_wrap(
+        label.to_owned(),
+        FontId::monospace((12.0 * zoom).max(1.0)),
+        ink,
+    );
+    let rect = Rect::from_center_size(
+        center - vec2(0.0, 35.0 * zoom),
+        text.size() + vec2(8.0, 3.0) * zoom,
+    );
     painter.rect(
         rect,
         3.0,
@@ -241,14 +271,14 @@ pub(super) fn local_coordinates(positions: &[[i64; 2]]) -> Vec<Pos2> {
         .collect()
 }
 
-// Labels need 58 horizontal or 91 vertical pixels between centers. After
-// weighting the axes, the closest pair determines the smallest readable scale.
-fn label_scale(positions: &[[i64; 2]]) -> f32 {
+// Give gate badges room above each site and ancilla IDs room below it.
+// The closest pair determines the scale for legible, full-size labels.
+fn label_scale(positions: &[[i64; 2]], has_ancillas: bool) -> f32 {
     const X: i128 = 58;
-    const Y: i128 = 91;
+    let y_spacing = if has_ancillas { 91 } else { 68 };
     let mut sites: Vec<_> = positions
         .iter()
-        .map(|&[x, y]| (i128::from(x) * Y, i128::from(y) * X))
+        .map(|&[x, y]| (i128::from(x) * y_spacing, i128::from(y) * X))
         .collect();
     sites.sort_unstable();
     sites.dedup();
@@ -269,34 +299,73 @@ fn label_scale(positions: &[[i64; 2]]) -> f32 {
         }
         by_y.insert((y, x));
     }
-    (X * Y) as f32 / closest as f32
+    (X * y_spacing) as f32 / closest as f32
 }
 
-// Preserve the coordinate aspect ratio. Use scrolling when fitting the full
-// arrangement would make adjacent labels or gate badges overlap.
-fn map_geometry(positions: &[[i64; 2]], width: f32) -> (Vec2, Vec<Vec2>) {
+// Natural canvas dimensions include labels and badges. Zoom then scales the
+// entire drawing uniformly so sites stay clickable at their painted position.
+fn map_geometry(positions: &[[i64; 2]], viewport: Vec2, has_ancillas: bool) -> (Vec2, Vec<Vec2>) {
     let coords = local_coordinates(positions);
     let bounds = Rect::from_points(&coords);
     let padding = vec2(35.0, 48.0);
     let span = bounds.size();
-    let available = vec2((width - padding.x * 2.0).max(1.0), 204.0);
+    let available = (viewport - padding * 2.0).max(Vec2::splat(1.0));
     let fit = (available.x / span.x).min(available.y / span.y);
     let scale = if span == Vec2::ZERO {
         1.0
     } else {
-        fit.max(label_scale(positions))
+        fit.max(label_scale(positions, has_ancillas))
     };
     let extent = span * scale;
-    let size = vec2(
-        width.max(extent.x + padding.x * 2.0),
-        extent.y + padding.y * 2.0,
-    );
-    let origin = (size - extent) * 0.5;
+    let size = extent + padding * 2.0;
     let centers = coords
         .iter()
-        .map(|&p| origin + (p - bounds.min) * scale)
+        .map(|&p| padding + (p - bounds.min) * scale)
         .collect();
     (size, centers)
+}
+
+fn fit_zoom(size: Vec2, viewport: Vec2) -> f32 {
+    (viewport.x / size.x).min(viewport.y / size.y).min(1.0)
+}
+
+fn map_zoom_controls(ui: &mut Ui, fit: f32) -> f32 {
+    let id = ui.make_persistent_id("map_zoom");
+    let saved = ui.data(|data| data.get_temp::<f32>(id));
+    let mut zoom = saved.unwrap_or(fit).max(fit);
+    ui.horizontal(|ui| {
+        ui.label("Zoom");
+        if ui
+            .add_enabled(zoom > fit, egui::Button::new("−"))
+            .on_hover_text("Zoom out")
+            .clicked()
+        {
+            zoom = (zoom / 1.4).max(fit);
+        }
+        if ui
+            .add_enabled(zoom < 3.0, egui::Button::new("+"))
+            .on_hover_text("Zoom in")
+            .clicked()
+        {
+            // One click from a very large overview should make its labels visible.
+            zoom = (zoom * 1.4).clamp(0.5, 3.0);
+        }
+        if ui
+            .button("Fit")
+            .on_hover_text("Fit the entire layout")
+            .clicked()
+        {
+            zoom = fit;
+        }
+    });
+    ui.data_mut(|data| {
+        if zoom == fit {
+            data.remove::<f32>(id);
+        } else {
+            data.insert_temp(id, zoom);
+        }
+    });
+    zoom
 }
 
 #[cfg(test)]
@@ -304,13 +373,83 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sycamore_fits_all_sites_then_zooms_and_returns_to_fit() {
+        let circuit = quantsim_core::circuits::load_template("sycamore_53").unwrap();
+        let layout = circuit.layout.as_ref().unwrap();
+        let mut selected = None;
+        let ctx = egui::Context::default();
+        let mut frame = |events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 760.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        draw_map(
+                            ui,
+                            &circuit,
+                            layout,
+                            0,
+                            &mut selected,
+                            SiteReadout::Unavailable,
+                        );
+                    });
+                },
+            )
+        };
+        let label = |frame: &egui::FullOutput, name: &str| {
+            frame
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text == name => Some((
+                        Rect::from_min_size(text.pos, text.galley.size()),
+                        shape.clip_rect,
+                    )),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let initial = frame(vec![]);
+        for wire in 0..53 {
+            let (rect, clip) = label(&initial, &format!("q{wire}"));
+            assert!(clip.contains_rect(rect), "q{wire} is clipped");
+        }
+        // The wide chip uses the available height instead of a fixed short viewport.
+        let (top, _) = label(&initial, "q0");
+        let (bottom, _) = label(&initial, "q52");
+        assert!(bottom.center().y - top.center().y > 400.0);
+        let initial_center = label(&initial, "q23").0;
+        let mut click = |position| {
+            for pressed in [true, false] {
+                frame(vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+            }
+            frame(vec![])
+        };
+        let enlarged = click(label(&initial, "+").0.center());
+        assert!(label(&enlarged, "q23").0.width() > initial_center.width() * 1.2);
+        let restored = click(label(&enlarged, "Fit").0.center());
+        assert_eq!(label(&restored, "q23").0, initial_center);
+    }
+
+    #[test]
     fn coincident_wires_share_a_center_without_affecting_map_spacing() {
-        let (size, centers) = map_geometry(&[[0, 0], [0, 0], [1, 0]], 300.0);
-        let (expected, distinct) = map_geometry(&[[0, 0], [1, 0]], 300.0);
+        let (size, centers) = map_geometry(&[[0, 0], [0, 0], [1, 0]], vec2(300.0, 320.0), true);
+        let (expected, distinct) = map_geometry(&[[0, 0], [1, 0]], vec2(300.0, 320.0), true);
         assert_eq!(size, expected);
         assert_eq!(centers, [distinct[0], distinct[0], distinct[1]]);
 
-        let (size, centers) = map_geometry(&[[5, 5]; 3], 300.0);
+        let (size, centers) = map_geometry(&[[5, 5]; 3], vec2(300.0, 320.0), true);
         assert!(size.is_finite());
         assert_eq!(centers, [size * 0.5; 3]);
     }
@@ -318,17 +457,17 @@ mod tests {
     #[test]
     fn map_spacing_survives_wide_registers_and_translated_coordinates() {
         let wide = QubitLayout::wire_order(65_537);
-        let (size, centers) = map_geometry(&wide.positions, 300.0);
+        let (size, centers) = map_geometry(&wide.positions, vec2(300.0, 320.0), true);
         assert!(size.is_finite());
         assert_eq!(centers[65_536].x - centers[65_535].x, 58.0);
 
         let translated = [[i64::MAX - 1, i64::MIN], [i64::MAX, i64::MIN + 1]];
         assert_eq!(
-            map_geometry(&translated, 300.0),
-            map_geometry(&[[0, 0], [1, 1]], 300.0)
+            map_geometry(&translated, vec2(300.0, 320.0), true),
+            map_geometry(&[[0, 0], [1, 1]], vec2(300.0, 320.0), true)
         );
         let extremes = [[i64::MIN, i64::MAX], [i64::MAX, i64::MIN]];
-        let (size, centers) = map_geometry(&extremes, 300.0);
+        let (size, centers) = map_geometry(&extremes, vec2(300.0, 320.0), true);
         assert!(size.is_finite() && centers.iter().all(|p| p.is_finite()));
     }
 
@@ -353,6 +492,7 @@ mod tests {
                             circuit.layout.as_ref().unwrap(),
                             step,
                             &mut Some(3),
+                            SiteReadout::Unavailable,
                         );
                     });
                 });
@@ -408,7 +548,14 @@ mod tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        draw_map(ui, &circuit, layout, 0, &mut selected);
+                        draw_map(
+                            ui,
+                            &circuit,
+                            layout,
+                            0,
+                            &mut selected,
+                            SiteReadout::Unavailable,
+                        );
                     });
                 },
             )
@@ -452,7 +599,7 @@ mod tests {
             QubitLayout::ring(21),
             QubitLayout::grid(21),
         ] {
-            let (size, centers) = map_geometry(&layout.positions, 300.0);
+            let (size, centers) = map_geometry(&layout.positions, vec2(300.0, 320.0), true);
             assert!(size.is_finite());
             for (i, center) in centers.iter().enumerate() {
                 assert!(Rect::from_min_size(Pos2::ZERO, size).contains(center.to_pos2()));

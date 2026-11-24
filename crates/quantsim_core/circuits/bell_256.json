@@ -1,0 +1,11 @@
+{
+  "num_qubits": 256,
+  "sections": [
+    {"start": 1, "end": 1, "label": "Prepare q0", "description": "A Hadamard gives q0 a 50% chance of reading 1. The other 255 wires still read zero."},
+    {"start": 2, "end": 2, "label": "Link the endpoints", "description": "The CNOT entangles q0 and q255. Look at the first and last bit in each joint sample. They always agree, and every bit between them is zero."}
+  ],
+  "steps": [
+    [{"id": "H", "qubits": [0]}],
+    [{"id": "CX", "qubits": [0, 255]}]
+  ]
+}

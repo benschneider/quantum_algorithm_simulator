@@ -10,6 +10,9 @@ env -u NO_COLOR trunk build --release --locked --public-url ./
 docs_dir="$repo_dir/docs"
 mkdir -p "$docs_dir"
 cp -R dist/. "$docs_dir/"
+# Publish the optional recordings alongside the app, outside its offline precache.
+mkdir -p "$docs_dir/showcase"
+cp "$repo_dir/showcase"/sycamore-echo-53.{mp4,gif} "$docs_dir/showcase/"
 for asset in "$docs_dir"/quantsim_ui*.js "$docs_dir"/quantsim_ui*.wasm "$docs_dir"/favicon*.ico; do
     if [[ -f "$asset" && ! -f "dist/${asset##*/}" ]]; then
         rm -- "$asset"

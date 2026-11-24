@@ -1,5 +1,6 @@
 use super::{
     qubit_layout::{draw_map, site_name},
+    site_readout::{self, SiteReadout},
     spacetime_stack::draw_stack,
 };
 use crate::{
@@ -15,6 +16,7 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
     let circuit = &state.circuit_state.circuit;
     let view = &mut state.ui_state;
     let step = view.current_timestep;
+    let readout = SiteReadout::for_step(circuit, step, &state.simulation_state);
 
     let mut width = ui
         .available_rect_before_wrap()
@@ -38,6 +40,14 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
                 _ => format!("Step {step}"),
             };
             ui.label(caption);
+            ui.separator();
+            if matches!(readout, SiteReadout::Unavailable) {
+                if ui.small_button("Read this step for P(1)").clicked() {
+                    messages.push(Message::SelectTimestep(step));
+                }
+            } else {
+                site_readout::legend(ui);
+            }
         });
         ui.horizontal_wrapped(|ui| {
             ui.selectable_value(&mut view.layout_view, LayoutView::Plane, "2D layout");
@@ -72,9 +82,14 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
             .filter(|_| validation.is_none())
             .unwrap_or(saved);
         match view.layout_view {
-            LayoutView::Plane => {
-                draw_map(ui, circuit, visible, step, &mut view.selected_layout_wire)
-            }
+            LayoutView::Plane => draw_map(
+                ui,
+                circuit,
+                visible,
+                step,
+                &mut view.selected_layout_wire,
+                readout,
+            ),
             LayoutView::Stack => {
                 if let Some((wire, step)) = draw_stack(
                     ui,
@@ -84,6 +99,7 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
                     view.selected_layout_wire,
                     &mut view.stack_camera,
                     view.active_central_tab == CentralPanelTab::Layout,
+                    readout,
                 ) {
                     messages.push(Message::InspectLayoutSite { wire, step });
                 }

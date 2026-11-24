@@ -1,6 +1,7 @@
 mod section_axis;
 
 use super::qubit_layout::{local_coordinates, site_name};
+use super::site_readout::{probability_color, SiteReadout};
 use crate::state::ui_state::StackCamera;
 use egui::{
     pos2, vec2, Align2, Color32, FontId, PointerButton, Pos2, Rect, Sense, Shape, Stroke,
@@ -180,6 +181,7 @@ pub(super) fn draw_stack(
     selected: Option<usize>,
     camera: &mut StackCamera,
     expanded: bool,
+    readout: SiteReadout<'_>,
 ) -> Option<(usize, usize)> {
     if layout.positions.is_empty() {
         return None;
@@ -357,20 +359,32 @@ pub(super) fn draw_stack(
         let chosen = site.step == active && selected == Some(site.wire);
         let near = hovered.is_some_and(|other| (other.wire, other.step) == (site.wire, site.step));
         let r = site_radius(site, active);
-        let fill = if crowded && site.step != active {
-            surface.lerp_to_gamma(color, if site.op.is_some() { 0.38 } else { 0.20 })
-        } else if crowded && site.op.is_none() && !chosen {
-            surface.lerp_to_gamma(role_color, 0.56)
-        } else if site.step == active {
-            color
+        let (fill, border) = if site.step == active {
+            if let Some(p) = readout.probability(site.wire) {
+                let width = if site.op.is_some() { 1.8_f32 } else { 0.8_f32 };
+                (
+                    probability_color(p, visuals.dark_mode),
+                    Stroke::new(width, color),
+                )
+            } else if crowded && site.op.is_none() && !chosen {
+                (surface.lerp_to_gamma(role_color, 0.56), Stroke::NONE)
+            } else {
+                (color, Stroke::NONE)
+            }
         } else {
-            surface.lerp_to_gamma(color, if site.op.is_some() { 0.8 } else { 0.46 })
+            let strength = match (crowded, site.op.is_some()) {
+                (true, true) => 0.38,
+                (true, false) => 0.20,
+                (false, true) => 0.8,
+                (false, false) => 0.46,
+            };
+            (surface.lerp_to_gamma(color, strength), Stroke::NONE)
         };
         let mark = Rect::from_center_size(site.pos, Vec2::splat(2.0 * r));
         if role == Some(QubitRole::Ancilla) {
-            painter.rect_filled(mark, 1.0, fill);
+            painter.rect(mark, 1.0, fill, border, StrokeKind::Inside);
         } else {
-            painter.circle_filled(site.pos, r, fill);
+            painter.circle(site.pos, r, fill, border);
         }
         if chosen || near {
             let outline = Stroke::new(1.6_f32, if near { ink } else { ancilla });
@@ -387,13 +401,21 @@ pub(super) fn draw_stack(
                 .and_then(Operation::controlled_action)
                 .is_some_and(|(_, t, _)| t as usize == site.wire)
         {
+            let cross = Stroke::new(
+                1.0_f32,
+                if fill.intensity() > 0.5 {
+                    Color32::BLACK
+                } else {
+                    Color32::WHITE
+                },
+            );
             painter.line_segment(
                 [site.pos - vec2(2.8, 0.0), site.pos + vec2(2.8, 0.0)],
-                Stroke::new(1.0_f32, surface),
+                cross,
             );
             painter.line_segment(
                 [site.pos - vec2(0.0, 2.8), site.pos + vec2(0.0, 2.8)],
-                Stroke::new(1.0_f32, surface),
+                cross,
             );
         }
     }
@@ -456,6 +478,11 @@ pub(super) fn draw_stack(
     } else if let Some(site) = hovered {
         response.on_hover_ui_at_pointer(|ui| {
             ui.strong(format!("q{} · Step {}", site.wire, site.step));
+            if site.step == active {
+                if let Some(p) = readout.probability(site.wire) {
+                    ui.label(format!("P(1) = {:.2}%", 100.0 * p));
+                }
+            }
             if let Some(section) = circuit.section_at(site.step) {
                 ui.label(&section.label);
             }
@@ -556,7 +583,16 @@ mod tests {
         let drawn = ctx.run(RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
-                draw_stack(ui, &circuit, &layout, 502, None, &mut camera, false);
+                draw_stack(
+                    ui,
+                    &circuit,
+                    &layout,
+                    502,
+                    None,
+                    &mut camera,
+                    false,
+                    SiteReadout::Unavailable,
+                );
             });
         });
         let view = Projection::new(&layout, 1001, &camera, rect);
@@ -620,7 +656,16 @@ mod tests {
             let output = ctx.run(RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
-                    draw_stack(ui, &circuit, &layout, active, None, &mut camera, false);
+                    draw_stack(
+                        ui,
+                        &circuit,
+                        &layout,
+                        active,
+                        None,
+                        &mut camera,
+                        false,
+                        SiteReadout::Unavailable,
+                    );
                 });
             });
             let view = Projection::new(&layout, 3, &camera, rect);
@@ -669,6 +714,62 @@ mod tests {
     }
 
     #[test]
+    fn probability_colors_only_the_active_layer_and_preserves_gate_rings() {
+        let mut circuit = Circuit::new(3);
+        circuit.steps = vec![vec![Operation::new(Gate::H, vec![1], vec![])], vec![]];
+        let layout = QubitLayout::line(3);
+        let ctx = egui::Context::default();
+        let active = 1;
+        let mut rect = Rect::NOTHING;
+        let mut camera = StackCamera::default();
+        let probabilities = [1.0, 0.5, 0.0];
+        let mut render = |readout| {
+            ctx.run(RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
+                    draw_stack(
+                        ui,
+                        &circuit,
+                        &layout,
+                        active,
+                        None,
+                        &mut camera,
+                        false,
+                        readout,
+                    );
+                });
+            })
+        };
+        let plain = render(SiteReadout::Unavailable);
+        let colored = render(SiteReadout::Measured(&probabilities));
+        let view = Projection::new(&layout, 2, &camera, rect);
+        let glyph = |shapes: &[egui::epaint::ClippedShape], pos| {
+            shapes
+                .iter()
+                .find_map(|c| match &c.shape {
+                    Shape::Circle(site) if site.center == pos => Some((site.fill, site.stroke)),
+                    _ => None,
+                })
+                .expect("wire glyph")
+        };
+        for (wire, probability) in probabilities.into_iter().enumerate() {
+            let (fill, stroke) = glyph(&colored.shapes, view.site(wire, active).0);
+            assert_eq!(fill, probability_color(probability, true));
+            if wire == 1 {
+                assert_eq!(stroke.color, Color32::from_rgb(255, 198, 100));
+                assert!(stroke.width > 0.0);
+            }
+            for step in [0, 2] {
+                let position = view.site(wire, step).0;
+                assert_eq!(
+                    glyph(&plain.shapes, position),
+                    glyph(&colored.shapes, position)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn click_selects_wire_and_step_but_orbit_leaves_readout_alone() {
         let ctx = egui::Context::default();
         let mut camera = StackCamera::default();
@@ -694,7 +795,16 @@ mod tests {
                     egui::CentralPanel::default().show(ctx, |ui| {
                         rect =
                             Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
-                        picked = draw_stack(ui, &circuit, &layout, 2, Some(1), &mut camera, false);
+                        picked = draw_stack(
+                            ui,
+                            &circuit,
+                            &layout,
+                            2,
+                            Some(1),
+                            &mut camera,
+                            false,
+                            SiteReadout::Unavailable,
+                        );
                     });
                 },
             );
