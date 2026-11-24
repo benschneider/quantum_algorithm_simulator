@@ -21,6 +21,7 @@ fn amplitudes_and_marginals_match_dense_evolution_at_each_prefix() {
     builder.crz(3, 1, 0.51).next_step();
     builder.ccnot(3, 0, 2).next_step();
     builder.add_gate(Gate::CXPow, &[2, 1], &[-0.7]).next_step();
+    builder.add_gate(Gate::SYC, &[4, 1], &[]).next_step();
     builder.swap(0, 2).next_step();
     let circuit = builder.build();
     for prefix in 0..=circuit.steps.len() {
@@ -166,6 +167,56 @@ fn two_full_groups_can_swap_then_a_ninth_entangled_wire_hits_the_cap() {
         );
         circuit.steps.pop();
     }
+
+    // After the SWAP, q8 is the GHZ control for q1..q7. Undo its last CX
+    // so the same controlled phase can join q127 without needing a ninth wire.
+    circuit
+        .steps
+        .push(vec![Operation::new(Gate::CX, vec![8, 7], vec![])]);
+    let split = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+    assert_eq!(split.group_wires(7), Some(&[7][..]));
+    assert_eq!(split.group_wires(8).unwrap().len(), 7);
+    circuit
+        .steps
+        .push(vec![Operation::new(Gate::CZPow, vec![1, 127], vec![0.25])]);
+    let joined = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+    assert_eq!(joined.group_wires(127).unwrap().len(), MAX_GROUP_QUBITS);
+    assert_eq!(joined.probability_one(7), Some(0.0));
+}
+
+#[test]
+fn cancelling_a_controlled_phase_releases_two_superposed_wires_with_their_phase() {
+    let mut builder = CircuitBuilder::new(128);
+    builder.x(127).next_step().y(127).next_step(); // -i |0>
+    builder.h(127).h(62).next_step();
+    builder.add_gate(Gate::SqrtZ, &[62], &[]).next_step();
+    builder.cz(127, 62).next_step().cz(62, 127);
+    let circuit = builder.build();
+    let last = circuit.steps.len();
+    let coupled = circuit.run_grouped_prefix(last - 1).unwrap();
+    assert_eq!(coupled.group_wires(127).unwrap().len(), 2);
+    let split = circuit.run_grouped_prefix(last).unwrap();
+    assert_eq!(split.group_wires(127), Some(&[127][..]));
+    assert_eq!(split.group_wires(62), Some(&[62][..]));
+    assert_eq!(split.group_wires(128), None);
+    for high in [0, 1u128 << 127] {
+        assert!((split.amplitude(high).unwrap() + Complex64::I * 0.5).norm() < 1e-12);
+        assert!((split.amplitude(high | (1u128 << 62)).unwrap() - 0.5).norm() < 1e-12);
+    }
+}
+
+#[test]
+fn a_weak_controlled_phase_keeps_the_pair_joined() {
+    let mut builder = CircuitBuilder::new(2);
+    builder.h(0).h(1).next_step();
+    let exponent = 1e-25_f32;
+    builder.add_gate(Gate::CZPow, &[0, 1], &[exponent]);
+    let circuit = builder.build();
+    let grouped = circuit.run_grouped_prefix(circuit.steps.len()).unwrap();
+    assert_eq!(grouped.group_wires(0).unwrap().len(), 2);
+    let expected_im = 0.5 * (std::f64::consts::PI * f64::from(exponent)).sin();
+    assert!((grouped.amplitude(3).unwrap().im / expected_im - 1.0).abs() < 1e-12);
+    assert_eq!(grouped.amplitude(1).unwrap().im, 0.0);
 }
 
 #[test]

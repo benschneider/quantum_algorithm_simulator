@@ -468,6 +468,21 @@ impl GateRegistry {
                     is_parametric: false,
                 },
             ),
+            Gate::SYC => (
+                "SYC",
+                "Ideal Sycamore gate, fSim(π/2, π/6)",
+                Arity::TwoQ,
+                false,
+                Some(vec![0, 1]),
+                GateKind::Unitary {
+                    eval: Box::new(|_: &[_], _: &[u32]| {
+                        let mut matrix = move_big_endian();
+                        matrix[(3, 3)] = Complex::from_polar(1.0, -std::f32::consts::FRAC_PI_6);
+                        GateMatrix::BigEndian(dense_from_small_matrix(&matrix))
+                    }),
+                    is_parametric: false,
+                },
+            ),
             Gate::CCZPow => (
                 "CCZPow",
                 "Controlled-controlled-Z phase gate",

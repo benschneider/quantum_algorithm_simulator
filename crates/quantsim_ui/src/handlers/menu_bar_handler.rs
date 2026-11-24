@@ -1,5 +1,6 @@
 use super::json_editor_handler::load_circuit_json;
 use crate::{messages::Message, state::AppState};
+use crate::state::ui_state::{CentralPanelTab, LayoutView, StackCamera};
 
 pub fn handle_menu_bar_message(state: &mut AppState, message: Message, _messages: &mut [Message]) {
     match message {
@@ -10,6 +11,18 @@ pub fn handle_menu_bar_message(state: &mut AppState, message: Message, _messages
                 .find(|(name, _)| name == &template_name)
             {
                 load_circuit_json(state, json.clone());
+                let ui = &mut state.ui_state;
+                if ui.error_message.is_none() {
+                    if template_name == "sycamore_53.json" {
+                        ui.active_central_tab = CentralPanelTab::Layout;
+                        ui.layout_view = LayoutView::Stack;
+                        ui.stack_camera = StackCamera { yaw: -32.0, pitch: 45.0 };
+                    } else if ui.active_central_tab == CentralPanelTab::Layout
+                        && state.circuit_state.circuit.layout.is_none()
+                    {
+                        ui.active_central_tab = CentralPanelTab::Circuit;
+                    }
+                }
             }
         }
         Message::SaveCircuit => {

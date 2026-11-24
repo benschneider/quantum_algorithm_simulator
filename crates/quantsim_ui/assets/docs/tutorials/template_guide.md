@@ -30,6 +30,10 @@ Step 2 of **quantum teleportation** creates a shared Bell pair on q1 and q2. At 
 
 Click step 6. The receiver q2 still reads 1 half the time. The X correction at step 7 restores its 25% probability. To see why the Z correction at step 8 matters, follow the `101` row in **Joint state**. Its amplitude changes from `−0.25i` to `+0.25i`, restoring the message's relative phase in that branch. This circuit uses quantum controls for the two corrections. In a separated sender–receiver protocol, the sender measures and communicates two classical bits. [Teleportation protocol](https://quantum.cloud.ibm.com/learning/en/courses/basics-of-quantum-information/entanglement-in-action/quantum-teleportation)
 
+## Follow a Sycamore coupler
+
+In **sycamore 53**, the **Layout** tab opens the 3D stack of the 53-qubit chip. Choose **Next step** to prepare q21 in 1 and seven neighbors in superposition. Step 2 lights four outer row couplers in gold. Step 3 lights the two middle row couplers. At step 4, four vertical couplers carry the interaction between the rows. Select q33 in **Inspect** at step 3. It belongs to a four-qubit group. Advance to step 4 to see it become **Independent** as the 1 arrives. The other seven patch sites share one group. Step 5 turns the accumulated phases into measurable probabilities on the other seven sites. This teaching circuit uses the ideal SYC gate on ten of the chip’s 86 couplers. [Chip layout and ideal gate](https://quantumai.google/hardware/datasheet/weber.pdf)
+
 ## Inspect a parity check
 
 In **plaquette z check**, four data qubits surround one ancilla, q4. This is one local check from a surface-code-style layout. Under **Qubit layout**, choose **2D layout** and click the central square **A0 (q4)** to highlight its four neighbors.

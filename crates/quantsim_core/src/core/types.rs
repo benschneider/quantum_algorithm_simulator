@@ -259,7 +259,7 @@ impl Operation {
 pub enum Gate {
     H, X, Y, Z,
     SqrtX, SqrtY, SqrtZ,
-    CX, CZ, CY, SWAP, MOVE,
+    CX, CZ, CY, SWAP, MOVE, SYC,
     CCNOT, CCZ,
     Rz, Rx, Ry,
     CRz,

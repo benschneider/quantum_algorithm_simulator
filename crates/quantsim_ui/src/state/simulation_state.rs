@@ -64,6 +64,13 @@ impl Default for SimulationState {
 }
 
 impl SimulationState {
+    pub(crate) fn group_wires(&self, wire: usize) -> Option<&[u32]> {
+        match self.compact_amplitudes.as_ref()? {
+            CompactAmplitudes::Grouped(state) => state.group_wires(wire),
+            _ => None,
+        }
+    }
+
     pub(crate) fn has_readout(&self) -> bool {
         self.quantum_state.is_some() || self.compact_samples.is_some()
     }

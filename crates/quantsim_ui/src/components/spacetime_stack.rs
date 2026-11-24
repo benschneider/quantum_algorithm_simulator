@@ -161,8 +161,16 @@ fn site_radius(site: &Site<'_>, active: usize) -> f32 {
     }
 }
 
-fn canvas_size(ui: &Ui) -> Vec2 {
+fn canvas_size(ui: &Ui, expanded: bool) -> Vec2 {
     let width = ui.available_width().max(1.0);
+    if expanded {
+        // The scroll area's clip height tracks the space above a mobile results drawer.
+        let height = (ui.ctx().screen_rect().height() * 0.60)
+            .min(ui.clip_rect().height() - 92.0)
+            .min(width * 0.90)
+            .clamp(140.0, 600.0);
+        return vec2(width, height);
+    }
     let height_limit = (ui.ctx().screen_rect().height() * 0.39).clamp(230.0, 355.0);
     vec2(width, (width * 0.65).clamp(230.0, height_limit))
 }
@@ -175,13 +183,15 @@ pub(super) fn draw_stack(
     timestep: usize,
     selected: Option<usize>,
     camera: &mut StackCamera,
+    expanded: bool,
 ) -> Option<(usize, usize)> {
     if layout.positions.is_empty() {
         return None;
     }
     let end = circuit.steps.len();
     let active = timestep.min(end);
-    let (rect, response) = ui.allocate_exact_size(canvas_size(ui), Sense::click_and_drag());
+    let (rect, response) =
+        ui.allocate_exact_size(canvas_size(ui, expanded), Sense::click_and_drag());
     let dragging = response.dragged_by(PointerButton::Primary);
     if dragging {
         let delta = response.drag_delta();
@@ -263,17 +273,19 @@ pub(super) fn draw_stack(
         painter.line_segment([view.site(wire, 0).0, view.site(wire, end).0], stroke);
     }
 
+    let count = layout.positions.len();
+    let crowded = count > 16;
+    let link_stroke = if crowded {
+        Stroke::new(1.3_f32, surface.lerp_to_gamma(physical, 0.52))
+    } else {
+        Stroke::new(2.7_f32, physical)
+    };
     for &[a, b] in &layout.links {
         let line = [view.site(a, active).0, view.site(b, active).0];
-        painter.extend(Shape::dashed_line(
-            &line,
-            Stroke::new(2.7_f32, physical),
-            5.0,
-            3.0,
-        ));
+        painter.extend(Shape::dashed_line(&line, link_stroke, 5.0, 3.0));
     }
-    let count = layout.positions.len();
     let mut sites = Vec::with_capacity(count * steps.len());
+    let mut active_connections = Vec::new();
     for &step in &steps {
         let mut on_wire = vec![None; count];
         if let Some(ops) = step.checked_sub(1).and_then(|i| circuit.steps.get(i)) {
@@ -289,15 +301,22 @@ pub(super) fn draw_stack(
                     let last = last as usize;
                     if last < count {
                         let stroke = if step == active {
-                            Stroke::new(2.2_f32, gate)
+                            Stroke::new(if crowded { 3.5_f32 } else { 2.2_f32 }, gate)
+                        } else if crowded {
+                            Stroke::new(1.0_f32, surface.lerp_to_gamma(gate, 0.25))
                         } else {
                             Stroke::new(1.1_f32, gate.gamma_multiply(0.50))
                         };
                         for &other in others.iter().take(count).filter(|&&w| (w as usize) < count) {
-                            painter.line_segment(
+                            let line = Shape::line_segment(
                                 [view.site(last, step).0, view.site(other as usize, step).0],
                                 stroke,
                             );
+                            if crowded && step == active {
+                                active_connections.push(line);
+                            } else {
+                                painter.add(line);
+                            }
                         }
                     }
                 }
@@ -314,13 +333,24 @@ pub(super) fn draw_stack(
             });
         }
     }
-    sites.sort_by(|a, b| a.depth.total_cmp(&b.depth).then(a.step.cmp(&b.step)));
+    // On a crowded chip paint the active bonds and their endpoints in front of
+    // the other time slices. Hit testing uses the same order.
+    let foreground = |s: &Site<'_>| crowded && s.step == active && s.op.is_some();
+    sites.sort_by(|a, b| {
+        foreground(a)
+            .cmp(&foreground(b))
+            .then_with(|| a.depth.total_cmp(&b.depth))
+            .then(a.step.cmp(&b.step))
+    });
     let hovered = response
         .hover_pos()
         .filter(|_| !dragging)
         .and_then(|p| pick_site(&sites, p, active));
     let mut label_rects: Vec<Rect> = Vec::new();
     for site in &sites {
+        if foreground(site) && !active_connections.is_empty() {
+            painter.extend(active_connections.drain(..));
+        }
         let role = circuit.qubit_roles[site.wire];
         let role_color = if role == Some(QubitRole::Ancilla) {
             ancilla
@@ -331,7 +361,11 @@ pub(super) fn draw_stack(
         let chosen = site.step == active && selected == Some(site.wire);
         let near = hovered.is_some_and(|other| (other.wire, other.step) == (site.wire, site.step));
         let r = site_radius(site, active);
-        let fill = if site.step == active {
+        let fill = if crowded && site.step != active {
+            surface.lerp_to_gamma(color, if site.op.is_some() { 0.38 } else { 0.20 })
+        } else if crowded && site.op.is_none() && !chosen {
+            surface.lerp_to_gamma(role_color, 0.56)
+        } else if site.step == active {
             color
         } else {
             surface.lerp_to_gamma(color, if site.op.is_some() { 0.8 } else { 0.46 })
@@ -378,7 +412,7 @@ pub(super) fn draw_stack(
                 .filter(|s| s.step == active && selected != Some(s.wire)),
         )
     {
-        if count > 8 && site.op.is_none() && selected != Some(site.wire) {
+        if selected != Some(site.wire) && (crowded || (count > 8 && site.op.is_none())) {
             continue;
         }
         let name = site_name(circuit, site.wire);
@@ -525,16 +559,19 @@ mod tests {
         let mut rect = Rect::NOTHING;
         let drawn = ctx.run(RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui));
-                draw_stack(ui, &circuit, &layout, 502, None, &mut camera);
+                rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
+                draw_stack(ui, &circuit, &layout, 502, None, &mut camera, false);
             });
         });
         let view = Projection::new(&layout, 1001, &camera, rect);
         for step in [0, 200, 400, 600, 800, 1001] {
             let plate = view.plate(step);
-            assert!(drawn.shapes.iter().any(|c| matches!(
-                &c.shape, Shape::Path(path) if path.closed && path.points.as_slice() == plate
-            )), "missing guide at t{step}");
+            assert!(
+                drawn.shapes.iter().any(|c| matches!(
+                    &c.shape, Shape::Path(path) if path.closed && path.points.as_slice() == plate
+                )),
+                "missing guide at t{step}"
+            );
         }
     }
 
@@ -569,6 +606,73 @@ mod tests {
     }
 
     #[test]
+    fn stepping_a_large_layout_highlights_only_the_current_bonds_in_front_of_spectators() {
+        let mut circuit = Circuit::new(53);
+        circuit.steps = vec![
+            vec![Operation::new(Gate::H, vec![19], vec![])],
+            vec![
+                Operation::new(Gate::CZ, vec![19, 20], vec![]),
+                Operation::new(Gate::CZ, vec![27, 28], vec![]),
+            ],
+            vec![Operation::new(Gate::CZ, vec![19, 27], vec![])],
+        ];
+        let layout = QubitLayout::grid(53);
+        let ctx = egui::Context::default();
+        for active in 1..=3 {
+            let mut rect = Rect::NOTHING;
+            let mut camera = StackCamera::default();
+            let output = ctx.run(RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
+                    draw_stack(ui, &circuit, &layout, active, None, &mut camera, false);
+                });
+            });
+            let view = Projection::new(&layout, 3, &camera, rect);
+            let gate = Color32::from_rgb(255, 198, 100);
+            let bonds: Vec<_> = output
+                .shapes
+                .iter()
+                .enumerate()
+                .filter_map(|(i, c)| match c.shape {
+                    Shape::LineSegment { points, stroke } if stroke.color == gate => {
+                        Some((i, points))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let expected: Vec<_> = circuit.steps[active - 1]
+                .iter()
+                .filter_map(|op| {
+                    let [a, b] = *op.qubits.as_slice() else {
+                        return None;
+                    };
+                    Some([
+                        view.site(b as usize, active).0,
+                        view.site(a as usize, active).0,
+                    ])
+                })
+                .collect();
+            assert_eq!(
+                bonds.iter().map(|&(_, points)| points).collect::<Vec<_>>(),
+                expected
+            );
+            if let Some(&(index, _)) = bonds.first() {
+                let foreground_nodes: Vec<_> = output.shapes[index..]
+                    .iter()
+                    .filter_map(|c| {
+                        if let Shape::Circle(site) = &c.shape {
+                            Some(site.fill)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                assert_eq!(foreground_nodes, vec![gate; 2 * expected.len()]);
+            }
+        }
+    }
+
+    #[test]
     fn click_selects_wire_and_step_but_orbit_leaves_readout_alone() {
         let ctx = egui::Context::default();
         let mut camera = StackCamera::default();
@@ -592,8 +696,9 @@ mod tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        rect = Rect::from_min_size(ui.next_widget_position(), canvas_size(ui));
-                        picked = draw_stack(ui, &circuit, &layout, 2, Some(1), &mut camera);
+                        rect =
+                            Rect::from_min_size(ui.next_widget_position(), canvas_size(ui, false));
+                        picked = draw_stack(ui, &circuit, &layout, 2, Some(1), &mut camera, false);
                     });
                 },
             );

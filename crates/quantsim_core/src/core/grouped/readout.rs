@@ -28,6 +28,16 @@ impl Factor {
 }
 
 impl GroupedState {
+    /// Physical wires stored in the same factor as `wire`, in local amplitude-bit order.
+    /// A single entry means the simulator represents this wire independently.
+    pub fn group_wires(&self, wire: usize) -> Option<&[u32]> {
+        (wire < self.num_qubits).then(|| {
+            self.factors[self.factor_index(wire as u32)]
+                .wires
+                .as_slice()
+        })
+    }
+
     /// The largest factor width used for this state, including single-wire factors.
     pub fn largest_group_size(&self) -> usize {
         self.factors

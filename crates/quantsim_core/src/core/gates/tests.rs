@@ -340,6 +340,21 @@ fn registry_move_gate_matches_logical_state_transfer_action() {
 }
 
 #[test]
+fn sycamore_exchanges_single_excitations_and_phases_double_occupancy() {
+    let registry = GateRegistry::new_with_standard_gates();
+    let gate = registry_matrix(&registry, Gate::SYC, &[], &[0, 1]);
+    let outputs = [
+        (0, c(1.0, 0.0)),
+        (2, c(0.0, -1.0)),
+        (1, c(0.0, -1.0)),
+        (3, c(3.0_f32.sqrt() / 2.0, -0.5)),
+    ];
+    for (input, (output, phase)) in outputs.into_iter().enumerate() {
+        assert_vectors_close(&(&gate * basis(input, 4)), &(basis(output, 4) * phase));
+    }
+}
+
+#[test]
 fn ccnot_flips_the_third_wire_only_when_both_controls_are_set() {
     for (num_qubits, wires) in [
         (3, [1, 2, 0]),

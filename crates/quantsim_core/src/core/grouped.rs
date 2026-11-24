@@ -10,6 +10,7 @@ use num_complex::Complex64;
 use smallvec::SmallVec;
 
 mod readout;
+mod split;
 
 /// Maximum number of wires in any one dense factor.
 pub const MAX_GROUP_QUBITS: usize = 8;
@@ -103,7 +104,7 @@ pub struct GroupedState {
 impl Circuit {
     /// Executes up to `step_count` columns using bounded, independent factors.
     /// A gate requiring a factor wider than the limit returns its authored
-    /// location. Previously joined factors remain together for later gates.
+    /// location. Separable single wires can leave a factor after a gate.
     pub fn run_grouped_prefix(&self, step_count: usize) -> Result<GroupedState, ValidationError> {
         self.validate_compact_input("Grouped")?;
         let mut state = GroupedState {
@@ -141,13 +142,13 @@ impl GroupedState {
         }
     }
 
-    fn join(&mut self, operands: &[u32], gate: &Gate) -> Result<&mut Factor, String> {
+    fn join(&mut self, operands: &[u32], gate: &Gate) -> Result<usize, String> {
         let mut indices: SmallVec<[usize; 3]> =
             operands.iter().map(|&q| self.factor_index(q)).collect();
         indices.sort_unstable();
         indices.dedup();
         if indices.len() == 1 {
-            return Ok(&mut self.factors[indices[0]]);
+            return Ok(indices[0]);
         }
         let width: usize = indices.iter().map(|&i| self.factors[i].wires.len()).sum();
         if width > MAX_GROUP_QUBITS {
@@ -171,7 +172,7 @@ impl GroupedState {
             wires,
             state: FactorState::Group(values),
         });
-        Ok(self.factors.last_mut().unwrap())
+        Ok(self.factors.len() - 1)
     }
 
     fn apply_z_power(
@@ -212,7 +213,8 @@ impl GroupedState {
             // All operands are one. Retain the global phase on any one factor.
             active.push(operands[0]);
         }
-        let factor = self.join(&active, gate)?;
+        let index = self.join(&active, gate)?;
+        let factor = &mut self.factors[index];
         let mask = active
             .iter()
             .fold(0, |m, &q| m | (1 << factor.local_bit(q)));
@@ -223,6 +225,9 @@ impl GroupedState {
                     if i & mask == mask {
                         *value *= phase;
                     }
+                }
+                if active.len() > 1 {
+                    self.split_singletons(index);
                 }
             }
         }
@@ -297,10 +302,17 @@ impl GroupedState {
                 }
             }
         }
-        let factor = self.join(&op.qubits, &op.id)?;
+        let index = self.join(&op.qubits, &op.id)?;
+        let factor = &mut self.factors[index];
         match &mut factor.state {
             FactorState::Single(wire) => wire.apply_single(op, registry, param),
-            FactorState::Group(_) => factor.apply_matrix(op, registry),
+            FactorState::Group(_) => {
+                factor.apply_matrix(op, registry)?;
+                if op.qubits.len() > 1 {
+                    self.split_singletons(index);
+                }
+                Ok(())
+            }
         }
     }
 }

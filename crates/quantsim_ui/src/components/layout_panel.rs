@@ -5,8 +5,8 @@ use super::{
 use crate::{
     messages::Message,
     state::{
-        ui_state::{LayoutView, StackCamera},
-        AppState,
+        ui_state::{CentralPanelTab, LayoutView, StackCamera},
+        AppState, SimulationState,
     },
 };
 use quantsim_core::circuit::{Circuit, QubitLayout};
@@ -24,7 +24,10 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
         width = (width - 380.0).max(280.0).min(width);
     }
     let frame = egui::Frame::group(ui.style());
-    let inner_width = (width.min(660.0) - frame.total_margin().sum().x).max(1.0);
+    if view.active_central_tab != CentralPanelTab::Layout {
+        width = width.min(660.0);
+    }
+    let inner_width = (width - frame.total_margin().sum().x).max(1.0);
     frame.show(ui, |ui| {
         ui.set_width(inner_width);
         ui.horizontal_wrapped(|ui| {
@@ -80,10 +83,18 @@ pub(crate) fn show(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
                     step,
                     view.selected_layout_wire,
                     &mut view.stack_camera,
+                    view.active_central_tab == CentralPanelTab::Layout,
                 ) {
                     messages.push(Message::InspectLayoutSite { wire, step });
                 }
-                stack_inspector(ui, circuit, step, view.selected_layout_wire, messages);
+                stack_inspector(
+                    ui,
+                    circuit,
+                    step,
+                    view.selected_layout_wire,
+                    &state.simulation_state,
+                    messages,
+                );
                 egui::CollapsingHeader::new("Camera")
                     .show(ui, |ui| camera_controls(ui, &mut view.stack_camera));
             }
@@ -129,6 +140,7 @@ fn stack_inspector(
     circuit: &Circuit,
     step: usize,
     selected: Option<usize>,
+    simulation: &SimulationState,
     messages: &mut Vec<Message>,
 ) {
     ui.horizontal_wrapped(|ui| {
@@ -174,6 +186,24 @@ fn stack_inspector(
                 ui.label("Initial state");
             } else {
                 ui.label("Idle at this step");
+            }
+            if let Some(group) = simulation.group_wires(wire) {
+                if group.len() == 1 {
+                    ui.label("Independent");
+                } else {
+                    ui.label(format!("{}-qubit group", group.len()))
+                        .on_hover_ui(|ui| {
+                            let mut wires = group.to_vec();
+                            wires.sort_unstable();
+                            ui.label(
+                                wires
+                                    .iter()
+                                    .map(|q| format!("q{q}"))
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                            );
+                        });
+                }
             }
         }
     });

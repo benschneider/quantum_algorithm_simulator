@@ -2,7 +2,7 @@ use crate::components::{
     circuit_controls, circuit_grid, gate_palette, json_editor_panel, layout_panel,
 };
 use crate::messages::Message;
-use crate::state::{ui_state::LeftPanelTab, AppState};
+use crate::state::{ui_state::{CentralPanelTab, LeftPanelTab}, AppState};
 
 /// The `central_panel` module is responsible for rendering the main content of
 /// the application. This includes the circuit grid, the JSON editor, and the
@@ -13,7 +13,8 @@ use crate::state::{ui_state::LeftPanelTab, AppState};
 /// a specific part of the UI.
 pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Message>) {
     let compact_palette = ctx.available_rect().width() < 720.0;
-    if !compact_palette {
+    let show_palette = state.ui_state.active_central_tab != CentralPanelTab::Layout;
+    if show_palette && !compact_palette {
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(
@@ -35,7 +36,7 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
 
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.horizontal(|ui| {
-            if compact_palette {
+            if show_palette && compact_palette {
                 ui.menu_button("Gates", |ui| {
                     let before = messages.len();
                     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -48,13 +49,18 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
             }
             ui.selectable_value(
                 &mut state.ui_state.active_central_tab,
-                crate::state::ui_state::CentralPanelTab::Circuit,
+                CentralPanelTab::Circuit,
                 "Circuit",
+            );
+            ui.selectable_value(
+                &mut state.ui_state.active_central_tab,
+                CentralPanelTab::Layout,
+                "Layout",
             );
             if ui
                 .selectable_value(
                     &mut state.ui_state.active_central_tab,
-                    crate::state::ui_state::CentralPanelTab::JsonEditor,
+                    CentralPanelTab::JsonEditor,
                     "JSON",
                 )
                 .clicked()
@@ -69,7 +75,7 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
             ui.colored_label(ui.visuals().error_fg_color, error);
         }
         match state.ui_state.active_central_tab {
-            crate::state::ui_state::CentralPanelTab::Circuit => {
+            CentralPanelTab::Circuit => {
                 egui::ScrollArea::vertical()
                     .id_salt("circuit_workspace")
                     .show(ui, |ui| {
@@ -87,7 +93,12 @@ pub fn render(state: &mut AppState, ctx: &egui::Context, messages: &mut Vec<Mess
                         layout_panel::show(ui, state, messages);
                     });
             }
-            crate::state::ui_state::CentralPanelTab::JsonEditor => {
+            CentralPanelTab::Layout => {
+                egui::ScrollArea::vertical()
+                    .id_salt("layout_workspace")
+                    .show(ui, |ui| layout_panel::show(ui, state, messages));
+            }
+            CentralPanelTab::JsonEditor => {
                 egui::ScrollArea::both().show(ui, |ui| {
                     json_editor_panel::json_editor_panel(state, ui, messages);
                 });

@@ -16,6 +16,15 @@ pub(super) struct Wire {
 }
 
 impl Wire {
+    pub(super) fn from_factor(amplitudes: [Complex64; 2]) -> Self {
+        // A numerical factorization supplies amplitudes, not a gate-history
+        // certificate for simplifying later controlled operations.
+        Self {
+            amplitudes,
+            pauli_eigenstate: false,
+        }
+    }
+
     pub(super) fn new(prep: QubitPrep) -> Self {
         let half = std::f64::consts::FRAC_1_SQRT_2;
         let pair = match prep {

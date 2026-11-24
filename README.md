@@ -185,7 +185,7 @@ The layout uses `egui`'s panel system to create a clear, organized workspace.
 
 *   **Top Panel**: Contains the main menu bar and circuit controls.
 *   **Left Panel**: Contains the `Gate Palette`.
-*   **Central panel** holds the circuit grid, the synchronized qubit layout below it, and the **JSON** tab for importing and exporting circuits.
+*   **Central panel** holds the circuit grid, a **Layout** tab for inspecting the chip at full width, and the **JSON** tab for importing and exporting circuits.
 *   **Results** shows wire probabilities after the selected step. The joint readout shows amplitudes for small circuits and sampled outcomes for wide circuits. On smaller screens it opens below the circuit.
 
 ### User Interaction Flow
@@ -350,7 +350,7 @@ The "Results" window displays the outcome of your simulation:
 *   **Amplitude waveform** plots the real and imaginary parts at up to 64 basis indices. The axis gives the actual amplitude scale. The automatic window follows the first occupied index and the lowest varying bit as the circuit evolves. Small registers show every index. Use **Range** to inspect another part of a large register. All simulators use the first occupied index as a positive real phase reference for the graph.
 *   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
 *   For **22–128 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
-*   Wide circuits start from per-wire preparations. The stabilizer simulator handles entangled circuits built from H, SqrtZ, CX, X, Y, and Z across all 128 wires. The product-state simulator handles basis-input Fourier transforms. For circuits that need both controlled phases and entanglement, the grouped simulator can track up to eight wires together in one state vector. Several independent groups can coexist. If a gate would require a larger group and the other simulators cannot run it, the circuit editor identifies the gate. Earlier steps remain available.
+*   Wide circuits start from per-wire preparations. The stabilizer simulator handles entangled circuits built from H, SqrtZ, CX, X, Y, and Z across all 128 wires. The product-state simulator handles basis-input Fourier transforms. For circuits that need both controlled phases and entanglement, the grouped simulator can track up to eight wires together in one state vector. Several independent groups can coexist. When a wire separates from its group, the simulator can store it independently again. Select a wire in the 3D inspector to see its group for that step. If a gate would require a larger group and the other simulators cannot run it, the circuit editor identifies the gate. Earlier steps remain available.
 
 
 #### Time Scrubber
@@ -380,6 +380,7 @@ For a step-by-step reading of the examples, open **Help → Tutorial → Templat
 *   **fourier wave 50** builds one Fourier mode in ten labeled steps. The first five spread the amplitude over all 50 qubits. The next five change only the phases. Watch the imaginary amplitude resolve into a sine wave while the measurement probabilities stay fixed.
 *   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
 *   **Plaquette z check** uses one central ancilla to read the joint Z parity of four neighboring data qubits over four CNOT steps.
+*   **sycamore 53** opens the 53-site chip in 3D. Choose **Next step** to light up four outer row couplers, two middle row couplers, then four column couplers on a 2×4 patch. Follow the prepared 1 from q21 to q22, q23 and q33. [Sycamore chip layout and gate](https://quantumai.google/hardware/datasheet/weber.pdf)
 *   **Error correction bit flip** and **Error correction bit flip two faults** encode one logical qubit across q0–q2. The **Z coupling** section writes adjacent-pair parities into ancillas q3 and q4. Compare the syndrome at step 7 and the decoded output on q1 at step 13.
 *   **Error correction phase flip** and **Error correction phase flip two faults** use the same five-wire layout. The **X coupling** section surrounds ancilla-controlled CNOTs with Hadamards on the ancillas. Compare the syndrome at step 10 and the decoded output on q1 at step 17.
 

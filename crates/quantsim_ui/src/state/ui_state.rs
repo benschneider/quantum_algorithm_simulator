@@ -42,6 +42,7 @@ pub enum LeftPanelTab {
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum CentralPanelTab {
     Circuit,
+    Layout,
     JsonEditor,
 }
 
