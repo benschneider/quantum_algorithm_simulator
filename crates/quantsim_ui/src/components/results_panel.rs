@@ -4,6 +4,8 @@ use crate::state::AppState;
 use egui_plot::{Bar, BarChart, GridMark, Plot};
 use quantsim_core::{circuit::QubitRole, core::engine::QuantumState};
 
+mod waveform;
+
 pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message> {
     let circuit = &state.circuit_state.circuit;
     let simulation = &mut state.simulation_state;
@@ -19,10 +21,15 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
         ui.heading("Step 0 · Initial state");
     } else if let Some(section) = circuit.section_at(step) {
         ui.heading(format!("After step {step} · {}", section.label));
+        let description = section.description.trim();
+        if !description.is_empty() {
+            ui.add(egui::Label::new(description).wrap());
+        }
     } else {
         ui.heading(format!("After step {step}"));
     }
 
+    waveform::show(ui, simulation);
     if let Some(samples) = &simulation.compact_samples {
         show_joint_samples(ui, samples, circuit.num_qubits);
         ui.separator();
@@ -45,8 +52,12 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
                 };
                 let label = egui::RichText::new(format!("q{wire}")).monospace();
                 if state.ui_state.selected_layout_wire == Some(wire) {
-                    ui.label(label.strong().background_color(ui.visuals().selection.bg_fill))
-                        .on_hover_text("Selected in Qubit layout");
+                    ui.label(
+                        label
+                            .strong()
+                            .background_color(ui.visuals().selection.bg_fill),
+                    )
+                    .on_hover_text("Selected in Qubit layout");
                 } else {
                     ui.label(label);
                 }
@@ -231,12 +242,27 @@ mod tests {
     #[test]
     fn narrow_compact_results_show_sample_counts_and_wrap_all_64_bits() {
         use crate::state::SimulationState;
-        use quantsim_core::{circuit::Circuit, types::Operation};
+        use quantsim_core::{
+            circuit::{Circuit, CircuitSection},
+            types::Operation,
+        };
 
+        let description = "The high bit stays set while Hadamard gates spread the amplitude evenly across the low twelve bits.";
         let mut circuit = Circuit::new(64);
         let mut column = vec![Operation::new(Gate::X, vec![63], vec![])];
         column.extend((0..12).map(|wire| Operation::new(Gate::H, vec![wire], vec![])));
         circuit.steps.push(column);
+        circuit
+            .set_section(
+                None,
+                CircuitSection {
+                    start: 1,
+                    end: 1,
+                    label: "Spread the amplitude".into(),
+                    description: description.into(),
+                },
+            )
+            .unwrap();
         let state = circuit.run_stabilizer_prefix(1).unwrap();
         let mut app = QCSimApp::default();
         app.state.circuit_state.circuit = circuit;
@@ -279,6 +305,12 @@ mod tests {
                 .find(|text| text.galley.text() == needle)
                 .unwrap_or_else(|| panic!("missing label {needle}"))
         };
+        let caption = label(description);
+        assert!(label("After step 1 · Spread the amplitude").pos.y < caption.pos.y);
+        assert!(caption.visual_bounding_rect().bottom() < label("Amplitude waveform").pos.y);
+        assert!(caption.galley.rows.len() > 1);
+        assert!(caption.visual_bounding_rect().right() <= 360.0);
+        assert!(label("Amplitude waveform").pos.y < label("Joint samples").pos.y);
         assert!(label("Joint samples").pos.y < label("Wire readout").pos.y);
         label("Outcome (q63 … q0)");
         label(&format!(
@@ -324,6 +356,7 @@ mod tests {
                     start: 1,
                     end: 1,
                     label: "Parity readout".into(),
+                    description: String::new(),
                 },
             )
             .unwrap();
@@ -335,7 +368,8 @@ mod tests {
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
-                        egui::vec2(600.0, 800.0),
+                        // Exercise both the amplitude and probability plots in one scrollable result.
+                        egui::vec2(600.0, 1100.0),
                     )),
                     ..Default::default()
                 },

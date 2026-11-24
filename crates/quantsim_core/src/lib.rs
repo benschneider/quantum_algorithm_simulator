@@ -166,6 +166,7 @@ pub use crate::core::builder::CircuitBuilder;
 pub use crate::core::circuit;
 /// Re-export of the `engine` module.
 pub use crate::core::engine;
+pub use crate::core::product_state;
 pub use crate::core::stabilizer;
 /// Re-export of the `gates` module.
 pub use crate::core::gates;

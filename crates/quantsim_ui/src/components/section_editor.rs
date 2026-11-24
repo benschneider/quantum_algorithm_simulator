@@ -45,6 +45,14 @@ pub(super) fn show(ctx: &egui::Context, state: &mut AppState, messages: &mut Vec
                 ui.label("Label");
                 ui.add(egui::TextEdit::singleline(&mut draft.section.label).desired_width(200.0));
                 ui.end_row();
+                ui.label("Description");
+                ui.add(
+                    egui::TextEdit::multiline(&mut draft.section.description)
+                        .hint_text("Optional")
+                        .desired_width(200.0)
+                        .desired_rows(2),
+                );
+                ui.end_row();
                 ui.label("First step");
                 ui.add(egui::DragValue::new(&mut draft.section.start).range(1..=last_step));
                 ui.end_row();

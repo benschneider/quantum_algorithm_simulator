@@ -345,15 +345,17 @@ Once your circuit is defined, you can simulate it within the `quantsim` EGUI:
 The "Results" window displays the outcome of your simulation:
 
 *   **Wire readout** shows each wire's role and its probability of reading 1 in the computational basis.
+*   **Amplitude waveform** plots the real and imaginary parts at up to 64 basis indices. The axis gives the actual amplitude scale. The automatic window follows the first occupied index and the lowest varying bit as the circuit evolves. Small registers show every index. Use **Range** to inspect another part of a large register. All simulators use the first occupied index as a positive real phase reference for the graph.
 *   For **1–21 wires**, **Joint state** shows populated basis states and their amplitudes. **Joint probabilities** uses the same 0–100% scale at every step and on every page. Hover over a bar to read its amplitude and phase.
-*   For **22–64 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wide circuits support per-wire preparations and built-in H, SqrtZ, CX, X, Y, and Z gates. Wire probabilities remain exact.
+*   For **22–64 wires**, **Joint samples** shows counts from 1,024 simulated measurements at the selected step. It lists up to 16 observed outcomes in descending frequency and groups the remaining counts. The rightmost bit is q0. Wire probabilities are calculated directly from the state.
+*   Wide circuits start from per-wire preparations. The stabilizer simulator supports entangled circuits built from H, SqrtZ, CX, X, Y, and Z. The product-state simulator also handles editable basis-input Fourier transforms, including controlled phase rotations and wire swaps. If neither simulator can verify the selected gates, the circuit editor identifies the gate where execution stopped. Earlier steps remain available.
 
 
 #### Time Scrubber
 
-Use the **Timestep** slider or click a numbered column to inspect all wires after that step. Step 0 shows the initial state. Clicking a section label jumps to its last step. You can inspect any step repeatedly without collapsing the simulated state.
+Use **Next step** and **Previous step** to follow the circuit at your own pace. **Play** holds the first step of each section with a description for eight seconds and advances other steps every 0.6 seconds. The **Timestep** slider and numbered columns jump directly to a step. Step 0 shows the initial state. Clicking a section label jumps to its last step. You can revisit any step without collapsing the simulated state.
 
-To annotate a circuit, open **Sections** beside the slider, choose **New section**, enter a label and its first and last steps, then save. The label spans those columns. Open **Sections** again to rename, resize or delete it. Wire roles and section labels travel with the circuit JSON.
+To annotate a circuit, open **Sections** beside the slider, choose **New section**, and enter a label and its first and last steps. Add an optional description of what to look for, then save. The label spans those columns, and Results shows the description beneath the step title. Open **Sections** again to edit or delete it. Wire roles and sections travel with the circuit JSON.
 
 
 ### Loading and Saving Circuits
@@ -370,6 +372,8 @@ For a step-by-step reading of the examples, open **Help → Tutorial → Templat
 *   **Deutsch algorithm** uses a single query to a balanced oracle. The final Hadamard turns a phase difference into a definite 1 on q0.
 *   **Grover** marks `11` among four states. **Grover algorithm** marks `100` among eight and lets you compare two rounds of amplification.
 *   **QFT** and **QFT4** apply the forward Fourier transform to `01` and `1011`. The output probabilities are uniform. The complex amplitudes show how the phases advance.
+*   **qft 50** applies a 50-qubit Fourier transform to an input with q48 set to one. The template guide shows how to turn an edited phase into a measurable change on q0.
+*   **fourier wave 50** builds one Fourier mode in ten labeled steps. The first five spread the amplitude over all 50 qubits. The next five change only the phases. Watch the imaginary amplitude resolve into a sine wave while the measurement probabilities stay fixed.
 *   **Quantum teleportation** transfers a prepared state from q0 to q2 using a shared Bell pair and two coherently controlled corrections. Inspect the receiver before and after correction.
 *   **Plaquette z check** uses one central ancilla to read the joint Z parity of four neighboring data qubits over four CNOT steps.
 *   **Error correction bit flip** and **Error correction bit flip two faults** encode one logical qubit across q0–q2. The **Z coupling** section writes adjacent-pair parities into ancillas q3 and q4. Compare the syndrome at step 7 and the decoded output on q1 at step 13.

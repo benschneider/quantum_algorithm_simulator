@@ -7,6 +7,7 @@ pub enum Message {
     SaveCircuit,
     NewCircuit,
     RunSimulation,
+    TogglePlayback(f64),
 
     // Circuit Control Messages
     ChangeQubits(usize),

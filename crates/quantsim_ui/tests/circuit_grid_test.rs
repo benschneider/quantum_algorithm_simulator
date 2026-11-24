@@ -11,6 +11,7 @@ fn section_header_spans_its_numbered_columns_and_aligns_with_gates() {
             None,
             CircuitSection {
                 label: "X coupling".into(),
+                description: String::new(),
                 start: 2,
                 end: 3,
             },

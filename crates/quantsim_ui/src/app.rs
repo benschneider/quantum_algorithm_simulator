@@ -58,6 +58,9 @@ impl eframe::App for QCSimApp {
         for message in messages {
             handlers::handle_message(&mut self.state, message, &mut self.messages);
         }
+        if let Some(delay) = handlers::playback::advance(&mut self.state, ctx.input(|i| i.time)) {
+            ctx.request_repaint_after(delay);
+        }
 
         let state = &mut self.state;
         let mut ui_messages = Vec::new();

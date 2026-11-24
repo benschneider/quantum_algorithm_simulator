@@ -1,4 +1,4 @@
-use super::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS};
+use super::simulation_state::{COMPACT_SHOTS, MAX_SAMPLE_ROWS, WAVEFORM_POINTS};
 use super::{AppState, CircuitState};
 use nalgebra::Complex;
 use quantsim_core::types::{GateMatrix, Operation};
@@ -18,8 +18,15 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
 
     // Include retained buffers that overlap the next run.
     let mut bytes = readout.populated_indices.capacity() as u128 * INDEX;
+    let wave_point = size_of::<Complex<f64>>() as u128;
+    bytes += WAVEFORM_POINTS as u128 * wave_point;
+    if let Some(wave) = readout.waveform() {
+        bytes += wave.points.capacity() as u128 * wave_point;
+    }
     if let Some(samples) = &readout.compact_samples {
         bytes += samples.rows.capacity() as u128 * size_of::<(u64, u32)>() as u128;
+        // Retained product factors or packed Pauli rows used for graph navigation.
+        bytes += readout.wire_one_probabilities.len() as u128 * 64;
     }
     bytes += (circuit.num_qubits as u128 + readout.wire_one_probabilities.capacity() as u128)
         * size_of::<f64>() as u128;
@@ -32,9 +39,12 @@ pub(crate) fn estimated_peak_bytes(state: &AppState) -> Option<u64> {
     }
 
     if circuit.num_qubits > CircuitState::MAX_DENSE_QUBITS {
-        // Two tableaus (state and sampling scratch), each with two packed rows
-        // per wire. Allow 32 bytes per row, including padding.
+        // Stabilizer sampling keeps two tableaus with two rows per wire. The
+        // 32-byte row allowance also covers the smaller product-state path,
+        // which replays the circuit after the failed tableau is dropped.
         bytes += 4 * circuit.num_qubits as u128 * 32;
+        // New amplitude lookup while the backend is live.
+        bytes += circuit.num_qubits as u128 * 64;
         // Packed shots and temporary counts, including vector growth during grouping.
         bytes += u128::from(COMPACT_SHOTS) * 32;
         bytes += MAX_SAMPLE_ROWS as u128 * size_of::<(u64, u32)>() as u128;

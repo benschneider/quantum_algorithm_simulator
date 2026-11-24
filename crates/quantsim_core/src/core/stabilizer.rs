@@ -5,7 +5,7 @@ mod tableau;
 
 use super::circuit::{Circuit, ValidationError};
 use super::types::{Gate, Operation, QubitPrep};
-pub use tableau::StabilizerState;
+pub use tableau::{StabilizerAmplitudes, StabilizerState};
 
 impl Circuit {
     /// Simulates the prepared input and the first `step_count` authored columns
@@ -34,31 +34,10 @@ impl Circuit {
         &self,
         step_count: usize,
     ) -> Result<StabilizerState, ValidationError> {
-        let input_error = |message| ValidationError {
-            step: 0,
-            op_index: 0,
-            message,
-        };
-        if !(1..=64).contains(&self.num_qubits) {
-            return Err(input_error(format!(
-                "Stabilizer simulation supports 1–64 qubits. This circuit has {}.",
-                self.num_qubits
-            )));
-        }
-        if self.initial_state.is_some() {
-            return Err(input_error(
-                "Stabilizer simulation requires a product preparation. Found an explicit initial state vector.".into(),
-            ));
-        }
-
+        self.validate_compact_input("Stabilizer")?;
         let mut state = StabilizerState::zero(self.num_qubits);
         for (wire, &prep) in self.initial_preps.iter().enumerate() {
             let Some(prep) = prep else { continue };
-            if wire >= self.num_qubits {
-                return Err(input_error(format!(
-                    "Initial preparation wire {wire} is out of bounds."
-                )));
-            }
             match prep {
                 QubitPrep::Zero => {}
                 QubitPrep::One => state.x(wire),
@@ -70,50 +49,13 @@ impl Circuit {
             }
         }
 
-        for (step, column) in self.steps.iter().take(step_count).enumerate() {
-            let mut occupied = 0u64;
-            for (op_index, op) in column.iter().enumerate() {
-                state
-                    .apply_operation(op, self.num_qubits, &mut occupied)
-                    .map_err(|message| ValidationError {
-                        step,
-                        op_index,
-                        message,
-                    })?;
-            }
-        }
+        self.visit_compact_operations(step_count, "Stabilizer", |op| state.apply_operation(op))?;
         Ok(state)
     }
 }
 
 impl StabilizerState {
-    fn apply_operation(
-        &mut self,
-        op: &Operation,
-        num_qubits: usize,
-        occupied: &mut u64,
-    ) -> Result<(), String> {
-        if op.matrix.is_some() {
-            return Err(format!(
-                "Gate {} has an explicit matrix. Stabilizer simulation requires a built-in definition.",
-                op.id
-            ));
-        }
-        for &wire in &op.qubits {
-            if wire as usize >= num_qubits {
-                return Err(format!(
-                    "Qubit {wire} is out of bounds for a {num_qubits}-qubit circuit."
-                ));
-            }
-            let mask = 1u64 << wire;
-            if *occupied & mask != 0 {
-                return Err(format!(
-                    "Qubit {wire} is used more than once in the same timestep."
-                ));
-            }
-            *occupied |= mask;
-        }
-
+    fn apply_operation(&mut self, op: &Operation) -> Result<(), String> {
         match (&op.id, op.qubits.as_slice()) {
             (Gate::H, &[q]) => self.h(q as usize),
             (Gate::SqrtZ, &[q]) => self.s(q as usize),

@@ -1,5 +1,8 @@
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
+mod amplitudes;
+pub use amplitudes::StabilizerAmplitudes;
+
 /// Represents i^phase X^x Z^z, with all X factors ordered before all Z factors.
 /// In particular Y = iXZ. This convention keeps the phase of a row product explicit.
 #[derive(Clone, Copy, Debug, Default)]

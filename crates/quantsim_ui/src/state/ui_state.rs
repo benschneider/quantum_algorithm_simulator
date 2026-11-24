@@ -18,6 +18,7 @@ impl SectionDraft {
                 start: step,
                 end: step,
                 label: String::new(),
+                description: String::new(),
             }),
             error: None,
         }
@@ -143,6 +144,7 @@ pub struct UIState {
     pub show_tutorial_window: bool,
     pub show_welcome_screen: bool,
     pub current_timestep: usize,
+    pub(crate) next_playback_step_at: Option<f64>,
     pub selected_layout_wire: Option<usize>,
     pub layout_view: LayoutView,
     pub stack_camera: StackCamera,
@@ -178,6 +180,7 @@ impl Default for UIState {
             show_tutorial_window: false,
             show_welcome_screen: true,
             current_timestep: 0,
+            next_playback_step_at: None,
             selected_layout_wire: None,
             layout_view: LayoutView::Plane,
             stack_camera: StackCamera::default(),

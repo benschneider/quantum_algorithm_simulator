@@ -74,20 +74,7 @@ fn simulate(
     reset_page: bool,
 ) -> Result<(), String> {
     if circuit.num_qubits > CircuitState::MAX_DENSE_QUBITS {
-        let state = circuit.run_stabilizer_prefix(step_count).map_err(|error| {
-            // Input diagnostics share (0, 0) with the first authored gate.
-            if error.step == 0 && error.op_index == 0 && circuit.run_stabilizer_prefix(0).is_err() {
-                error.message
-            } else {
-                format!(
-                    "Step {}, gate {}: {}",
-                    error.step + 1,
-                    error.op_index + 1,
-                    error.message
-                )
-            }
-        })?;
-        *readout = SimulationState::from_stabilizer(&state, circuit.num_qubits);
+        readout.replace_compact_readout(compact_readout(circuit, step_count)?);
         return Ok(());
     }
     let result = circuit.run_prefix(step_count, &RunOptions::default());
@@ -101,6 +88,37 @@ fn simulate(
     let state = QuantumState::from_owned_vector(circuit.num_qubits, state_vector)?;
     readout.set_readout(state, &result.final_probabilities, reset_page);
     Ok(())
+}
+
+fn compact_readout(circuit: &Circuit, step_count: usize) -> Result<SimulationState, String> {
+    let stabilizer_error = match circuit.run_stabilizer_prefix(step_count) {
+        Ok(state) => return Ok(SimulationState::from_stabilizer(&state, circuit.num_qubits)),
+        Err(error) => error,
+    };
+    // Replay the authored gates with their phases intact.
+    match circuit.run_product_prefix(step_count) {
+        Ok(state) => Ok(SimulationState::from_product(state, circuit.num_qubits)),
+        Err(product_error) => {
+            // Report the first gate beyond the longest supported prefix.
+            let error = if (stabilizer_error.step, stabilizer_error.op_index)
+                > (product_error.step, product_error.op_index)
+            {
+                stabilizer_error
+            } else {
+                product_error
+            };
+            // Input diagnostics share (0, 0) with the first authored gate.
+            if error.step == 0 && error.op_index == 0 && circuit.run_stabilizer_prefix(0).is_err() {
+                return Err(error.message);
+            }
+            Err(format!(
+                "Step {}, gate {}: {}",
+                error.step + 1,
+                error.op_index + 1,
+                error.message
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -143,12 +161,12 @@ mod tests {
         let independent: Vec<_> = (0..50).map(|q| json!({"id":"H","qubits":[q]})).collect();
         let mut app = QCSimApp::default();
         app.handle_message(Message::UpdateCircuitFromJson(
-            json!({"num_qubits":50,"steps":[independent,[{"id":"Rz","qubits":[0],"params":[0.3]}]]}).to_string(),
+            json!({"num_qubits":50,"steps":[independent,[{"id":"CZPow","qubits":[0,1],"params":[0.3]}]]}).to_string(),
         ));
         app.handle_message(Message::RunSimulation);
         let error = app.state.ui_state.error_message.as_ref().unwrap();
         assert!(
-            error.contains("Step 2, gate 1") && error.contains("Rz"),
+            error.contains("Step 2, gate 1") && error.contains("CZPow"),
             "{error}"
         );
         assert!(!app.state.simulation_state.has_readout());
@@ -167,6 +185,46 @@ mod tests {
 
         app.handle_message(Message::DeleteGate(0, 0));
         assert!(!app.state.simulation_state.has_readout());
+    }
+
+    #[test]
+    fn wide_fourier_phase_edit_updates_samples_and_reports_a_later_entangling_gate() {
+        let mut app = QCSimApp::default();
+        app.handle_message(Message::LoadTemplate("qft_50.json".into()));
+        let end = app.state.circuit_state.num_timesteps;
+        app.handle_message(Message::ChangeTimesteps(end + 2));
+        app.handle_message(Message::PlaceGate(Gate::H, 0, end));
+        app.handle_message(Message::RunSimulation);
+        assert_eq!(app.state.ui_state.error_message, None);
+        let readout = &app.state.simulation_state;
+        assert!((readout.wire_one_probabilities[0] - 0.5).abs() < 1e-6);
+
+        app.handle_message(Message::SelectGateForEditing(48, 1));
+        app.handle_message(Message::UpdateGateAngle(1.0 / 3.0));
+        assert!(!app.state.simulation_state.has_readout());
+        app.handle_message(Message::SelectTimestep(end + 2));
+        assert_eq!(app.state.ui_state.error_message, None);
+        let readout = &app.state.simulation_state;
+        assert!((readout.wire_one_probabilities[0] - 0.25).abs() < 1e-6);
+        assert!(readout.wire_one_probabilities[1..]
+            .iter()
+            .all(|&p| (p - 0.5).abs() < 1e-6));
+        assert!(readout.quantum_state.is_none() && readout.populated_indices.is_empty());
+        let samples = readout.compact_samples.as_ref().unwrap();
+        assert_eq!(samples.rows.len(), MAX_SAMPLE_ROWS);
+        assert!(samples.distinct > MAX_SAMPLE_ROWS && samples.distinct <= COMPACT_SHOTS as usize);
+
+        app.handle_message(Message::PlaceMultiQubitGate(Gate::CX, vec![49, 0], end + 1));
+        app.handle_message(Message::RunSimulation);
+        let error = app.state.ui_state.error_message.as_ref().unwrap();
+        assert!(
+            error.contains(&format!("Step {}, gate 1", end + 2)) && error.contains("CX"),
+            "{error}"
+        );
+        assert!(!app.state.simulation_state.has_readout());
+        app.handle_message(Message::SelectTimestep(end + 1));
+        assert_eq!(app.state.ui_state.error_message, None);
+        assert!(app.state.simulation_state.compact_samples.is_some());
     }
 
     #[test]

@@ -36,11 +36,15 @@ assert!(result.diagnostics.is_empty());
 assert!((result.final_probabilities[0b11] - 0.5).abs() < 1e-6);
 ```
 
-### Compact Clifford readout (current checkout)
+### Compact circuit readout (current checkout)
 
 `circuit.run_stabilizer_prefix(step_count)` accepts 1–64 wires with per-wire preparations and the built-in H, SqrtZ (S), CX, X, Y, and Z gates. Call `state.probability_one(wire)` for an exact wire probability or `state.sample(shots, seed)` for joint computational-basis samples packed into `u64`, with q0 at bit zero. See the [50-wire GHZ example](src/core/stabilizer.rs).
 
 The native GHZ50 test measured **13,192 bytes of peak additional live heap** on Apple Silicon after circuit construction, including evolution, all 50 wire probabilities, sampling scratch space, and 1,024 returned samples. To reproduce from the workspace root, run `cargo test --manifest-path crates/quantsim_core/Cargo.toml --test stabilizer_scale -- --nocapture`.
+
+`circuit.run_product_prefix(step_count)` provides the same readout interface for product states on 1–64 wires. It evolves built-in single-wire gates, SWAP, and eligible CX, CZ and CZPow operations using one pair of complex amplitudes per wire. In the [50-qubit QFT](circuits/qft_50.json), each controlled phase has a partner wire that is still a definite bit, so its exponent can be edited freely. A controlled gate that the backend cannot prove preserves separability returns its column and operation index. This can also happen after arbitrary rotations cancel back to a basis state.
+
+For an individual complex amplitude, call `product.amplitude(index)` or construct `let view = stabilizer.amplitude_view()` once and call `view.amplitude(index)` for each point. These queries accept 64-bit basis indices and use constant additional memory per point. The product state retains the gate-defined phase. The stabilizer view fixes global phase by making the lowest occupied index positive real.
 
 ### Loading Built-in Templates
 

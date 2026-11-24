@@ -23,6 +23,7 @@ fn editing_sections_preserves_the_readout_and_exports_the_saved_ranges() {
 
     let mut draft = SectionDraft::new(2, None);
     draft.section.label = "Couple".into();
+    draft.section.description = "Flip q1 when q0 is one.".into();
     app.state.ui_state.section_editor = Some(draft);
     app.handle_message(Message::SaveSection);
     assert!(app.state.ui_state.section_editor.is_none());
@@ -40,10 +41,13 @@ fn editing_sections_preserves_the_readout_and_exports_the_saved_ranges() {
     app.handle_message(Message::SaveSection);
 
     let mut draft = SectionDraft::new(2, Some(&first));
+    assert_eq!(draft.section.description, "Flip q1 when q0 is one.");
+    let description = "Spread q0 across both states.\nThen flip q1 when q0 is one.";
     draft.section = CircuitSection {
         start: 1,
         end: 4,
         label: "Prepare Bell pair".into(),
+        description: description.into(),
     };
     app.state.ui_state.section_editor = Some(draft);
     app.handle_message(Message::SaveSection);
@@ -70,11 +74,13 @@ fn editing_sections_preserves_the_readout_and_exports_the_saved_ranges() {
     assert_eq!(
         exported["sections"],
         json!([
-            {"start": 1, "end": 2, "label": "Prepare Bell pair"},
+            {"start": 1, "end": 2, "label": "Prepare Bell pair", "description": description},
             {"start": 4, "end": 4, "label": "Readout"}
         ])
     );
+    app.handle_message(Message::UpdateCircuitFromJson(exported.to_string()));
     let saved = app.state.circuit_state.circuit.section_at(2);
+    assert_eq!(saved.unwrap().description, description);
     app.state.ui_state.section_editor = Some(SectionDraft::new(2, saved));
     app.handle_message(Message::DeleteSection);
     assert!(app.state.circuit_state.circuit.section_at(2).is_none());

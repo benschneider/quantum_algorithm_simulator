@@ -20,6 +20,9 @@ pub mod builder;
 pub mod circuit;
 /// Contains the `Simulator` for running quantum circuit simulations.
 pub mod engine;
+mod compact;
+/// Product-state simulation of separable circuit prefixes.
+pub mod product_state;
 /// Packed stabilizer simulation of Clifford circuit prefixes.
 pub mod stabilizer;
 /// Pretty-printing formatters for matrices and state vectors.

@@ -167,6 +167,7 @@ mod tests {
                         start: step,
                         end: step,
                         label,
+                        description: String::new(),
                     },
                 )
                 .unwrap();

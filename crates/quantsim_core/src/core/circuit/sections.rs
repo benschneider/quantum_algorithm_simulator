@@ -7,6 +7,8 @@ pub struct CircuitSection {
     pub start: usize,
     pub end: usize,
     pub label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
 }
 
 impl CircuitSection {
@@ -115,6 +117,7 @@ mod tests {
             start,
             end,
             label: label.into(),
+            description: String::new(),
         }
     }
 

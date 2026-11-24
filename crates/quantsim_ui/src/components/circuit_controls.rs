@@ -55,6 +55,30 @@ pub fn circuit_controls(ui: &mut egui::Ui, state: &mut AppState, messages: &mut 
             messages.push(Message::SelectTimestep(current_timestep));
         }
         let last_step = state.circuit_state.circuit.steps.len();
+        if ui
+            .add_enabled(current_timestep > 0, egui::Button::new("Previous step"))
+            .clicked()
+        {
+            messages.push(Message::SelectTimestep(current_timestep - 1));
+        }
+        let playback_label = if state.ui_state.next_playback_step_at.is_some() {
+            "Pause"
+        } else {
+            "Play"
+        };
+        if ui
+            .add_enabled(last_step > 0, egui::Button::new(playback_label))
+            .on_hover_text("Play or pause the circuit one timestep at a time")
+            .clicked()
+        {
+            messages.push(Message::TogglePlayback(ui.input(|i| i.time)));
+        }
+        if ui
+            .add_enabled(current_timestep < last_step, egui::Button::new("Next step"))
+            .clicked()
+        {
+            messages.push(Message::SelectTimestep(current_timestep + 1));
+        }
         if circuit_view
             && ui
                 .add_enabled(last_step > 0, egui::Button::new("Sections"))

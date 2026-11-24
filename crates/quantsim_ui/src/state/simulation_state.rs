@@ -1,10 +1,20 @@
 use quantsim_core::core::engine::QuantumState;
-use quantsim_core::stabilizer::StabilizerState;
+use quantsim_core::product_state::ProductState;
+use quantsim_core::stabilizer::{StabilizerAmplitudes, StabilizerState};
 use std::cmp::Reverse;
 
 use super::pagination::PaginationState;
+mod waveform;
+pub(crate) use waveform::{Waveform, WAVEFORM_POINTS};
+
+#[derive(Debug)]
+enum CompactAmplitudes {
+    Product(ProductState),
+    Stabilizer(StabilizerAmplitudes),
+}
 
 pub(crate) const COMPACT_SHOTS: u32 = 1024;
+const SAMPLE_SEED: u64 = 42;
 pub(crate) const MAX_SAMPLE_ROWS: usize = 16;
 
 #[derive(Debug)]
@@ -19,6 +29,10 @@ pub(crate) struct CompactSamples {
 pub struct SimulationState {
     pub quantum_state: Option<QuantumState>,
     pub(crate) compact_samples: Option<CompactSamples>,
+    compact_amplitudes: Option<CompactAmplitudes>,
+    waveform: Option<Waveform>,
+    auto_window: (u64, u64),
+    manual_window: Option<(u64, u64)>,
     /// Marginals in wire order (q0 first), including every basis probability.
     pub(crate) wire_one_probabilities: Vec<f64>,
     /// Basis indices shown in the joint-state table and chart.
@@ -34,6 +48,10 @@ impl Default for SimulationState {
         Self {
             quantum_state: Default::default(),
             compact_samples: None,
+            compact_amplitudes: None,
+            waveform: None,
+            auto_window: (0, 1),
+            manual_window: None,
             wire_one_probabilities: Vec::new(),
             populated_indices: Vec::new(),
             snapshot_states: Default::default(),
@@ -49,10 +67,35 @@ impl SimulationState {
     }
 
     pub(crate) fn from_stabilizer(state: &StabilizerState, wires: usize) -> Self {
-        let wire_one_probabilities = (0..wires)
-            .map(|wire| f64::from(state.probability_one(wire).expect("validated circuit wire")))
+        let mut readout = Self::from_samples(
+            (0..wires).map(|wire| state.probability_one(wire)),
+            state.sample(COMPACT_SHOTS, SAMPLE_SEED),
+        );
+        let amplitudes = state.amplitude_view();
+        readout.auto_window = amplitudes.basis_slice();
+        readout.compact_amplitudes = Some(CompactAmplitudes::Stabilizer(amplitudes));
+        readout.refresh_waveform();
+        readout
+    }
+
+    pub(crate) fn from_product(state: ProductState, wires: usize) -> Self {
+        let mut readout = Self::from_samples(
+            (0..wires).map(|wire| state.probability_one(wire)),
+            state.sample(COMPACT_SHOTS, SAMPLE_SEED),
+        );
+        readout.auto_window = state.basis_slice();
+        readout.compact_amplitudes = Some(CompactAmplitudes::Product(state));
+        readout.refresh_waveform();
+        readout
+    }
+
+    fn from_samples(
+        probabilities: impl Iterator<Item = Option<f32>>,
+        mut outcomes: Vec<u64>,
+    ) -> Self {
+        let wire_one_probabilities = probabilities
+            .map(|p| f64::from(p.expect("validated circuit wire")))
             .collect();
-        let mut outcomes = state.sample(COMPACT_SHOTS, 42);
         outcomes.sort_unstable();
         let mut rows: Vec<_> = outcomes
             .chunk_by(|left, right| left == right)
@@ -77,14 +120,21 @@ impl SimulationState {
         reset_page: bool,
     ) {
         self.compact_samples = None;
+        self.compact_amplitudes = None;
         self.wire_one_probabilities = vec![0.0; quantum_state.num_qubits];
         self.populated_indices.clear();
+        let mut first_nonzero = None;
+        let mut varying_bits = 0;
         for (index, (amp, &probability)) in quantum_state
             .state_vector
             .iter()
             .zip(probabilities)
             .enumerate()
         {
+            if amp.re != 0.0 || amp.im != 0.0 {
+                let index = index as u64;
+                varying_bits |= *first_nonzero.get_or_insert(index) ^ index;
+            }
             if amp.re.abs() > 1e-6 || amp.im.abs() > 1e-6 {
                 self.populated_indices.push(index);
             }
@@ -110,5 +160,10 @@ impl SimulationState {
         self.pagination.set_page(page);
         self.page_input_text = self.pagination.current_page.to_string();
         self.quantum_state = Some(quantum_state);
+        self.auto_window = (
+            first_nonzero.unwrap_or(0),
+            1u64.checked_shl(varying_bits.trailing_zeros()).unwrap_or(1),
+        );
+        self.refresh_waveform();
     }
 }

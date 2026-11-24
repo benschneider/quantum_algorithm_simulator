@@ -6,6 +6,7 @@ pub mod initial_state_editor_handler;
 pub mod json_editor_handler;
 pub mod menu_bar_handler;
 pub mod new_circuit_handler;
+pub(crate) mod playback;
 pub mod simulation_handler;
 
 use crate::{messages::Message, state::AppState};
@@ -18,7 +19,29 @@ use crate::{messages::Message, state::AppState};
 /// This function is the core of the application's logic. It is where all
 /// state changes are initiated.
 pub fn handle_message(state: &mut AppState, message: Message, messages: &mut Vec<Message>) {
+    if matches!(
+        message,
+        Message::RunSimulation
+            | Message::SelectTimestep(_)
+            | Message::InspectLayoutSite { .. }
+            | Message::LoadTemplate(_)
+            | Message::ChangeQubits(_)
+            | Message::ChangeTimesteps(_)
+            | Message::CircuitDimensionsChanged { .. }
+            | Message::PlaceGate(..)
+            | Message::PlaceMultiQubitGate(..)
+            | Message::MoveGate(..)
+            | Message::DeleteGate(..)
+            | Message::UpdateGateAngle(_)
+            | Message::SwapControlAndTarget
+            | Message::UpdateCircuitFromJson(_)
+            | Message::ApplyInitialStateFromEditor(_)
+            | Message::ResetInitialState
+    ) {
+        state.ui_state.next_playback_step_at = None;
+    }
     match message {
+        Message::TogglePlayback(now) => playback::toggle(state, now),
         Message::NewCircuit => new_circuit_handler::new_circuit_handler(state),
         Message::LoadTemplate(_)
         | Message::SaveCircuit
