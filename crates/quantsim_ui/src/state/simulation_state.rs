@@ -5,6 +5,7 @@ use quantsim_core::stabilizer::{StabilizerAmplitudes, StabilizerState};
 use quantsim_core::BasisIndex;
 
 use super::pagination::PaginationState;
+pub(crate) mod cut;
 mod waveform;
 pub(crate) use waveform::{Waveform, WAVEFORM_POINTS};
 
@@ -63,6 +64,7 @@ impl CompactSamples {
 #[derive(Debug)]
 pub struct SimulationState {
     pub quantum_state: Option<QuantumState>,
+    pub(crate) cut: Option<cut::CutInspection>,
     pub(crate) compact_samples: Option<CompactSamples>,
     compact_amplitudes: Option<CompactAmplitudes>,
     waveform: Option<Waveform>,
@@ -84,6 +86,7 @@ impl Default for SimulationState {
     fn default() -> Self {
         Self {
             quantum_state: Default::default(),
+            cut: None,
             compact_samples: None,
             compact_amplitudes: None,
             waveform: None,
@@ -219,6 +222,7 @@ impl SimulationState {
         probabilities: &[f32],
         reset_page: bool,
     ) {
+        self.cut = None;
         self.compact_samples = None;
         self.compact_amplitudes = None;
         self.wire_one_probabilities = vec![0.0; quantum_state.num_qubits];

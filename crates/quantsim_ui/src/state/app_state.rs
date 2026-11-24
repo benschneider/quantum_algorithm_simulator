@@ -27,6 +27,19 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub(crate) fn cut_crosses_gate(&self, step: usize, operation_index: usize) -> bool {
+        let ui = &self.ui_state;
+        ui.show_results_window
+            && ui.results_view == super::ui_state::ResultsView::EntanglementCut
+            && step == ui.current_timestep
+            && self.simulation_state.cut.as_ref().is_some_and(|cut| {
+                cut.step == step
+                    && cut.order == ui.cut_order
+                    && Some(cut.left_sites) == ui.cut_left_sites
+                    && cut.crossing_gates.binary_search(&operation_index).is_ok()
+            })
+    }
+
     /// Creates a new `AppState` with default values.
     pub fn new() -> Self {
         // Load the built-in circuit templates from the `quantsim_core` library.

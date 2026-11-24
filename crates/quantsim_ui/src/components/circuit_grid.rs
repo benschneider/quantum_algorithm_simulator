@@ -141,12 +141,19 @@ pub fn circuit_grid(
                 }
             }
             GridCell::Gate(gate) => {
-                let button = egui::Button::new(RichText::new(&gate.label).color(gate.text_color))
-                    .fill(gate.color);
-                let response = ui.place(gate.rect, button).on_hover_text(format!(
+                let mut button =
+                    egui::Button::new(RichText::new(&gate.label).color(gate.text_color))
+                        .fill(gate.color);
+                let mut tooltip = format!(
                     "{}\n{}\nQubits: {:?}\nParams: {:?}",
                     gate.full_name, gate.description, gate.qubits, gate.params
-                ));
+                );
+                if state.cut_crosses_gate(gate.col + 1, gate.operation_index) {
+                    button =
+                        button.stroke(egui::Stroke::new(2.5_f32, ui.visuals().hyperlink_color));
+                    tooltip.push_str("\nCrosses the selected cut");
+                }
+                let response = ui.place(gate.rect, button).on_hover_text(tooltip);
 
                 if response.drag_started() {
                     let payload = DraggedItem::GridGate(gate.row, gate.col);

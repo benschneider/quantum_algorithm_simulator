@@ -17,6 +17,11 @@
 use include_dir::{include_dir, Dir};
 
 static CIRCUITS_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/circuits");
+// The benchmark and editor share the same exported gate schedule.
+const SYCAMORE_PATCH: (&str, &str) = (
+    "sycamore_patch_16.json",
+    include_str!("../examples/sycamore_mps/patch.json"),
+);
 
 /// Retrieves the names of all available circuit templates.
 ///
@@ -28,6 +33,7 @@ pub fn get_circuit_names() -> Vec<String> {
         .files()
         .filter_map(|f| f.path().file_name())
         .filter_map(|s| s.to_str())
+        .chain(std::iter::once(SYCAMORE_PATCH.0))
         .map(|s| s.to_string())
         .collect()
 }
@@ -42,6 +48,9 @@ pub fn get_circuit_names() -> Vec<String> {
 ///
 /// An `Option` containing the JSON string of the circuit if found, otherwise `None`.
 pub fn get_circuit(name: &str) -> Option<String> {
+    if name == SYCAMORE_PATCH.0 {
+        return Some(SYCAMORE_PATCH.1.to_owned());
+    }
     CIRCUITS_DIR
         .get_file(name)
         .and_then(|f| f.contents_utf8())
@@ -70,10 +79,12 @@ pub fn get_circuit(name: &str) -> Option<String> {
 /// // Load the Bell state circuit
 /// let circuit = circuits::load_template("bell").unwrap();
 /// ```
-pub fn load_template(name: &str) -> Result<crate::core::circuit::Circuit, Box<dyn std::error::Error>> {
+pub fn load_template(
+    name: &str,
+) -> Result<crate::core::circuit::Circuit, Box<dyn std::error::Error>> {
     let json_name = format!("{}.json", name);
-    let json_content = get_circuit(&json_name)
-        .ok_or_else(|| format!("Circuit template '{}' not found", name))?;
+    let json_content =
+        get_circuit(&json_name).ok_or_else(|| format!("Circuit template '{}' not found", name))?;
 
     let data: crate::core::circuit::CircuitData = serde_json::from_str(&json_content)?;
     let mut circuit = crate::core::circuit::Circuit::new(data.num_qubits);

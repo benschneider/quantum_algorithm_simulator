@@ -84,6 +84,8 @@ pub struct GateCell {
     pub row: usize,
     /// The column (time step) of the gate.
     pub col: usize,
+    /// Index of the authored operation in this column, shared by all its wire cells.
+    pub operation_index: usize,
     /// The full name of the gate.
     pub full_name: String,
     /// A description of the gate's function.
@@ -280,9 +282,10 @@ pub(crate) fn generate_grid_in_view(
 
             let gate_op = circuit.steps[col]
                 .iter()
-                .find(|op| op.qubits.contains(&(row as u32)));
+                .enumerate()
+                .find(|(_, op)| op.qubits.contains(&(row as u32)));
 
-            if let Some(op) = gate_op {
+            if let Some((operation_index, op)) = gate_op {
                 let gate_group = column_map.get(&row).copied();
                 let color = choose_gate_fill(ui, gate_group);
                 let text_color = choose_text_color(color);
@@ -319,6 +322,7 @@ pub(crate) fn generate_grid_in_view(
                     qubits: op.qubits.iter().map(|&q| q as usize).collect(),
                     row,
                     col,
+                    operation_index,
                     full_name: match &op.name {
                         Some(name) => format!("{name} ({full_name})"),
                         None => full_name,
@@ -403,6 +407,29 @@ fn visible_indices(
 mod tests {
     use super::*;
     use quantsim_core::core::types::Operation;
+
+    #[test]
+    fn crossing_gate_endpoints_share_the_authored_operation_index() {
+        let mut circuit = Circuit::new(4);
+        circuit.steps = vec![vec![
+            Operation::new(Gate::H, vec![2], vec![]),
+            Operation::new(Gate::CX, vec![0, 1], vec![]),
+        ]];
+        let _ = egui::Context::default().run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let grid = generate_circuit_grid(&circuit, ui, 1, 1);
+                let indices: Vec<_> = grid
+                    .cells
+                    .iter()
+                    .filter_map(|cell| match cell {
+                        GridCell::Gate(gate) => Some((gate.row, gate.operation_index)),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(indices, [(0, 1), (1, 1), (2, 0)]);
+            });
+        });
+    }
 
     #[test]
     fn virtual_cells_keep_distinct_ids_beyond_four_billion_positions() {

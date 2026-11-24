@@ -1,6 +1,6 @@
 //! Rank estimates for two-row MPS circuits and the native seed-53 echo experiment.
 
-pub use crate::core::mps_bound::{circuit_bound, BondBound};
+pub use crate::core::mps_bound::{circuit_bound, cut_bound, BondBound, CutBound, CutOrder};
 
 // Share the fixture, ideal gates and evolution kernels with the native benchmark.
 #[cfg(feature = "mps-ladder")]

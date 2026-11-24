@@ -21,7 +21,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quantsim_core = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.1" }
+quantsim_core = { git = "https://github.com/benschneider/quantum_algorithm_simulator", tag = "v0.4.2" }
 ```
 
 ### Basic Example
@@ -52,7 +52,7 @@ For an individual complex amplitude, call `product.amplitude_wide(&index)`, `gro
 
 ### Matrix product state experiment on a 2×8 Sycamore patch
 
-This native example compares an eight-tensor MPS against the simulator’s single-precision dense engine and a double-precision dense reference. It checks all 65,536 complex amplitudes after every round. To try the same circuit in this checkout, paste the exported JSON into the editor’s **JSON** tab, select **Apply Changes**, then **Run ▶**. Each round contains a rotation step and a coupling step. The final dense readout is at step 32. [16-round patch JSON](examples/sycamore_mps/patch.json)
+This native example compares an eight-tensor MPS against the simulator’s single-precision dense engine and a double-precision dense reference. It checks all 65,536 complex amplitudes after every round. To try the same circuit, open **File → Load Template → Qubit layouts → Sycamore 2×8 patch**. Each round contains a rotation step and a coupling step. The final dense readout is at step 32. [16-round patch JSON](examples/sycamore_mps/patch.json)
 
 Run from the repository root. The first argument sets the number of rounds and the optional second argument creates a new circuit file. Longer runs extend the same seeded circuit.
 

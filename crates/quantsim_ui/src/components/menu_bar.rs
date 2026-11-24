@@ -80,9 +80,11 @@ fn template_category(file: &str) -> &'static str {
         "fourier_wave_50" | "qft" | "qft4" | "qft_50" => "Fourier transforms",
         "plaquette_z_check" => "Error correction",
         name if name.starts_with("error_correction_") => "Error correction",
-        "sycamore_53" | "sycamore_echo_53" | "ring_interferometer_8" | "tree_ghz_7" => {
-            "Qubit layouts"
-        }
+        "sycamore_53"
+        | "sycamore_echo_53"
+        | "sycamore_patch_16"
+        | "ring_interferometer_8"
+        | "tree_ghz_7" => "Qubit layouts",
         "bell_256" | "ghz_50" | "grouped_blocks_1024" | "phase_echo_512" => SCALE_EXPERIMENTS,
         _ => "Other circuits",
     }
@@ -106,6 +108,7 @@ fn template_picker(ui: &mut egui::Ui, state: &mut AppState, messages: &mut Vec<M
             ui.collapsing(category, |ui| {
                 for file in files {
                     let label = match file.as_str() {
+                        "sycamore_patch_16.json" => "Sycamore 2×8 patch".into(),
                         "ring_interferometer_8.json" => "Ring interferometer (8 qubits)".into(),
                         "tree_ghz_7.json" => "Binary tree GHZ (7 qubits)".into(),
                         _ => file.trim_end_matches(".json").replace('_', " "),

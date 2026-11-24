@@ -1,6 +1,7 @@
 use super::json_editor_handler::load_circuit_json;
 use crate::state::ui_state::{CentralPanelTab, LayoutView, StackCamera};
 use crate::{messages::Message, state::AppState};
+use quantsim_core::mps_ladder::CutOrder;
 
 pub fn handle_menu_bar_message(state: &mut AppState, message: Message, _messages: &mut [Message]) {
     match message {
@@ -15,10 +16,15 @@ pub fn handle_menu_bar_message(state: &mut AppState, message: Message, _messages
                 if ui.error_message.is_none() {
                     match template_name.as_str() {
                         "sycamore_echo_53.json"
+                        | "sycamore_patch_16.json"
                         | "ring_interferometer_8.json"
                         | "tree_ghz_7.json" => {
                             ui.active_central_tab = CentralPanelTab::Layout;
                             ui.layout_view = LayoutView::Plane;
+                            if template_name == "sycamore_patch_16.json" {
+                                ui.cut_order = CutOrder::PairedColumns;
+                                ui.cut_left_sites = None;
+                            }
                         }
                         "sycamore_53.json" => {
                             ui.active_central_tab = CentralPanelTab::Layout;

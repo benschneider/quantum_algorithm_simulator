@@ -50,6 +50,8 @@ The application will be available at `http://localhost:8080`.
 trunk build --release
 ```
 
+To update the GitHub Pages build, run `./deploy-web.sh` from the repository root with Trunk 0.21.14, Python 3 and the WebAssembly target installed. When Pages serves `main /docs`, commit the regenerated `docs/` assets with the source. When Pages uses the GitHub Actions source, a push to `main` builds and deploys the site. [Deployment workflow](../../.github/workflows/pages.yml)
+
 ## Usage
 
 ### Interface Overview
@@ -73,15 +75,30 @@ The application consists of several key panels:
 ### Key Features
 
 #### Circuit Construction
-- Visual drag-and-drop gate placement
-- Support for multi-qubit gates
-- Real-time circuit validation
+
+- Choose a gate from the palette and click an empty cell to place it. For a controlled-X gate, click the control and then the target in the same column.
+- Choose **Insert QFT…** to insert an editable Fourier transform. Select its first wire, width and starting point. Later gates move to the right.
+- Use **Layout → Edit layout** to set site positions and physical links. The circuit JSON stores one integer `[x, y]` position per wire and lists each link as a pair of wire indices. You can apply gates between unlinked sites too.
+- Use **Sections** beside the timestep slider to label a range of steps. In **JSON**, choose **Copy to Clipboard** to save a copy of the circuit or paste an edited version and choose **Apply Changes**.
 
 #### Simulation
 
 - Step-by-step execution with time scrubbing
 - Up to 21 wires, **Joint state** lists the populated basis states above the display threshold. For wider circuits, **Joint samples** summarizes 1,024 shots and **Wire readout** gives each wire’s probability directly from the simulated state.
 - Open the estimated peak RAM beside **Run** to set **Warn above** in MiB. The estimate covers simulation buffers. A warning still lets you run the circuit.
+
+<details>
+<summary>Memory estimates for three 30-wire circuits</summary>
+
+These estimates were read before running in Chrome on November 23, 2026. The warning threshold in the second case was set to 1 MiB.
+
+| Gates | Estimated peak RAM | Browser check |
+| --- | ---: | --- |
+| H on q0, then a chain of 29 CNOTs | ≤197 KiB | Inspected at step 0 |
+| Controlled quarter-phase gates joining 16 wires | ≤3 MiB | Completed all 16 steps |
+| Controlled quarter-phase gates joining all 30 wires | ≤32.1 GiB | Inspected at step 0 |
+
+</details>
 
 In this checkout, **File → Load Template** includes two editable wide circuits, **phase echo 512** and **grouped blocks 1024**. **MPS ladder echo 256** opens a separate bond-cap experiment. Its browser view shows the recorded return curve, and its desktop **Run echo** button executes the selected cap. [Wide circuit walkthroughs](assets/docs/tutorials/template_guide.md#try-a-wider-circuit)
 

@@ -44,6 +44,8 @@ pub(super) fn load_circuit_json(state: &mut AppState, json: String) {
 
     let ui = &mut state.ui_state;
     ui.current_timestep = 0;
+    ui.cut_order = quantsim_core::mps_ladder::CutOrder::WireOrder;
+    ui.cut_left_sites = None;
     ui.layout_draft = None;
     ui.selected_layout_wire = circuit_state
         .circuit

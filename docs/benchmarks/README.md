@@ -2,17 +2,17 @@
 
 ## What the qubit counts mean
 
-The editor stores the full state through **21 qubits**. Above 21 it tries compact methods, and the input state and gates determine which ones can run. The following measurements come from native benchmarks on a 32 GB Apple M1 Max. Open **Settings → MPS ladder experiment** to explore the recorded 256-qubit return curve in the browser or run the selected bond cap on desktop.
+Measuring a qubit gives one bit, either 0 or 1. With two qubits there are four possible results (`00`, `01`, `10`, `11`). A third qubit doubles that list to eight. To predict what happens after *any* gate, one approach is to keep a number called an **amplitude** for every result. Its size determines how likely that result is. Its phase lets different paths to the same result reinforce or cancel each other.
 
-| Benchmark result | Practical limit |
-|---|---|
-| **1,024 qubits on four structured circuits** | Independent qubits, separate entangled blocks of up to four qubits, a GHZ circuit using Clifford gates, and a quantum Fourier transform starting from a known bit string all passed analytical checks. Each has structure the simulator can exploit. |
-| **24 qubits tracked together in one dense state** | The native dense and grouped simulators both reached this width on the connected non-Clifford test. Each extra qubit in the dense group doubles its state storage. At 32 qubits, the single-precision state and its output probabilities alone would need 48 GiB, exceeding the machine’s memory. |
-| **256 qubits on a two-row MPS ladder** | On the eight-round ladder, cap 32 gave a reversal probability of 1.6 × 10⁻¹³. With paired gates and cap 256, the simulator recovered the input within 10⁻¹² of certainty in 5.14 s at 134 MiB peak RSS. This circuit has a depth-dependent rank bound. Full forward-state fidelity was compared with dense simulation at 8 and 16 qubits. [256-qubit echo and independent control](#recovering-the-256-qubit-input) |
+Try **File → Load Template → Entanglement → ghz**. When you run it, the three qubits give either `000` or `111`, each half the time. The same pattern extends to 256 qubits. They all read zero together or all read one together. The simulator can track that relationship and the phase between the two possibilities in very little memory. We tested this pattern through 1,024 qubits on a Mac with 32 GB of memory. [Explore the circuit templates](../../crates/quantsim_ui/assets/docs/tutorials/template_guide.md#find-a-correlation)
 
-**MPS accuracy depends on the circuit depth and the bond cap.** The cap limits how many terms carry correlations across each split in the ladder. On the 16-qubit circuit, a cap of 32 gave a whole-state fidelity of **0.299 after eight rounds** and **0.032 after sixteen**. A fidelity of 1 means a perfect match. Raising the cap to 128 gave **0.782 after eight rounds**. The uncapped middle split reached 256 terms. A follow-up measured the loss at each cut. At eight rounds, giving the middle cut more capacity accounted for almost all the improvement from 0.299 to 0.675 in the paired, budgeted run. [Per-cut comparison](#paired-gates-and-a-tensor-budget) · [Eight-round benchmark](benchmark.csv) · [Round-by-round fidelity](../../crates/quantsim_core/examples/sycamore_mps/bond_caps.csv)
+A different circuit on the same machine used a full table of amplitudes for just 24 qubits. Each extra qubit doubles the table. At 32 qubits, storing the amplitudes and their probabilities in that test would take 48 GiB. The browser editor uses the full table through 21 qubits and tries compact descriptions for wider circuits. How far you can go depends on the gates and the state they create. [Compare the measured circuits](#selected-results)
 
-[Raw benchmark CSV](benchmark.csv) · [Machine and build metadata](metadata.json) · [Correctness probes](correctness-probes.json) · [LinkedIn release summary](release-summary.md)
+You can also ask how much accuracy a smaller description costs. Open **Settings → MPS ladder experiment**. A *matrix product state* (MPS) stores the state in linked pieces, one per column of the ladder. Imagine dividing the ladder between two columns. The **bond cap** limits how much detail the model can keep about correlations between everything to the left and everything to the right.
+
+In the experiment, 256 qubits start at zero. The simulator applies a sequence of gates, then undoes them. How often does it recover all zeros with a smaller cap? The browser shows the recorded results, and the desktop app can repeat the experiment. [Compare return probabilities](#choosing-a-bond-cap)
+
+[Raw benchmark data](benchmark.csv) · [Machine and build details](metadata.json) · [Correctness checks](correctness-probes.json) · [Release summary](release-summary.md)
 
 ## Reproduce
 
@@ -94,6 +94,8 @@ At 1,024 qubits the QFT adds about 55 KiB of requested heap over the prebuilt ci
 
 On the 16-qubit MPS ladder, caps 32 and 128 used 1.20 and 4.65 MiB incremental live heap, respectively. The uncapped run agreed with the independent dense vector within the exact-path tolerance and used 4.39 MiB incremental heap. A binding cap can cost more workspace than the uncapped QR path because it runs an additional eigensolve. One 16-qubit dense vector needs 0.50 MiB (f32) or 1.00 MiB (f64). At 256 qubits and cap 32, the forward norm error was $4.44\times10^{-16}$.
 
+The 16-qubit ladder also allows a check against the complete state. A whole-state fidelity of 1 means a perfect match. At cap 32 the fidelity was 0.299 after eight rounds and 0.032 after sixteen. Raising the cap to 128 gave 0.782 after eight rounds. On the 256-qubit ladder the cap-32 echo returned to the starting state with probability 1.6 × 10⁻¹³. A separate cap-256 run recovered it within 10⁻¹² of certainty. [Round-by-round fidelity](../../crates/quantsim_core/examples/sycamore_mps/bond_caps.csv) · [256-qubit echo and independent control](#recovering-the-256-qubit-input)
+
 ### Paired gates and a tensor budget
 
 On the 16-qubit, eight-round ladder, **the middle cut accounted for most of the recoverable fidelity in this comparison**. The cap-32 pilot lost weight on three cuts. From left to right their cumulative losses were 0.250, 0.555 and 0.101. Giving only the middle cut more capacity raised dense-reference fidelity from 0.300 to 0.675 under the same paired schedule. The planner uses these local weights to rank cuts. Later truncations and renormalization also affect the final fidelity.
@@ -124,7 +126,7 @@ python3 -B docs/benchmarks/compare-mps.py --offline --out target/mps-comparison
 python3 docs/benchmarks/plot.py --mps-policy-csv target/mps-comparison/mps-policy.csv --out target/mps-comparison
 ```
 
-![Memory and accuracy of the fixed, paired and adaptive MPS policies at 16 and 256 qubits](mps-policy.png)
+[Compare memory and accuracy for the three MPS policies](mps-policy.png)
 
 ### Recovering the 256-qubit input
 
@@ -171,11 +173,9 @@ python3 docs/benchmarks/plot.py --mps-cap-curve target/echo-cap-replay/mps-cap-c
 
 ### Plots
 
-![Dense storage theory, measured live heap, and peak RSS on logarithmic memory axes](memory-scaling.png)
-
-![Native release wall time by workload and MPS cap](time-scaling.png)
-
-![MPS live heap vs full-state fidelity and global return probability](mps-memory-fidelity.png)
+- How does memory use grow as qubits are added? [Measured memory and full-state storage](memory-scaling.png)
+- How much time did each circuit take? [Native execution times](time-scaling.png)
+- What accuracy did each memory budget buy on the ladder? [Memory, state fidelity and echo return](mps-memory-fidelity.png)
 
 ### Verification of the original audit
 

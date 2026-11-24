@@ -1,4 +1,6 @@
 use nalgebra::Complex;
+use quantsim_core::core::schmidt::cut_readout;
+use quantsim_core::mps_ladder::{cut_bound, CutOrder};
 use quantsim_core::{circuit::Circuit, circuits, types::Gate, CircuitBuilder};
 use quantsim_ui::{
     messages::Message,
@@ -16,17 +18,36 @@ const MATCHINGS: [&[[u32; 2]]; 3] = [
 ];
 
 #[test]
-fn exported_sixteen_round_patch_reaches_dense_readout() {
+fn sixteen_round_patch_matches_dense_reference_at_its_middle_cut() {
     let mut app = QCSimApp::default();
-    let patch = include_str!("../../quantsim_core/examples/sycamore_mps/patch.json");
-    app.handle_message(Message::UpdateCircuitFromJson(patch.into()));
+    app.handle_message(Message::LoadTemplate("sycamore_patch_16.json".into()));
     assert_eq!(app.state.ui_state.error_message, None);
+    assert_eq!(
+        app.state.ui_state.active_central_tab,
+        CentralPanelTab::Layout
+    );
+    assert_eq!(app.state.ui_state.layout_view, LayoutView::Plane);
+    let order = CutOrder::PairedColumns;
     assert_eq!(app.state.circuit_state.circuit.sections.len(), 16);
-    app.handle_message(Message::RunSimulation);
-    assert_eq!(app.state.ui_state.error_message, None);
-    assert_eq!(app.state.ui_state.current_timestep, 32);
-    let output = app.state.simulation_state.quantum_state.as_ref().unwrap();
-    assert_eq!(output.state_vector.len(), 65_536);
+
+    // Independent complex128 dense SVD, with q0–q3 and q8–q11 on the left.
+    for (step, rank, entropy) in [(6, 16u32, 3.809747195), (32, 256, 7.248559327)] {
+        app.handle_message(if step == 32 {
+            Message::RunSimulation
+        } else {
+            Message::SelectTimestep(step)
+        });
+        assert_eq!(app.state.ui_state.error_message, None);
+        assert_eq!(app.state.ui_state.current_timestep, step);
+        let circuit = &app.state.circuit_state.circuit;
+        let bound = cut_bound(circuit, step, order, 4).unwrap();
+        assert_eq!(bound.rank, rank.into());
+        let dense = app.state.simulation_state.quantum_state.as_ref().unwrap();
+        assert_eq!(dense.state_vector.len(), 65_536);
+        let actual = cut_readout(dense.state_vector.as_slice(), 16, order, 4).unwrap();
+        assert_eq!(actual.rank, rank as usize);
+        assert!((actual.entropy_bits - entropy).abs() < 1e-5, "step {step}");
+    }
 }
 
 #[test]

@@ -1,7 +1,15 @@
 use quantsim_core::{
     circuit::{CircuitSection, QubitLayout},
     core::gates::Gate,
+    mps_ladder::CutOrder,
 };
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) enum ResultsView {
+    Waveform,
+    Overview,
+    EntanglementCut,
+}
 
 #[derive(Debug)]
 pub(crate) struct QftDraft {
@@ -148,6 +156,9 @@ pub struct UIState {
     pub(crate) mps_ladder: crate::components::mps_ladder::LadderWindow,
     pub show_gate_editor_window: bool,
     pub show_results_window: bool,
+    pub(crate) results_view: ResultsView,
+    pub(crate) cut_order: CutOrder,
+    pub(crate) cut_left_sites: Option<usize>,
     pub show_info_window: bool,
     pub show_about_window: bool,
     pub show_tutorial_window: bool,
@@ -186,6 +197,9 @@ impl Default for UIState {
             mps_ladder: Default::default(),
             show_gate_editor_window: false,
             show_results_window: false,
+            results_view: ResultsView::Waveform,
+            cut_order: CutOrder::WireOrder,
+            cut_left_sites: None,
             show_info_window: false,
             show_about_window: false,
             show_tutorial_window: false,

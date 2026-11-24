@@ -26,6 +26,8 @@ pub(crate) mod mps_bound;
 pub mod grouped;
 /// Product-state simulation of separable circuit prefixes.
 pub mod product_state;
+/// Schmidt rank and entanglement entropy of a small dense pure state.
+pub mod schmidt;
 /// Packed stabilizer simulation of Clifford circuit prefixes.
 pub mod stabilizer;
 /// Pretty-printing formatters for matrices and state vectors.

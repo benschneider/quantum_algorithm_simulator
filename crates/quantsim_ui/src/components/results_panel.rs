@@ -1,9 +1,11 @@
 use crate::messages::Message;
 use crate::state::simulation_state::{CompactSamples, COMPACT_SHOTS};
+use crate::state::ui_state::ResultsView;
 use crate::state::AppState;
 use egui_plot::{Bar, BarChart, GridMark, Plot};
 use quantsim_core::{circuit::QubitRole, core::engine::QuantumState, BasisIndex};
 
+mod cut;
 mod overview;
 mod waveform;
 
@@ -11,13 +13,6 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
     let circuit = &state.circuit_state.circuit;
     let simulation = &mut state.simulation_state;
     let step = state.ui_state.current_timestep;
-    if !simulation.has_readout() {
-        ui.label(format!("No readout for step {step}."));
-        return ui
-            .button(format!("Read step {step}"))
-            .clicked()
-            .then_some(Message::SelectTimestep(step));
-    }
     if step == 0 {
         ui.heading("Step 0 · Initial state");
     } else if let Some(section) = circuit.section_at(step) {
@@ -30,27 +25,32 @@ pub fn results_panel(ui: &mut egui::Ui, state: &mut AppState) -> Option<Message>
         ui.heading(format!("After step {step}"));
     }
 
-    // Results moves between a window and a bottom panel on resize.
-    let mode_id = egui::Id::new("results_probability_overview");
-    let previous_mode = ui.data(|data| data.get_temp::<bool>(mode_id).unwrap_or(false));
-    let mut show_overview = previous_mode;
+    let mode = &mut state.ui_state.results_view;
     ui.horizontal_wrapped(|ui| {
-        ui.selectable_value(&mut show_overview, false, "Amplitude waveform");
-        ui.selectable_value(&mut show_overview, true, "Overview");
-        if show_overview {
+        ui.selectable_value(mode, ResultsView::Waveform, "Amplitude waveform");
+        ui.selectable_value(mode, ResultsView::Overview, "Overview");
+        ui.selectable_value(mode, ResultsView::EntanglementCut, "Entanglement cut");
+        if *mode == ResultsView::Overview && simulation.has_readout() {
             if simulation.compact_samples.is_some() {
                 ui.label(format!("Sampled · {COMPACT_SHOTS} shots"));
             } else {
                 ui.label("Exact probabilities");
             }
-        } else {
+        } else if *mode == ResultsView::Waveform && simulation.has_readout() {
             waveform::legend(ui);
         }
     });
-    if previous_mode != show_overview {
-        ui.data_mut(|data| data.insert_temp(mode_id, show_overview));
+    if *mode == ResultsView::EntanglementCut {
+        return cut::show(ui, state);
     }
-    if show_overview {
+    if !simulation.has_readout() {
+        ui.label(format!("No readout for step {step}."));
+        return ui
+            .button(format!("Read step {step}"))
+            .clicked()
+            .then_some(Message::SelectTimestep(step));
+    }
+    if *mode == ResultsView::Overview {
         overview::show(ui, simulation);
     } else {
         waveform::show(ui, simulation);

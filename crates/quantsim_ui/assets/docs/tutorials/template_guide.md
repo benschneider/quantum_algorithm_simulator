@@ -8,6 +8,23 @@ Under **Qubit layouts**, open **Ring interferometer (8 qubits)** and step throug
 
 Open **Binary tree GHZ (7 qubits)** in the same category. Step through the CNOTs and watch each newly reached qubit turn the same color as the root. At the final step every qubit reads 1 half the time. In **Results**, the only joint outcomes are seven zeros and seven ones.
 
+## Measure entanglement across a cut
+
+Open **Entanglement > bell**, press **Run**, and choose **Entanglement cut** in **Results**. The cut separates q0 and q1. The CNOT crosses it at step 2. Its predicted rank bound is 2, the dense state has rank 2, and the entropy is 1 bit. Right-click the H gate at step 1 to remove it, then press **Run** again. The same CNOT still gives a bound of 2. Its input is now `00`, so the dense rank stays at 1 and the entropy is 0 bits.
+
+Open **Qubit layouts > Sycamore 2×8 patch**. Choose **Entanglement cut** and use **Paired columns** with four columns on the left (q0–q3 and q8–q11). In **Circuit**, click a round heading to read its final coupling step. The two SYC gates that cross the middle cut act on q3–q4 and q11–q12 at steps 6, 14, 22 and 30.
+
+| Round | Step | Rank bound | Dense rank | Entropy (bits) |
+| --- | --- | --- | --- | --- |
+| Input | 0 | 1 | 1 | 0 |
+| 2 | 4 | 1 | 1 | 0 |
+| 3 | 6 | 16 | 16 | 3.810 |
+| 7 | 14 | 256 | 256 | 7.632 |
+| 11 | 22 | 256 | 256 | 7.199 |
+| 16 | 32 | 256 | 256 | 7.249 |
+
+Compare rounds 7 and 11. Both states occupy all 256 Schmidt terms across the cut. The entropy drops at round 11 because their weights become less evenly distributed.
+
 ## Find a correlation
 
 - **Bell** — Click step 1. The two populated rows are `00` and `01`, so only q0 is uncertain. At step 2 the rows are `00` and `11`. Each wire now reads 1 half the time, and the two always agree.

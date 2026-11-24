@@ -1,5 +1,13 @@
 # Quantum Algorithm Simulator releases
 
+## 0.4.2
+
+**Results → Entanglement cut** lets you split a circuit into two groups of qubits and step through the gates that connect them. The inspector shows the rank and entropy bounds predicted from the gates. Through 16 qubits, it also calculates the numerical rank and entropy from the simulated state. [Open the simulator](https://benschneider.github.io/quantum_algorithm_simulator/)
+
+- **Try the Bell pair.** Load **File → Load Template → Entanglement → bell** and press **Run**. Across the cut between q0 and q1, the rank is 2 and the entropy is 1 bit. Remove the H gate and run again. The CNOT still gives a rank bound of 2, while the measured rank falls to 1 and the entropy to zero. [Illustrated introduction](README.md#your-first-experiment)
+- **Follow the Sycamore patch.** Under **Qubit layouts**, open **Sycamore 2×8 patch** and compare rounds 7 and 11 across the middle cut. The rank stays at 256 while the entropy falls from 7.632 to 7.199 bits. The circuit grid outlines the gates crossing the cut at the selected step. [Walkthrough and round-by-round results](crates/quantsim_ui/assets/docs/tutorials/template_guide.md#measure-entanglement-across-a-cut)
+- **Read the qubit counts.** The revised benchmark introduction starts with the eight possible outcomes of a three-qubit measurement, then shows how a much wider circuit can still fit in memory. [What the qubit counts mean](docs/benchmarks/README.md#what-the-qubit-counts-mean)
+
 ## 0.4.1
 
 **File → Load Template** now groups 24 editable circuits into six categories. Under **Qubit layouts**, two new examples open directly in the 2D map. [Open the simulator](https://benschneider.github.io/quantum_algorithm_simulator/)
