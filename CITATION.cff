@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software in research, please cite the specific version used.
+type: software
+title: "Quantum Algorithm Simulator (quantsim)"
+version: "0.4.3"
+authors:
+  - family-names: Schneider
+    given-names: Ben Helmut
+    orcid: "https://orcid.org/0000-0001-9043-2170"
+repository-code: "https://github.com/benschneider/quantum_algorithm_simulator"
+url: "https://benschneider.github.io/quantum_algorithm_simulator/"
+license:
+  - MIT
+  - Apache-2.0
+abstract: >-
+  An open-source, interactive quantum circuit simulator for scientific
+  exploration, education, and step-by-step circuit analysis on consumer
+  hardware. Implemented in Rust, it supports native desktop and browser-based
+  WebAssembly execution, state inspection, and spatial and temporal circuit
+  visualization. Simulation methods include dense state vectors, stabilizer
+  tableaux, product-state factorization, dynamically grouped quantum states,
+  and matrix product states. Circuit-aware memory estimates and configurable
+  MPS bond limits help users explore resource and accuracy tradeoffs.
+  Achievable circuit widths and approximation accuracy depend on circuit
+  structure, entanglement, and simulation settings. The source repository
+  includes correctness tests and reproducible benchmark examples. The software
+  is available under either the MIT or Apache-2.0 license, at the user's option.
+keywords:
+  - quantum computing
+  - quantum circuit simulation
+  - tensor networks
+  - matrix product states
+  - stabilizer simulation
+  - entanglement
+  - scientific computing
+  - Rust
+  - quantum education

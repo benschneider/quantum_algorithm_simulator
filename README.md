@@ -66,6 +66,14 @@ Try **Scale experiments → bell 256** under **File → Load Template**. Only th
 - **Measure entanglement.** In **Results → Entanglement cut**, split the wires into two groups to see how strongly the groups are entangled. Try the Bell pair first, then follow the same measurement on the 16-qubit Sycamore patch. [Cut inspector walkthrough and results](crates/quantsim_ui/assets/docs/tutorials/template_guide.md#measure-entanglement-across-a-cut)
 - **Run locally or use Rust.** The desktop app runs offline. Developers can also use the simulation library directly. [Desktop installation](crates/quantsim/README.md#quick-start) · [Rust library](crates/quantsim_core/README.md) · [Web build](crates/quantsim_ui/README.md#building-for-production) · [Release notes](RELEASES.md)
 
+## Citation
+
+If you use this simulator in research, cite the version you ran. On GitHub, select
+**Cite this repository** to copy the citation. [Citation metadata](CITATION.cff)
+
+For benchmark results, also report which simulation backend you used and any
+approximation settings, such as the bond dimension cap for a matrix product state.
+
 ## License
 
 Licensed under either of
