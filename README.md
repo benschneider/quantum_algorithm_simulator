@@ -11,9 +11,9 @@ How can two qubits each have a 50% chance of reading 1, yet agree every time you
 
 ## See it in action
 
-Choose a gate from the palette, then click an empty cell to place it on a wire.
+Build a Bell pair with two gates, then click step 2 to see why the two qubits always agree when measured together.
 
-<img src="docs/demo.gif" width="640" alt="Screen recording of gates being selected from the palette and placed on the circuit grid.">
+<img src="docs/demo.gif" width="640" alt="The editor starts with two empty wires. H is placed on q0, then CX connects q0 to q1. The joint state shows 00 and 11, each with 50% probability.">
 
 - Follow a single 1 as it moves between neighboring qubits on the Sycamore chip. [Watch the 3D walkthrough (36 seconds)](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4)
 - See how changing the phase on one qubit affects the final reading on another. [Watch the 53-qubit echo (29 seconds)](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
