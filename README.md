@@ -1,6 +1,22 @@
 # Quantum Algorithm Simulator
 
+[![Demo](https://img.shields.io/badge/demo-try%20now-2ea44f)](https://benschneider.github.io/quantum_algorithm_simulator/)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](COPYRIGHT.md)
+![Status](https://img.shields.io/badge/status-active-2ea44f)
+![Rust](https://img.shields.io/badge/language-Rust-orange?logo=rust)
+![WASM](https://img.shields.io/badge/Target-WASM-563d7c?logo=webassembly&logoColor=white)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
+
 How can two qubits each have a 50% chance of reading 1, yet agree every time you measure them? You can try that experiment in two steps. This simulator runs in your browser and lets you inspect a circuit after each step. [Open the simulator](https://benschneider.github.io/quantum_algorithm_simulator/)
+
+## See it in action
+
+Choose a gate from the palette, then click an empty cell to place it on a wire.
+
+<img src="docs/demo.gif" width="640" alt="Screen recording of gates being selected from the palette and placed on the circuit grid.">
+
+- Follow a single 1 as it moves between neighboring qubits on the Sycamore chip. [Watch the 3D walkthrough (36 seconds)](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4)
+- See how changing the phase on one qubit affects the final reading on another. [Watch the 53-qubit echo (29 seconds)](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.mp4) · [Looping GIF](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-echo-53.gif)
 
 ## Your first experiment
 
@@ -33,7 +49,7 @@ Open **File → Load Template → Qubit layouts → Ring interferometer (8 qubit
 - **Joint state** answers a question about all the qubits together. Each string is one possible result, with q0 on the right. On wider circuits, **Joint samples** shows the results of 1,024 simulated measurements. Each measurement is called a *shot*.
 - **Overview** shows how much probability falls in each range of bit strings. **Amplitude waveform** shows the real and imaginary parts of the amplitudes. Together these two traces let you see phase changes that leave the probabilities unchanged.
 
-Click a numbered column to revisit a step, choose **Play** to advance every two seconds, or open **Layout → 3D stack** to see the steps stacked above one another. [Watch the 36-second layout walkthrough](https://benschneider.github.io/quantum_algorithm_simulator/showcase/sycamore-3d-walkthrough.mp4)
+Click a numbered column to revisit a step, choose **Play** to advance every two seconds, or open **Layout → 3D stack** to see the steps stacked above one another. [See a circuit in the 3D results view](docs/plaquette-stack.jpg)
 
 ## Wide circuits and RAM estimates
 
