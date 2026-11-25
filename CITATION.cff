@@ -4,6 +4,7 @@ message: >-
 type: software
 title: "Quantum Algorithm Simulator (quantsim)"
 version: "0.4.3"
+doi: "10.5281/zenodo.24518850"
 authors:
   - family-names: Schneider
     given-names: Ben Helmut

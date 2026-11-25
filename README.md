@@ -1,6 +1,7 @@
 # Quantum Algorithm Simulator
 
 [![Demo](https://img.shields.io/badge/demo-try%20now-2ea44f)](https://benschneider.github.io/quantum_algorithm_simulator/)
+[![Zenodo DOI (all versions)](https://zenodo.org/badge/DOI/10.5281/zenodo.24518849.svg)](https://doi.org/10.5281/zenodo.24518849)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-informational?style=flat-square)](COPYRIGHT.md)
 ![Status](https://img.shields.io/badge/status-active-2ea44f)
 ![Rust](https://img.shields.io/badge/language-Rust-orange?logo=rust)
@@ -70,6 +71,8 @@ Try **Scale experiments → bell 256** under **File → Load Template**. Only th
 
 If you use this simulator in research, cite the version you ran. On GitHub, select
 **Cite this repository** to copy the citation. [Citation metadata](CITATION.cff)
+
+The archived source for **v0.4.3** has its own DOI: [10.5281/zenodo.24518850](https://doi.org/10.5281/zenodo.24518850).
 
 For benchmark results, also report which simulation backend you used and any
 approximation settings, such as the bond dimension cap for a matrix product state.
